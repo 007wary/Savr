@@ -1,57 +1,44 @@
 import 'react-native-url-polyfill/auto'
 import { createClient, processLock } from '@supabase/supabase-js'
-import { AppState, Platform } from 'react-native'
+import { AppState } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
+import Constants from 'expo-constants'
 
 const supabaseUrl = 'https://fsrbsqhlgfdqugixqtxc.supabase.co'
 const supabaseAnonKey = 'sb_publishable_fTC_70PzCNPOs0_sNh1nEQ_Boj4EjqC'
 
-// SecureStore has a 2048 byte limit per key
-// So we split large values across multiple keys
-const ExpoSecureStoreAdapter = {
+// Use SecureStore in real APK, AsyncStorage in Expo Go
+const isExpoGo = Constants.appOwnership === 'expo'
+
+const storage = isExpoGo ? AsyncStorage : {
   getItem: async (key) => {
     try {
-      const value = await SecureStore.getItemAsync(key)
-      return value
+      return await SecureStore.getItemAsync(key)
     } catch {
-      return null
+      return await AsyncStorage.getItem(key)
     }
   },
   setItem: async (key, value) => {
     try {
       await SecureStore.setItemAsync(key, value)
-    } catch (e) {
-      // If value too large for SecureStore fall back to splitting
-      const chunkSize = 1800
-      const chunks = Math.ceil(value.length / chunkSize)
-      await SecureStore.setItemAsync(`${key}_chunks`, String(chunks))
-      for (let i = 0; i < chunks; i++) {
-        await SecureStore.setItemAsync(
-          `${key}_${i}`,
-          value.slice(i * chunkSize, (i + 1) * chunkSize)
-        )
-      }
+    } catch {
+      await AsyncStorage.setItem(key, value)
     }
   },
   removeItem: async (key) => {
     try {
       await SecureStore.deleteItemAsync(key)
-      // Also clean up any chunks
-      const chunks = await SecureStore.getItemAsync(`${key}_chunks`)
-      if (chunks) {
-        const count = parseInt(chunks)
-        for (let i = 0; i < count; i++) {
-          await SecureStore.deleteItemAsync(`${key}_${i}`)
-        }
-        await SecureStore.deleteItemAsync(`${key}_chunks`)
-      }
+    } catch {}
+    try {
+      await AsyncStorage.removeItem(key)
     } catch {}
   },
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: ExpoSecureStoreAdapter,
+    storage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
