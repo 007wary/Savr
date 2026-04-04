@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS } from '../../src/constants/theme'
 import { sendNotification, requestNotificationPermission } from '../../src/lib/notifications'
+import { useRouter } from 'expo-router'
 
 const APP_VERSION = '1.0.0'
 
@@ -22,6 +23,7 @@ export default function Settings() {
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [saving, setSaving] = useState(false)
+const router = useRouter()  // 👈 add this
 
   async function fetchUser() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -164,27 +166,39 @@ export default function Settings() {
 
         <View style={styles.divider} />
 
-        <TouchableOpacity style={styles.row}>
-          <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#5B9BD522' }]}>
-              <Ionicons name="shield-checkmark-outline" size={18} color='#5B9BD5' />
-            </View>
-            <Text style={styles.rowTitle}>Privacy Policy</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-        </TouchableOpacity>
+        <TouchableOpacity
+  style={styles.row}
+  onPress={() => router.push({
+    pathname: '/screens/webview',
+    params: { type: 'privacy', title: 'Privacy Policy' }
+  })}
+>
+  <View style={styles.rowLeft}>
+    <View style={[styles.rowIcon, { backgroundColor: '#5B9BD522' }]}>
+      <Ionicons name="shield-checkmark-outline" size={18} color='#5B9BD5' />
+    </View>
+    <Text style={styles.rowTitle}>Privacy Policy</Text>
+  </View>
+  <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+</TouchableOpacity>
 
         <View style={styles.divider} />
 
-        <TouchableOpacity style={styles.row}>
-          <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#88888822' }]}>
-              <Ionicons name="document-text-outline" size={18} color={COLORS.textMuted} />
-            </View>
-            <Text style={styles.rowTitle}>Terms of Service</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-        </TouchableOpacity>
+        <TouchableOpacity
+  style={styles.row}
+  onPress={() => router.push({
+    pathname: '/screens/webview',
+    params: { type: 'terms', title: 'Terms of Service' }
+  })}
+>
+  <View style={styles.rowLeft}>
+    <View style={[styles.rowIcon, { backgroundColor: '#88888822' }]}>
+      <Ionicons name="document-text-outline" size={18} color={COLORS.textMuted} />
+    </View>
+    <Text style={styles.rowTitle}>Terms of Service</Text>
+  </View>
+  <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+</TouchableOpacity>
       </View>
 
       {/* Account */}
