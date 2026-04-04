@@ -23,9 +23,19 @@
       },
       "package": "com.saver.savr"
     },
-    "plugins": ["expo-router", "expo-notifications"],
+    "plugins": [
+      "expo-router",
+      "expo-notifications"
+    ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "06661bbd-b3e6-4e14-8480-9d3cd0ecda34"
+      }
+    },
+    "owner": "mwnswrang"
   }
 }
