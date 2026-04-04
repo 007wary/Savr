@@ -172,8 +172,9 @@ export default function History() {
       <View style={styles.headingRow}>
         <Text style={styles.heading}>History</Text>
         <TouchableOpacity style={styles.exportBtn} onPress={handleExport}>
-          <Text style={styles.exportText}>📤 Export</Text>
-        </TouchableOpacity>
+  <Ionicons name="share-outline" size={16} color={COLORS.accent} style={{ marginRight: 6 }} />
+  <Text style={styles.exportText}>Export</Text>
+</TouchableOpacity>
       </View>
 
       <View style={styles.searchRow}>
@@ -376,7 +377,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
   headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
-  exportBtn: { backgroundColor: COLORS.card, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
+  exportBtn: { backgroundColor: COLORS.card, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center' },
   exportText: { color: COLORS.accent, fontWeight: '600', fontSize: 13 },
   searchRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   searchBox: {

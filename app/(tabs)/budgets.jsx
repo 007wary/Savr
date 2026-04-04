@@ -8,6 +8,7 @@ import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { getCurrencySymbol } from '../../src/lib/currency'
 import { BudgetsSkeleton } from '../../src/components/SkeletonLoader'
+import { Ionicons } from '@expo/vector-icons'
 
 export default function Budgets() {
   const [budgets, setBudgets] = useState([])
@@ -116,14 +117,20 @@ export default function Budgets() {
                 </Text>
               </View>
               <TouchableOpacity
-                style={styles.editBtn}
-                onPress={() => {
-                  if (isEditing) { setEditing(null) }
-                  else { setEditing(cat.label); setInputValue(limit ? String(limit) : '') }
-                }}
-              >
-                <Text style={styles.editText}>{isEditing ? '✕' : '✏️'}</Text>
-              </TouchableOpacity>
+  style={[styles.editBtn, isEditing && styles.editBtnActive]}
+  onPress={() => {
+    if (isEditing) { setEditing(null) }
+    else { setEditing(cat.label); setInputValue(limit ? String(limit) : '') }
+  }}
+>
+  {isEditing
+    ? <Ionicons name="close" size={14} color={COLORS.accentRed} />
+    : <Ionicons name="pencil" size={14} color={COLORS.accent} />
+  }
+  <Text style={[styles.editBtnText, isEditing && { color: COLORS.accentRed }]}>
+    {isEditing ? 'Cancel' : 'Edit'}
+  </Text>
+</TouchableOpacity>
             </View>
 
             {limit && (
@@ -179,8 +186,19 @@ const styles = StyleSheet.create({
   catName: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2 },
   spentText: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
   limitText: { color: COLORS.textMuted },
-  editBtn: { padding: 6 },
-  editText: { fontSize: 16 },
+  editBtn: {
+  flexDirection: 'row', alignItems: 'center', gap: 4,
+  paddingVertical: 6, paddingHorizontal: 10,
+  borderRadius: 8, borderWidth: 1,
+  borderColor: COLORS.border, backgroundColor: COLORS.cardAlt,
+},
+editBtnActive: {
+  borderColor: COLORS.accentRed + '44',
+  backgroundColor: COLORS.accentRed + '11',
+},
+editBtnText: {
+  fontSize: 12, fontWeight: '600', color: COLORS.accent,
+},
   progressBg: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, marginBottom: 6 },
   progressFill: { height: 6, borderRadius: 3 },
   overText: { fontSize: 12, color: COLORS.accentRed, marginTop: 4, fontWeight: '600' },
