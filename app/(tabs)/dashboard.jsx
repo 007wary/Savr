@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
@@ -19,17 +20,12 @@ function CountUp({ value, style, symbol }) {
     const increment = (end - start) / steps
     let current = start
     let step = 0
-
     const timer = setInterval(() => {
       step++
       current += increment
-      if (step >= steps) {
-        current = end
-        clearInterval(timer)
-      }
+      if (step >= steps) { current = end; clearInterval(timer) }
       setDisplay(current)
     }, duration / steps)
-
     prev.current = end
     return () => clearInterval(timer)
   }, [value])
@@ -63,9 +59,9 @@ export default function Dashboard() {
   async function fetchData() {
     const { data: { user } } = await supabase.auth.getUser()
     const meta = user.user_metadata?.display_name
-const emailName = user.email.split('@')[0]
-const firstName = meta ? meta.split(' ')[0] : emailName
-setUserName(firstName)
+    const emailName = user.email.split('@')[0]
+    const firstName = meta ? meta.split(' ')[0] : emailName
+    setUserName(firstName)
 
     const symbol = await getCurrencySymbol()
     setCurrencySymbol(symbol)
@@ -79,12 +75,10 @@ setUserName(firstName)
     if (data) {
       const filtered = data.filter(e => e.date.startsWith(currentMonth))
       setExpenses(filtered)
-
       const lastMonth = getMonthInfo(monthOffset - 1).month
       const lastFiltered = data.filter(e => e.date.startsWith(lastMonth))
       const lastTotal = lastFiltered.reduce((sum, e) => sum + parseFloat(e.amount), 0)
       setLastMonthTotal(lastTotal)
-
       const now = new Date()
       const daysElapsed = monthOffset === 0 ? now.getDate() : new Date(currentMonth + '-01').getDate()
       setDaysInMonth(daysElapsed)
@@ -108,28 +102,28 @@ setUserName(firstName)
   function getCategoryInfo(label) {
     return CATEGORIES.find(c => c.label === label) || { icon: '📦', color: '#888' }
   }
-  function formatDate(dateStr) {
-  const today = new Date()
-  const date = new Date(dateStr)
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-  const yesterday = new Date(today)
-  yesterday.setDate(yesterday.getDate() - 1)
-  const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
 
-  if (dateStr === todayStr) return 'Today'
-  if (dateStr === yesterdayStr) return 'Yesterday'
-  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-}
+  function getGreeting() {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Good morning'
+    if (hour < 17) return 'Good afternoon'
+    if (hour < 21) return 'Good evening'
+    return 'Good night'
+  }
+
+  function formatDate(dateStr) {
+    const today = new Date()
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+    if (dateStr === todayStr) return 'Today'
+    if (dateStr === yesterdayStr) return 'Yesterday'
+    return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+  }
 
   if (loading) return <DashboardSkeleton />
 
-  function getGreeting() {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'Good morning'
-  if (hour < 17) return 'Good afternoon'
-  if (hour < 21) return 'Good evening'
-  return 'Good night'
-}
   return (
     <View style={{ flex: 1 }}>
       <ScrollView
@@ -139,17 +133,13 @@ setUserName(firstName)
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData() }} tintColor={COLORS.accent} />
         }
       >
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.greeting}>{getGreeting()}, {userName} 👋</Text>
         </View>
 
         {/* Month Navigator */}
         <View style={styles.monthNav}>
-          <TouchableOpacity
-            style={styles.monthNavBtn}
-            onPress={() => { setLoading(true); setMonthOffset(o => o - 1) }}
-          >
+          <TouchableOpacity style={styles.monthNavBtn} onPress={() => { setLoading(true); setMonthOffset(o => o - 1) }}>
             <Ionicons name="chevron-back" size={20} color={COLORS.text} />
           </TouchableOpacity>
           <View style={styles.monthNavCenter}>
@@ -169,12 +159,17 @@ setUserName(firstName)
           </TouchableOpacity>
         </View>
 
-        {/* Total Card */}
-        <View style={styles.totalCard}>
+        {/* Total Card with Gradient */}
+        <LinearGradient
+          colors={['#7C75FF', '#6C63FF', '#5A50FF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.totalCard}
+        >
           <Text style={styles.totalLabel}>Total Spent</Text>
           <CountUp value={total} style={styles.totalAmount} symbol={currencySymbol} />
           <Text style={styles.totalSub}>{expenses.length} transactions</Text>
-        </View>
+        </LinearGradient>
 
         {/* Stats Row */}
         {expenses.length > 0 && (
@@ -186,13 +181,8 @@ setUserName(firstName)
             <View style={styles.statDivider} />
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>vs Last Month</Text>
-              <Text style={[
-                styles.statValue,
-                { color: total > lastMonthTotal ? COLORS.accentRed : COLORS.accentGreen }
-              ]}>
-                {lastMonthTotal === 0 ? 'N/A' :
-                  `${total > lastMonthTotal ? '▲' : '▼'} ${currencySymbol}${Math.abs(total - lastMonthTotal).toFixed(0)}`
-                }
+              <Text style={[styles.statValue, { color: total > lastMonthTotal ? COLORS.accentRed : COLORS.accentGreen }]}>
+                {lastMonthTotal === 0 ? 'N/A' : `${total > lastMonthTotal ? '▲' : '▼'} ${currencySymbol}${Math.abs(total - lastMonthTotal).toFixed(0)}`}
               </Text>
             </View>
           </View>
@@ -243,10 +233,7 @@ setUserName(firstName)
                     <Text style={styles.catAmount}>{currencySymbol}{cat.total.toFixed(2)}</Text>
                   </View>
                   <View style={styles.progressBg}>
-                    <View style={[
-                      styles.progressFill,
-                      { width: `${Math.min((cat.total / total) * 100, 100)}%`, backgroundColor: cat.color }
-                    ]} />
+                    <View style={[styles.progressFill, { width: `${Math.min((cat.total / total) * 100, 100)}%`, backgroundColor: cat.color }]} />
                   </View>
                 </View>
               </View>
@@ -276,7 +263,6 @@ setUserName(firstName)
           </View>
         )}
 
-        {/* Empty state */}
         {expenses.length === 0 && (
           <View style={styles.empty}>
             <Ionicons name="stats-chart-outline" size={56} color={COLORS.border} />
@@ -287,11 +273,7 @@ setUserName(firstName)
       </ScrollView>
 
       {isCurrentMonth && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => router.push('/(tabs)/add')}
-          activeOpacity={0.85}
-        >
+        <TouchableOpacity style={styles.fab} onPress={() => router.push('/(tabs)/add')} activeOpacity={0.85}>
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
       )}
@@ -302,7 +284,7 @@ setUserName(firstName)
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
   header: { marginBottom: 16 },
-  greeting: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  greeting: { fontSize: 26, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
   monthNav: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: COLORS.card, borderRadius: 14, padding: 12,
@@ -311,23 +293,20 @@ const styles = StyleSheet.create({
   monthNavBtn: { padding: 4 },
   monthNavBtnDisabled: { opacity: 0.3 },
   monthNavCenter: { alignItems: 'center' },
-  monthNavText: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  monthNavText: { fontSize: 16, fontWeight: '700', color: COLORS.text, letterSpacing: -0.3 },
   monthNavBack: { fontSize: 12, color: COLORS.accent, marginTop: 4 },
-  totalCard: {
-    backgroundColor: COLORS.accent, borderRadius: 20,
-    padding: 24, marginBottom: 16, alignItems: 'center',
-  },
-  totalLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 8 },
-  totalAmount: { fontSize: 44, fontWeight: '900', color: '#fff', letterSpacing: -2 },
-  totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 },
+  totalCard: { borderRadius: 24, padding: 28, marginBottom: 16, alignItems: 'center' },
+  totalLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 8, letterSpacing: 1.5, textTransform: 'uppercase' },
+  totalAmount: { fontSize: 52, fontWeight: '900', color: '#fff', letterSpacing: -3 },
+  totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
   statsRow: {
     flexDirection: 'row', backgroundColor: COLORS.card,
     borderRadius: 16, padding: 16, marginBottom: 16,
     borderWidth: 1, borderColor: COLORS.border,
   },
   statCard: { flex: 1, alignItems: 'center' },
-  statLabel: { fontSize: 12, color: COLORS.textMuted, marginBottom: 6 },
-  statValue: { fontSize: 18, fontWeight: '800', color: COLORS.text },
+  statLabel: { fontSize: 11, color: COLORS.textMuted, marginBottom: 6, letterSpacing: 1, textTransform: 'uppercase' },
+  statValue: { fontSize: 20, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
   statDivider: { width: 1, backgroundColor: COLORS.border, marginHorizontal: 8 },
   insightsCard: {
     backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
@@ -336,7 +315,7 @@ const styles = StyleSheet.create({
   insightsTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
   insightText: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, lineHeight: 20 },
   section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, marginBottom: 14, letterSpacing: 1, textTransform: 'uppercase' },
+  sectionTitle: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted, marginBottom: 14, letterSpacing: 1.5, textTransform: 'uppercase' },
   categoryRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   catIconBox: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   catInfo: { flex: 1 },
@@ -348,9 +327,9 @@ const styles = StyleSheet.create({
   txRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border },
   txIcon: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   txInfo: { flex: 1 },
-  txCategory: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  txCategory: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2 },
   txNote: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  txAmount: { fontSize: 15, fontWeight: '700', color: COLORS.accentGreen },
+  txAmount: { fontSize: 15, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5 },
   empty: { alignItems: 'center', marginTop: 60 },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },

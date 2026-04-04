@@ -11,6 +11,7 @@ import { COLORS, CURRENCIES } from '../../src/constants/theme'
 import { sendNotification, requestNotificationPermission } from '../../src/lib/notifications'
 import { saveCurrency, loadCurrency } from '../../src/lib/currency'
 import BottomSheet from '../../src/components/BottomSheet'
+import { SettingsSkeleton } from '../../src/components/SkeletonLoader'
 
 const APP_VERSION = '1.0.0'
 
@@ -26,6 +27,7 @@ export default function Settings() {
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [saving, setSaving] = useState(false)
+  const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   async function fetchUser() {
@@ -37,6 +39,7 @@ export default function Settings() {
     setPhone(ph)
     const savedCurrency = await loadCurrency()
     setCurrency(savedCurrency)
+    setLoading(false)
   }
 
   useFocusEffect(useCallback(() => { fetchUser() }, []))
@@ -77,6 +80,8 @@ export default function Settings() {
   }
 
   const selectedCurrency = CURRENCIES.find(c => c.code === currency)
+
+  if (loading) return <SettingsSkeleton />
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
@@ -308,7 +313,7 @@ export default function Settings() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
-  heading: { fontSize: 26, fontWeight: '700', color: COLORS.text, marginBottom: 24 },
+  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8, marginBottom: 24 },
   profileCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: COLORS.card, borderRadius: 16,
@@ -322,7 +327,7 @@ const styles = StyleSheet.create({
   },
   avatarText: { fontSize: 20, fontWeight: '700', color: '#fff' },
   profileInfo: { flex: 1 },
-  displayName: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 2 },
+  displayName: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 2, letterSpacing: -0.3 },
   email: { fontSize: 13, color: COLORS.textMuted },
   phoneText: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
   editProfileBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -347,10 +352,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: COLORS.border, marginLeft: 66 },
   versionText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
   footer: { textAlign: 'center', color: COLORS.textMuted, fontSize: 13, marginTop: 8 },
-  sheetHeader: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', marginBottom: 20,
-  },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
   modalAvatar: {
     width: 72, height: 72, borderRadius: 36,

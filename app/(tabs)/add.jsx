@@ -57,11 +57,9 @@ export default function AddExpense() {
 
     const { data: { user } } = await supabase.auth.getUser()
 
-    // Redirect instantly
     resetForm()
     router.replace('/(tabs)/dashboard')
 
-    // Save in background
     if (isRecurring) {
       supabase.from('recurring_expenses').insert({
         user_id: user.id,
@@ -102,7 +100,6 @@ export default function AddExpense() {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.heading}>Add Expense</Text>
 
-        {/* Amount */}
         <Text style={styles.label}>Amount</Text>
         <TextInput
           style={styles.input}
@@ -113,7 +110,6 @@ export default function AddExpense() {
           keyboardType="numeric"
         />
 
-        {/* Quick amounts */}
         <View style={styles.quickAmounts}>
           {['50', '100', '200', '500', '1000', '2000'].map(q => (
             <TouchableOpacity
@@ -121,14 +117,11 @@ export default function AddExpense() {
               style={[styles.quickBtn, amount === q && styles.quickBtnActive]}
               onPress={() => setAmount(q)}
             >
-              <Text style={[styles.quickText, amount === q && styles.quickTextActive]}>
-                {q}
-              </Text>
+              <Text style={[styles.quickText, amount === q && styles.quickTextActive]}>{q}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Category */}
         <Text style={styles.label}>Category</Text>
         <View style={styles.categoryGrid}>
           {CATEGORIES.map((cat) => (
@@ -136,14 +129,23 @@ export default function AddExpense() {
               key={cat.label}
               style={[
                 styles.categoryBtn,
-                selectedCategory === cat.label && { backgroundColor: cat.color, borderColor: cat.color }
+                selectedCategory === cat.label && {
+                  backgroundColor: cat.color + '22',
+                  borderColor: cat.color,
+                  borderWidth: 2,
+                }
               ]}
               onPress={() => setSelectedCategory(cat.label)}
             >
-              <Text style={styles.categoryIcon}>{cat.icon}</Text>
+              <View style={[
+                styles.categoryIconBox,
+                { backgroundColor: selectedCategory === cat.label ? cat.color : COLORS.cardAlt }
+              ]}>
+                <Text style={styles.categoryIcon}>{cat.icon}</Text>
+              </View>
               <Text style={[
                 styles.categoryLabel,
-                selectedCategory === cat.label && { color: '#fff' }
+                selectedCategory === cat.label && { color: COLORS.text, fontWeight: '700' }
               ]}>
                 {cat.label}
               </Text>
@@ -151,7 +153,6 @@ export default function AddExpense() {
           ))}
         </View>
 
-        {/* Date Picker */}
         <Text style={styles.label}>{isRecurring ? 'First Due Date' : 'Date'}</Text>
         <TouchableOpacity style={styles.datePicker} onPress={() => setShowDatePicker(true)}>
           <Text style={styles.dateIcon}>📅</Text>
@@ -170,7 +171,6 @@ export default function AddExpense() {
           />
         )}
 
-        {/* Note */}
         <Text style={styles.label}>Note (optional)</Text>
         <TextInput
           style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
@@ -181,7 +181,6 @@ export default function AddExpense() {
           multiline
         />
 
-        {/* Recurring Toggle */}
         <View style={styles.recurringToggleRow}>
           <View style={styles.recurringToggleLeft}>
             <View style={styles.recurringIconBox}>
@@ -200,7 +199,6 @@ export default function AddExpense() {
           />
         </View>
 
-        {/* Frequency selector */}
         {isRecurring && (
           <View style={styles.frequencySection}>
             <Text style={styles.label}>Repeat every</Text>
@@ -221,15 +219,13 @@ export default function AddExpense() {
           </View>
         )}
 
-        {/* Submit */}
         <TouchableOpacity
           style={[styles.btn, isRecurring && { backgroundColor: COLORS.accentGreen }]}
           onPress={handleAdd}
         >
           <Ionicons
             name={isRecurring ? 'repeat' : 'checkmark'}
-            size={18}
-            color="#fff"
+            size={18} color="#fff"
             style={{ marginRight: 8 }}
           />
           <Text style={styles.btnText}>
@@ -258,26 +254,24 @@ const styles = StyleSheet.create({
     color: COLORS.text, fontSize: 15, borderWidth: 1,
     borderColor: COLORS.border, marginBottom: 20,
   },
-  quickAmounts: {
-    flexDirection: 'row', flexWrap: 'wrap',
-    gap: 8, marginBottom: 20, marginTop: -12,
-  },
-  quickBtn: {
-    paddingVertical: 8, paddingHorizontal: 14,
-    borderRadius: 20, borderWidth: 1,
-    borderColor: COLORS.border, backgroundColor: COLORS.card,
-  },
+  quickAmounts: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20, marginTop: -12 },
+  quickBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
   quickBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   quickText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
   quickTextActive: { color: '#fff' },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   categoryBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10,
-    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card,
+    width: '22%', alignItems: 'center',
+    paddingVertical: 12, borderRadius: 14,
+    borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.card, gap: 8,
   },
-  categoryIcon: { fontSize: 16 },
-  categoryLabel: { fontSize: 13, color: COLORS.textMuted, fontWeight: '500' },
+  categoryIconBox: {
+    width: 44, height: 44, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  categoryIcon: { fontSize: 22 },
+  categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
   datePicker: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: COLORS.card, borderRadius: 12, padding: 16,

@@ -50,6 +50,17 @@ export default function History() {
     return months.sort((a, b) => b.localeCompare(a))
   }
 
+  function formatDate(dateStr) {
+    const today = new Date()
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+    if (dateStr === todayStr) return 'Today'
+    if (dateStr === yesterdayStr) return 'Yesterday'
+    return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+
   const filtered = (expenses || []).filter(e => {
     const matchSearch = search === '' ||
       e.note?.toLowerCase().includes(search.toLowerCase()) ||
@@ -141,11 +152,11 @@ export default function History() {
         </View>
         <View style={styles.info}>
           <Text style={styles.category}>{item.category}</Text>
-          <Text style={styles.note}>{item.note || item.date}</Text>
+          <Text style={styles.note}>{item.note || formatDate(item.date)}</Text>
         </View>
         <View style={styles.right}>
           <Text style={styles.amount}>{currencySymbol}{parseFloat(item.amount).toFixed(2)}</Text>
-          <Text style={styles.date}>{item.date}</Text>
+          <Text style={styles.date}>{formatDate(item.date)}</Text>
         </View>
         <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}>
           <Text style={styles.deleteText}>✕</Text>
@@ -307,11 +318,28 @@ export default function History() {
             {CATEGORIES.map(cat => (
               <TouchableOpacity
                 key={cat.label}
-                style={[styles.categoryBtn, editCategory === cat.label && { backgroundColor: cat.color, borderColor: cat.color }]}
+                style={[
+                  styles.categoryBtn,
+                  editCategory === cat.label && {
+                    backgroundColor: cat.color + '22',
+                    borderColor: cat.color,
+                    borderWidth: 2,
+                  }
+                ]}
                 onPress={() => setEditCategory(cat.label)}
               >
-                <Text style={styles.categoryIcon}>{cat.icon}</Text>
-                <Text style={[styles.categoryLabel, editCategory === cat.label && { color: '#fff' }]}>{cat.label}</Text>
+                <View style={[
+                  styles.categoryIconBox,
+                  { backgroundColor: editCategory === cat.label ? cat.color : COLORS.cardAlt }
+                ]}>
+                  <Text style={styles.categoryIcon}>{cat.icon}</Text>
+                </View>
+                <Text style={[
+                  styles.categoryLabel,
+                  editCategory === cat.label && { color: COLORS.text, fontWeight: '700' }
+                ]}>
+                  {cat.label}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -347,7 +375,7 @@ export default function History() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
   headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  heading: { fontSize: 26, fontWeight: '700', color: COLORS.text },
+  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
   exportBtn: { backgroundColor: COLORS.card, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
   exportText: { color: COLORS.accent, fontWeight: '600', fontSize: 13 },
   searchRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
@@ -374,10 +402,10 @@ const styles = StyleSheet.create({
   iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   icon: { fontSize: 20 },
   info: { flex: 1 },
-  category: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  category: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2 },
   note: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   right: { alignItems: 'flex-end', marginRight: 10 },
-  amount: { fontSize: 15, fontWeight: '700', color: COLORS.accentGreen },
+  amount: { fontSize: 15, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5 },
   date: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
   deleteBtn: { padding: 4 },
   deleteText: { color: COLORS.accentRed, fontSize: 14, fontWeight: '700' },
@@ -403,14 +431,19 @@ const styles = StyleSheet.create({
     color: COLORS.text, fontSize: 15, borderWidth: 1,
     borderColor: COLORS.border, marginBottom: 16,
   },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
   categoryBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10,
-    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt,
+    width: '22%', alignItems: 'center',
+    paddingVertical: 12, borderRadius: 14,
+    borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: COLORS.cardAlt, gap: 8,
   },
-  categoryIcon: { fontSize: 14 },
-  categoryLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '500' },
+  categoryIconBox: {
+    width: 40, height: 40, borderRadius: 12,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  categoryIcon: { fontSize: 20 },
+  categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
   modalBtns: { flexDirection: 'row', gap: 12, marginTop: 8, marginBottom: 20 },
   cancelBtn: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
   cancelText: { color: COLORS.textMuted, fontWeight: '600', fontSize: 15 },

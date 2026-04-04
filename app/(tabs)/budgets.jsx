@@ -7,6 +7,7 @@ import { useFocusEffect } from 'expo-router'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { getCurrencySymbol } from '../../src/lib/currency'
+import { BudgetsSkeleton } from '../../src/components/SkeletonLoader'
 
 export default function Budgets() {
   const [budgets, setBudgets] = useState([])
@@ -15,6 +16,7 @@ export default function Budgets() {
   const [inputValue, setInputValue] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [loading, setLoading] = useState(true)
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -35,6 +37,7 @@ export default function Budgets() {
       const filtered = expenseData.filter(e => e.date.startsWith(currentMonth))
       setExpenses(filtered)
     }
+    setLoading(false)
     setRefreshing(false)
   }
 
@@ -44,21 +47,16 @@ export default function Budgets() {
     if (!inputValue || isNaN(parseFloat(inputValue))) {
       return Alert.alert('Invalid', 'Please enter a valid amount')
     }
-
     const { data: { user } } = await supabase.auth.getUser()
     const existing = budgets.find(b => b.category === category)
-
     if (existing) {
       await supabase.from('budgets').update({ limit_amount: parseFloat(inputValue) }).eq('id', existing.id)
     } else {
       await supabase.from('budgets').insert({
-        user_id: user.id,
-        category,
-        limit_amount: parseFloat(inputValue),
-        month: currentMonth
+        user_id: user.id, category,
+        limit_amount: parseFloat(inputValue), month: currentMonth
       })
     }
-
     setEditing(null)
     setInputValue('')
     fetchData()
@@ -73,15 +71,15 @@ export default function Budgets() {
   }
 
   function getSpent(category) {
-    return expenses
-      .filter(e => e.category === category)
-      .reduce((sum, e) => sum + parseFloat(e.amount), 0)
+    return expenses.filter(e => e.category === category).reduce((sum, e) => sum + parseFloat(e.amount), 0)
   }
 
   function getBudgetLimit(category) {
     const b = budgets.find(b => b.category === category)
     return b ? parseFloat(b.limit_amount) : null
   }
+
+  if (loading) return <BudgetsSkeleton />
 
   return (
     <ScrollView
@@ -110,7 +108,7 @@ export default function Budgets() {
               <View style={styles.cardInfo}>
                 <Text style={styles.catName}>{cat.label}</Text>
                 <Text style={styles.spentText}>
-                  Spent: <Text style={{ color: isOver ? COLORS.accentRed : COLORS.accentGreen }}>{currencySymbol}{spent.toFixed(2)}</Text>
+                  Spent: <Text style={{ color: isOver ? COLORS.accentRed : COLORS.accentGreen, fontWeight: '700' }}>{currencySymbol}{spent.toFixed(2)}</Text>
                   {limit
                     ? <Text style={styles.limitText}> / {currencySymbol}{limit.toFixed(2)}</Text>
                     : <Text style={styles.limitText}> (no budget set)</Text>
@@ -120,12 +118,8 @@ export default function Budgets() {
               <TouchableOpacity
                 style={styles.editBtn}
                 onPress={() => {
-                  if (isEditing) {
-                    setEditing(null)
-                  } else {
-                    setEditing(cat.label)
-                    setInputValue(limit ? String(limit) : '')
-                  }
+                  if (isEditing) { setEditing(null) }
+                  else { setEditing(cat.label); setInputValue(limit ? String(limit) : '') }
                 }}
               >
                 <Text style={styles.editText}>{isEditing ? '✕' : '✏️'}</Text>
@@ -134,24 +128,19 @@ export default function Budgets() {
 
             {limit && (
               <View style={styles.progressBg}>
-                <View style={[
-                  styles.progressFill,
-                  { width: `${percentage}%`, backgroundColor: isOver ? COLORS.accentRed : cat.color }
-                ]} />
+                <View style={[styles.progressFill, { width: `${percentage}%`, backgroundColor: isOver ? COLORS.accentRed : cat.color }]} />
               </View>
             )}
 
             {isOver && (
-              <Text style={styles.overText}>
-                ⚠️ Over budget by {currencySymbol}{(spent - limit).toFixed(2)}
-              </Text>
+              <Text style={styles.overText}>⚠️ Over budget by {currencySymbol}{(spent - limit).toFixed(2)}</Text>
             )}
 
             {isEditing && (
               <View style={styles.editRow}>
                 <TextInput
                   style={styles.editInput}
-                  placeholder={`Set budget amount`}
+                  placeholder={`Set budget (${currencySymbol})`}
                   placeholderTextColor={COLORS.textMuted}
                   value={inputValue}
                   onChangeText={setInputValue}
@@ -177,7 +166,7 @@ export default function Budgets() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
-  heading: { fontSize: 26, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
+  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8, marginBottom: 4 },
   subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 24 },
   card: {
     backgroundColor: COLORS.card, borderRadius: 16,
@@ -187,14 +176,14 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   cardInfo: { flex: 1 },
-  catName: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  catName: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2 },
   spentText: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
   limitText: { color: COLORS.textMuted },
   editBtn: { padding: 6 },
   editText: { fontSize: 16 },
   progressBg: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, marginBottom: 6 },
   progressFill: { height: 6, borderRadius: 3 },
-  overText: { fontSize: 12, color: COLORS.accentRed, marginTop: 4 },
+  overText: { fontSize: 12, color: COLORS.accentRed, marginTop: 4, fontWeight: '600' },
   editRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 8 },
   editInput: {
     flex: 1, backgroundColor: COLORS.cardAlt, borderRadius: 10,

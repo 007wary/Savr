@@ -1,21 +1,22 @@
 import { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
-  RefreshControl, Dimensions
+  RefreshControl
 } from 'react-native'
+import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { getCurrencySymbol } from '../../src/lib/currency'
-import { Ionicons } from '@expo/vector-icons'
-
-const SCREEN_WIDTH = Dimensions.get('window').width - 40
+import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
 
 export default function Reports() {
   const [expenses, setExpenses] = useState([])
   const [lastMonthExpenses, setLastMonthExpenses] = useState([])
   const [refreshing, setRefreshing] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [loading, setLoading] = useState(true)
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -35,12 +36,11 @@ export default function Reports() {
     if (data) {
       const filtered = data.filter(e => e.date.startsWith(currentMonth))
       setExpenses(filtered)
-
       const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
       const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
-      const lastFiltered = data.filter(e => e.date.startsWith(lastMonthKey))
-      setLastMonthExpenses(lastFiltered)
+      setLastMonthExpenses(data.filter(e => e.date.startsWith(lastMonthKey)))
     }
+    setLoading(false)
     setRefreshing(false)
   }
 
@@ -67,14 +67,15 @@ export default function Reports() {
     d.setDate(d.getDate() - i)
     const dayNum = d.getDate()
     const label = d.toLocaleString('default', { weekday: 'short' })
-    const amount = dailyMap[dayNum] || 0
-    last7.push({ day: dayNum, label, amount })
+    last7.push({ day: dayNum, label, amount: dailyMap[dayNum] || 0 })
   }
   const max7 = Math.max(...last7.map(d => d.amount), 1)
 
   const lastTotal = lastMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
   const daysElapsed = now.getDate()
   const dailyAvg = total / Math.max(daysElapsed, 1)
+
+  if (loading) return <ReportsSkeleton />
 
   return (
     <ScrollView
@@ -95,14 +96,17 @@ export default function Reports() {
         </View>
       ) : (
         <>
-          {/* Total card */}
-          <View style={styles.totalCard}>
+          <LinearGradient
+            colors={['#7C75FF', '#6C63FF', '#5A50FF']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.totalCard}
+          >
             <Text style={styles.totalLabel}>Total Spent</Text>
             <Text style={styles.totalAmount}>{currencySymbol}{total.toFixed(2)}</Text>
             <Text style={styles.totalSub}>{expenses.length} transactions</Text>
-          </View>
+          </LinearGradient>
 
-          {/* Month comparison card */}
           {lastTotal > 0 && (() => {
             const diff = total - lastTotal
             const pct = ((Math.abs(diff) / lastTotal) * 100).toFixed(0)
@@ -127,7 +131,6 @@ export default function Reports() {
             )
           })()}
 
-          {/* Bar chart */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Last 7 Days</Text>
             <View style={styles.barChart}>
@@ -148,7 +151,6 @@ export default function Reports() {
             </View>
           </View>
 
-          {/* Category breakdown */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Category Breakdown</Text>
             {categoryTotals.map(cat => (
@@ -172,7 +174,6 @@ export default function Reports() {
             ))}
           </View>
 
-          {/* Biggest expense */}
           {expenses.length > 0 && (() => {
             const biggest = [...expenses].sort((a, b) => b.amount - a.amount)[0]
             const cat = CATEGORIES.find(c => c.label === biggest.category) || { icon: '📦', color: '#888' }
@@ -198,26 +199,23 @@ export default function Reports() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
-  heading: { fontSize: 26, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
+  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8, marginBottom: 4 },
   subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 24 },
-  totalCard: {
-    backgroundColor: COLORS.accent, borderRadius: 20,
-    padding: 24, marginBottom: 16, alignItems: 'center',
-  },
-  totalLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 8 },
-  totalAmount: { fontSize: 38, fontWeight: '800', color: '#fff' },
-  totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 },
+  totalCard: { borderRadius: 24, padding: 28, marginBottom: 16, alignItems: 'center' },
+  totalLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 8, letterSpacing: 1.5, textTransform: 'uppercase' },
+  totalAmount: { fontSize: 42, fontWeight: '900', color: '#fff', letterSpacing: -2 },
+  totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
   compareCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
     marginBottom: 24, borderWidth: 1,
   },
   compareIcon: { fontSize: 32 },
-  compareTitle: { fontSize: 13, color: COLORS.textMuted, marginBottom: 4 },
+  compareTitle: { fontSize: 11, color: COLORS.textMuted, marginBottom: 4, letterSpacing: 1, textTransform: 'uppercase' },
   compareText: { fontSize: 15, color: COLORS.text, lineHeight: 22 },
   compareSubtext: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
   section: { marginBottom: 28 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, marginBottom: 16, letterSpacing: 1, textTransform: 'uppercase' },
+  sectionTitle: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted, marginBottom: 16, letterSpacing: 1.5, textTransform: 'uppercase' },
   barChart: {
     flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
     height: 160, backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
@@ -243,9 +241,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card, borderRadius: 16,
     padding: 20, borderWidth: 1, borderColor: COLORS.border,
   },
-  bigCategory: { fontSize: 16, fontWeight: '700', color: COLORS.text },
+  bigCategory: { fontSize: 16, fontWeight: '700', color: COLORS.text, letterSpacing: -0.3 },
   bigNote: { fontSize: 13, color: COLORS.textMuted, marginTop: 4 },
-  bigAmount: { fontSize: 20, fontWeight: '800', color: COLORS.accentGreen },
+  bigAmount: { fontSize: 20, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5 },
   empty: { alignItems: 'center', marginTop: 80 },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },
