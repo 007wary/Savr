@@ -5,14 +5,15 @@ import {
   KeyboardAvoidingView, Platform, ScrollView
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
+import { HistorySkeleton } from '../../src/components/SkeletonLoader'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 
 export default function History() {
   const [expenses, setExpenses] = useState(null)
-  const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [editingExpense, setEditingExpense] = useState(null)
   const [editAmount, setEditAmount] = useState('')
@@ -20,6 +21,12 @@ export default function History() {
   const [editNote, setEditNote] = useState('')
   const [editDate, setEditDate] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Search & filter
+  const [search, setSearch] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('All')
+  const [selectedMonth, setSelectedMonth] = useState('All')
+  const [showFilters, setShowFilters] = useState(false)
 
   async function fetchExpenses() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -34,6 +41,32 @@ export default function History() {
   }
 
   useFocusEffect(useCallback(() => { fetchExpenses() }, []))
+
+  // Get unique months from expenses
+  function getMonths() {
+    if (!expenses) return []
+    const months = [...new Set(expenses.map(e => e.date.slice(0, 7)))]
+    return months.sort((a, b) => b.localeCompare(a))
+  }
+
+  // Apply filters
+  const filtered = (expenses || []).filter(e => {
+    const matchSearch = search === '' ||
+      e.note?.toLowerCase().includes(search.toLowerCase()) ||
+      e.category.toLowerCase().includes(search.toLowerCase()) ||
+      String(e.amount).includes(search)
+    const matchCategory = selectedCategory === 'All' || e.category === selectedCategory
+    const matchMonth = selectedMonth === 'All' || e.date.startsWith(selectedMonth)
+    return matchSearch && matchCategory && matchMonth
+  })
+
+  const activeFilters = (selectedCategory !== 'All' ? 1 : 0) + (selectedMonth !== 'All' ? 1 : 0)
+
+  function clearFilters() {
+    setSelectedCategory('All')
+    setSelectedMonth('All')
+    setSearch('')
+  }
 
   async function handleDelete(id) {
     Alert.alert('Delete Expense', 'Are you sure?', [
@@ -79,39 +112,26 @@ export default function History() {
     setSaving(false)
   }
 
+  async function handleExport() {
+    if (!expenses || expenses.length === 0) {
+      return Alert.alert('No data', 'No expenses to export')
+    }
+    const headers = 'Date,Category,Amount,Note\n'
+    const rows = expenses.map(e =>
+      `${e.date},${e.category},${e.amount},"${e.note || ''}"`
+    ).join('\n')
+    const csvContent = headers + rows
+    const fileUri = FileSystem.documentDirectory + 'expenses.csv'
+    await FileSystem.writeAsStringAsync(fileUri, csvContent, { encoding: 'utf8' })
+    const isAvailable = await Sharing.isAvailableAsync()
+    if (isAvailable) {
+      await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'Export Expenses' })
+    }
+  }
+
   function getCategoryInfo(label) {
     return CATEGORIES.find(c => c.label === label) || { icon: '📦', color: '#888' }
   }
-
-  async function handleExport() {
-  if (expenses.length === 0) {
-    return Alert.alert('No data', 'No expenses to export')
-  }
-
-  // Build CSV content
-  const headers = 'Date,Category,Amount,Note\n'
-  const rows = expenses.map(e =>
-    `${e.date},${e.category},${e.amount},"${e.note || ''}"`
-  ).join('\n')
-  const csvContent = headers + rows
-
-  // Write to a file
-  const fileUri = FileSystem.documentDirectory + 'expenses.csv'
-  await FileSystem.writeAsStringAsync(fileUri, csvContent, {
-    encoding: 'utf8'
-  })
-
-  // Share the file
-  const isAvailable = await Sharing.isAvailableAsync()
-  if (isAvailable) {
-    await Sharing.shareAsync(fileUri, {
-      mimeType: 'text/csv',
-      dialogTitle: 'Export Expenses',
-    })
-  } else {
-    Alert.alert('Saved', `File saved to: ${fileUri}`)
-  }
-}
 
   function renderItem({ item }) {
     const cat = getCategoryInfo(item.category)
@@ -135,24 +155,79 @@ export default function History() {
     )
   }
 
+  if (expenses === null) return <HistorySkeleton />
+
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.headingRow}>
-  <Text style={styles.heading}>History</Text>
-  <TouchableOpacity style={styles.exportBtn} onPress={handleExport}>
-    <Text style={styles.exportText}>📤 Export</Text>
-  </TouchableOpacity>
-</View>
+        <Text style={styles.heading}>History</Text>
+        <TouchableOpacity style={styles.exportBtn} onPress={handleExport}>
+          <Text style={styles.exportText}>📤 Export</Text>
+        </TouchableOpacity>
+      </View>
 
-      {expenses !== null && expenses.length === 0 ? (
+      {/* Search bar */}
+      <View style={styles.searchRow}>
+        <View style={styles.searchBox}>
+          <Ionicons name="search-outline" size={16} color={COLORS.textMuted} style={{ marginRight: 8 }} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search expenses..."
+            placeholderTextColor={COLORS.textMuted}
+            value={search}
+            onChangeText={setSearch}
+          />
+          {search !== '' && (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          style={[styles.filterBtn, activeFilters > 0 && styles.filterBtnActive]}
+          onPress={() => setShowFilters(true)}
+        >
+          <Ionicons name="options-outline" size={18} color={activeFilters > 0 ? '#fff' : COLORS.text} />
+          {activeFilters > 0 && <Text style={styles.filterBadge}>{activeFilters}</Text>}
+        </TouchableOpacity>
+      </View>
+
+      {/* Active filter chips */}
+      {activeFilters > 0 && (
+        <View style={styles.chipRow}>
+          {selectedCategory !== 'All' && (
+            <TouchableOpacity style={styles.chip} onPress={() => setSelectedCategory('All')}>
+              <Text style={styles.chipText}>{selectedCategory} ✕</Text>
+            </TouchableOpacity>
+          )}
+          {selectedMonth !== 'All' && (
+            <TouchableOpacity style={styles.chip} onPress={() => setSelectedMonth('All')}>
+              <Text style={styles.chipText}>{selectedMonth} ✕</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={clearFilters}>
+            <Text style={styles.clearText}>Clear all</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Results count */}
+      {(search !== '' || activeFilters > 0) && (
+        <Text style={styles.resultsText}>{filtered.length} result{filtered.length !== 1 ? 's' : ''}</Text>
+      )}
+
+      {filtered.length === 0 ? (
         <View style={styles.centered}>
-          <Text style={{ fontSize: 48 }}>📭</Text>
-          <Text style={styles.emptyText}>No expenses yet</Text>
-          <Text style={styles.emptySubtext}>Tap ➕ to add your first one</Text>
+          <Text style={{ fontSize: 48 }}>🔍</Text>
+          <Text style={styles.emptyText}>No results found</Text>
+          <TouchableOpacity onPress={clearFilters}>
+            <Text style={{ color: COLORS.accent, marginTop: 8 }}>Clear filters</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
-          data={expenses || []}
+          data={filtered}
           keyExtractor={item => item.id}
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 40 }}
@@ -165,6 +240,78 @@ export default function History() {
           }
         />
       )}
+
+      {/* Filter Modal */}
+      <Modal
+        visible={showFilters}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowFilters(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filter</Text>
+              <TouchableOpacity onPress={() => setShowFilters(false)}>
+                <Ionicons name="close" size={22} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView>
+              {/* Category filter */}
+              <Text style={styles.filterLabel}>Category</Text>
+              <View style={styles.filterGrid}>
+                {['All', ...CATEGORIES.map(c => c.label)].map(cat => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[styles.filterChip, selectedCategory === cat && styles.filterChipActive]}
+                    onPress={() => setSelectedCategory(cat)}
+                  >
+                    {cat !== 'All' && (
+                      <Text style={{ fontSize: 14 }}>
+                        {CATEGORIES.find(c => c.label === cat)?.icon}
+                      </Text>
+                    )}
+                    <Text style={[styles.filterChipText, selectedCategory === cat && { color: '#fff' }]}>
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Month filter */}
+              <Text style={styles.filterLabel}>Month</Text>
+              <View style={styles.filterGrid}>
+                {['All', ...getMonths()].map(m => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[styles.filterChip, selectedMonth === m && styles.filterChipActive]}
+                    onPress={() => setSelectedMonth(m)}
+                  >
+                    <Text style={[styles.filterChipText, selectedMonth === m && { color: '#fff' }]}>
+                      {m === 'All' ? 'All' : new Date(m + '-01').toLocaleString('default', { month: 'short', year: 'numeric' })}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={styles.applyBtn}
+                onPress={() => setShowFilters(false)}
+              >
+                <Text style={styles.applyBtnText}>Apply Filters</Text>
+              </TouchableOpacity>
+
+              {activeFilters > 0 && (
+                <TouchableOpacity style={styles.clearBtn} onPress={() => { clearFilters(); setShowFilters(false) }}>
+                  <Text style={styles.clearBtnText}>Clear All Filters</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Edit Modal */}
       <Modal
@@ -180,10 +327,8 @@ export default function History() {
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Edit Expense</Text>
-
             <ScrollView keyboardShouldPersistTaps="handled">
-              {/* Amount */}
-              <Text style={styles.label}>Amount (₹)</Text>
+              <Text style={styles.filterLabel}>Amount (₹)</Text>
               <TextInput
                 style={styles.input}
                 value={editAmount}
@@ -191,41 +336,29 @@ export default function History() {
                 keyboardType="numeric"
                 placeholderTextColor={COLORS.textMuted}
               />
-
-              {/* Category */}
-              <Text style={styles.label}>Category</Text>
+              <Text style={styles.filterLabel}>Category</Text>
               <View style={styles.categoryGrid}>
                 {CATEGORIES.map(cat => (
                   <TouchableOpacity
                     key={cat.label}
-                    style={[
-                      styles.categoryBtn,
-                      editCategory === cat.label && { backgroundColor: cat.color, borderColor: cat.color }
-                    ]}
+                    style={[styles.categoryBtn, editCategory === cat.label && { backgroundColor: cat.color, borderColor: cat.color }]}
                     onPress={() => setEditCategory(cat.label)}
                   >
                     <Text style={styles.categoryIcon}>{cat.icon}</Text>
-                    <Text style={[
-                      styles.categoryLabel,
-                      editCategory === cat.label && { color: '#fff' }
-                    ]}>
+                    <Text style={[styles.categoryLabel, editCategory === cat.label && { color: '#fff' }]}>
                       {cat.label}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-
-              {/* Date */}
-              <Text style={styles.label}>Date</Text>
+              <Text style={styles.filterLabel}>Date</Text>
               <TextInput
                 style={styles.input}
                 value={editDate}
                 onChangeText={setEditDate}
                 placeholderTextColor={COLORS.textMuted}
               />
-
-              {/* Note */}
-              <Text style={styles.label}>Note (optional)</Text>
+              <Text style={styles.filterLabel}>Note</Text>
               <TextInput
                 style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
                 value={editNote}
@@ -233,20 +366,11 @@ export default function History() {
                 multiline
                 placeholderTextColor={COLORS.textMuted}
               />
-
-              {/* Buttons */}
               <View style={styles.modalBtns}>
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => setEditingExpense(null)}
-                >
+                <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingExpense(null)}>
                   <Text style={styles.cancelText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.saveBtn}
-                  onPress={handleSaveEdit}
-                  disabled={saving}
-                >
+                <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit} disabled={saving}>
                   <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save'}</Text>
                 </TouchableOpacity>
               </View>
@@ -260,7 +384,28 @@ export default function History() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
-  heading: { fontSize: 26, fontWeight: '700', color: COLORS.text, marginBottom: 20 },
+  headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  heading: { fontSize: 26, fontWeight: '700', color: COLORS.text },
+  exportBtn: { backgroundColor: COLORS.card, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
+  exportText: { color: COLORS.accent, fontWeight: '600', fontSize: 13 },
+  searchRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  searchBox: {
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    backgroundColor: COLORS.card, borderRadius: 12, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  searchInput: { flex: 1, color: COLORS.text, fontSize: 14, paddingVertical: 12 },
+  filterBtn: {
+    width: 46, height: 46, borderRadius: 12, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border,
+  },
+  filterBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  filterBadge: { position: 'absolute', top: 6, right: 6, fontSize: 9, color: '#fff', fontWeight: '700' },
+  chipRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' },
+  chip: { backgroundColor: COLORS.accent + '33', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 12 },
+  chipText: { color: COLORS.accent, fontSize: 12, fontWeight: '600' },
+  clearText: { color: COLORS.accentRed, fontSize: 12, fontWeight: '600' },
+  resultsText: { fontSize: 12, color: COLORS.textMuted, marginBottom: 10 },
   card: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: COLORS.card, borderRadius: 14,
@@ -279,15 +424,24 @@ const styles = StyleSheet.create({
   deleteText: { color: COLORS.accentRed, fontSize: 14, fontWeight: '700' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
-  emptySubtext: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
-  modalSheet: {
-    backgroundColor: COLORS.card, borderTopLeftRadius: 24,
-    borderTopRightRadius: 24, padding: 24, maxHeight: '90%',
-  },
+  modalSheet: { backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
   modalHandle: { width: 40, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 20 },
-  label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 16 },
+  filterLabel: { fontSize: 13, color: COLORS.textMuted, marginBottom: 10, marginLeft: 2, fontWeight: '600' },
+  filterGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  filterChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20,
+    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt,
+  },
+  filterChipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  filterChipText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '500' },
+  applyBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
+  applyBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  clearBtn: { borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, marginBottom: 20 },
+  clearBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 15 },
   input: {
     backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14,
     color: COLORS.text, fontSize: 15, borderWidth: 1,
@@ -302,14 +456,8 @@ const styles = StyleSheet.create({
   categoryIcon: { fontSize: 14 },
   categoryLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '500' },
   modalBtns: { flexDirection: 'row', gap: 12, marginTop: 8, marginBottom: 20 },
-  cancelBtn: {
-    flex: 1, borderRadius: 12, padding: 14, alignItems: 'center',
-    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt,
-  },
+  cancelBtn: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
   cancelText: { color: COLORS.textMuted, fontWeight: '600', fontSize: 15 },
   saveBtn: { flex: 1, backgroundColor: COLORS.accent, borderRadius: 12, padding: 14, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-exportBtn: { backgroundColor: COLORS.card, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
-exportText: { color: COLORS.accent, fontWeight: '600', fontSize: 13 },
 })

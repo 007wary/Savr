@@ -117,14 +117,27 @@ export default function AddExpense() {
 
         {/* Amount */}
         <Text style={styles.label}>Amount (₹)</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="0.00"
-          placeholderTextColor={COLORS.textMuted}
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="numeric"
-        />
+<TextInput
+  style={styles.input}
+  placeholder="0.00"
+  placeholderTextColor={COLORS.textMuted}
+  value={amount}
+  onChangeText={setAmount}
+  keyboardType="numeric"
+/>
+<View style={styles.quickAmounts}>
+  {['50', '100', '200', '500', '1000', '2000'].map(q => (
+    <TouchableOpacity
+      key={q}
+      style={[styles.quickBtn, amount === q && styles.quickBtnActive]}
+      onPress={() => setAmount(q)}
+    >
+      <Text style={[styles.quickText, amount === q && styles.quickTextActive]}>
+        ₹{q}
+      </Text>
+    </TouchableOpacity>
+  ))}
+</View>
 
         {/* Category */}
         <Text style={styles.label}>Category</Text>
@@ -302,4 +315,31 @@ const styles = StyleSheet.create({
     marginTop: 8, marginBottom: 40,
   },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  quickAmounts: {
+  flexDirection: 'row',
+  flexWrap: 'wrap',
+  gap: 8,
+  marginBottom: 20,
+  marginTop: -12,
+},
+quickBtn: {
+  paddingVertical: 8,
+  paddingHorizontal: 14,
+  borderRadius: 20,
+  borderWidth: 1,
+  borderColor: COLORS.border,
+  backgroundColor: COLORS.card,
+},
+quickBtnActive: {
+  backgroundColor: COLORS.accent,
+  borderColor: COLORS.accent,
+},
+quickText: {
+  fontSize: 13,
+  color: COLORS.textMuted,
+  fontWeight: '600',
+},
+quickTextActive: {
+  color: '#fff',
+},
 })

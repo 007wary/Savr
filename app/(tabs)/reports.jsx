@@ -11,6 +11,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width - 40
 
 export default function Reports() {
   const [expenses, setExpenses] = useState([])
+  const [lastMonthExpenses, setLastMonthExpenses] = useState([])
   const [refreshing, setRefreshing] = useState(false)
 
   const now = new Date()
@@ -28,6 +29,11 @@ export default function Reports() {
     if (data) {
       const filtered = data.filter(e => e.date.startsWith(currentMonth))
       setExpenses(filtered)
+
+      const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+      const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
+      const lastFiltered = data.filter(e => e.date.startsWith(lastMonthKey))
+      setLastMonthExpenses(lastFiltered)
     }
     setRefreshing(false)
   }
@@ -36,7 +42,6 @@ export default function Reports() {
 
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
 
-  // Category totals
   const categoryTotals = CATEGORIES.map(cat => {
     const catTotal = expenses
       .filter(e => e.category === cat.label)
@@ -44,16 +49,12 @@ export default function Reports() {
     return { ...cat, total: catTotal, percentage: total > 0 ? (catTotal / total) * 100 : 0 }
   }).filter(c => c.total > 0).sort((a, b) => b.total - a.total)
 
-  // Daily totals for bar chart
   const dailyMap = {}
   expenses.forEach(e => {
     const day = parseInt(e.date.split('-')[2])
     dailyMap[day] = (dailyMap[day] || 0) + parseFloat(e.amount)
   })
-  const days = Object.keys(dailyMap).map(d => ({ day: parseInt(d), amount: dailyMap[d] }))
-  const maxDay = days.length > 0 ? Math.max(...days.map(d => d.amount)) : 1
 
-  // Last 7 days for the bar chart
   const last7 = []
   for (let i = 6; i >= 0; i--) {
     const d = new Date()
@@ -64,6 +65,10 @@ export default function Reports() {
     last7.push({ day: dayNum, label, amount })
   }
   const max7 = Math.max(...last7.map(d => d.amount), 1)
+
+  const lastTotal = lastMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+  const daysElapsed = now.getDate()
+  const dailyAvg = total / Math.max(daysElapsed, 1)
 
   return (
     <ScrollView
@@ -91,7 +96,30 @@ export default function Reports() {
             <Text style={styles.totalSub}>{expenses.length} transactions</Text>
           </View>
 
-          {/* Bar chart - last 7 days */}
+          {/* Month comparison card */}
+          {lastTotal > 0 && (() => {
+            const diff = total - lastTotal
+            const pct = ((Math.abs(diff) / lastTotal) * 100).toFixed(0)
+            const isMore = diff > 0
+            return (
+              <View style={[styles.compareCard, { borderColor: isMore ? COLORS.accentRed + '44' : COLORS.accentGreen + '44' }]}>
+                <Text style={styles.compareIcon}>{isMore ? '📈' : '📉'}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.compareTitle}>vs Last Month</Text>
+                  <Text style={styles.compareText}>
+                    You spent{' '}
+                    <Text style={{ color: isMore ? COLORS.accentRed : COLORS.accentGreen, fontWeight: '700' }}>
+                      {isMore ? `₹${diff.toFixed(0)} more` : `₹${Math.abs(diff).toFixed(0)} less`}
+                    </Text>
+                    {' '}({pct}% {isMore ? 'increase' : 'decrease'})
+                  </Text>
+                  <Text style={styles.compareSubtext}>Last month: ₹{lastTotal.toFixed(0)} · Daily avg: ₹{dailyAvg.toFixed(0)}/day</Text>
+                </View>
+              </View>
+            )
+          })()}
+
+          {/* Bar chart */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Last 7 Days</Text>
             <View style={styles.barChart}>
@@ -103,10 +131,7 @@ export default function Reports() {
                   <View style={styles.barBg}>
                     <View style={[
                       styles.barFill,
-                      {
-                        height: `${(d.amount / max7) * 100}%`,
-                        backgroundColor: d.amount > 0 ? COLORS.accent : COLORS.border
-                      }
+                      { height: `${(d.amount / max7) * 100}%`, backgroundColor: d.amount > 0 ? COLORS.accent : COLORS.border }
                     ]} />
                   </View>
                   <Text style={styles.barLabel}>{d.label}</Text>
@@ -120,7 +145,6 @@ export default function Reports() {
             <Text style={styles.sectionTitle}>Category Breakdown</Text>
             {categoryTotals.map(cat => (
               <View key={cat.label} style={styles.catRow}>
-                {/* Left */}
                 <View style={[styles.catIcon, { backgroundColor: cat.color + '22' }]}>
                   <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
                 </View>
@@ -132,12 +156,8 @@ export default function Reports() {
                       <Text style={styles.catPercent}>{cat.percentage.toFixed(1)}%</Text>
                     </View>
                   </View>
-                  {/* Progress bar */}
                   <View style={styles.progressBg}>
-                    <View style={[
-                      styles.progressFill,
-                      { width: `${cat.percentage}%`, backgroundColor: cat.color }
-                    ]} />
+                    <View style={[styles.progressFill, { width: `${cat.percentage}%`, backgroundColor: cat.color }]} />
                   </View>
                 </View>
               </View>
@@ -174,23 +194,26 @@ const styles = StyleSheet.create({
   subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 24 },
   totalCard: {
     backgroundColor: COLORS.accent, borderRadius: 20,
-    padding: 24, marginBottom: 24, alignItems: 'center',
+    padding: 24, marginBottom: 16, alignItems: 'center',
   },
   totalLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 8 },
   totalAmount: { fontSize: 38, fontWeight: '800', color: '#fff' },
   totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 },
+  compareCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
+    marginBottom: 24, borderWidth: 1,
+  },
+  compareIcon: { fontSize: 32 },
+  compareTitle: { fontSize: 13, color: COLORS.textMuted, marginBottom: 4 },
+  compareText: { fontSize: 15, color: COLORS.text, lineHeight: 22 },
+  compareSubtext: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
   section: { marginBottom: 28 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 16 },
   barChart: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    height: 160,
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
+    height: 160, backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: COLORS.border,
   },
   barCol: { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end' },
   barAmount: { fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textAlign: 'center' },

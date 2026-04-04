@@ -1,178 +1,313 @@
-import { useState, useCallback } from 'react'
-import {
-  View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, RefreshControl
-} from 'react-native'
-import { useFocusEffect } from 'expo-router'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native'
+import { useFocusEffect, useRouter } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
-import { useRouter } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
+
+function CountUp({ value, style }) {
+  const [display, setDisplay] = useState(0)
+  const prev = useRef(0)
+
+  useEffect(() => {
+    const start = prev.current
+    const end = value
+    const duration = 1000
+    const steps = 40
+    const increment = (end - start) / steps
+    let current = start
+    let step = 0
+
+    const timer = setInterval(() => {
+      step++
+      current += increment
+      if (step >= steps) {
+        current = end
+        clearInterval(timer)
+      }
+      setDisplay(current)
+    }, duration / steps)
+
+    prev.current = end
+    return () => clearInterval(timer)
+  }, [value])
+
+  return <Text style={style}>₹{display.toFixed(2)}</Text>
+}
 
 export default function Dashboard() {
   const [expenses, setExpenses] = useState([])
   const [userName, setUserName] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [monthOffset, setMonthOffset] = useState(0)
+  const [lastMonthTotal, setLastMonthTotal] = useState(0)
+  const [daysInMonth, setDaysInMonth] = useState(1)
   const router = useRouter()
 
-  const now = new Date()
-const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
+  function getMonthInfo(offset) {
+    const d = new Date()
+    d.setDate(1)
+    d.setMonth(d.getMonth() + offset)
+    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    const name = d.toLocaleString('default', { month: 'long', year: 'numeric' })
+    return { month, name }
+  }
+
+  const { month: currentMonth, name: monthName } = getMonthInfo(monthOffset)
+  const isCurrentMonth = monthOffset === 0
 
   async function fetchData() {
-  const { data: { user } } = await supabase.auth.getUser()
-  setUserName(user.email.split('@')[0])
+    const { data: { user } } = await supabase.auth.getUser()
+    setUserName(user.email.split('@')[0])
 
-  const { data } = await supabase
-    .from('expenses')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('date', { ascending: false })
+    const { data } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false })
 
-  if (data) {
-    const now = new Date()
-    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    const filtered = data.filter(e => e.date.startsWith(month))
-    setExpenses(filtered)
+    if (data) {
+      const filtered = data.filter(e => e.date.startsWith(currentMonth))
+      setExpenses(filtered)
+
+      const lastMonth = getMonthInfo(monthOffset - 1).month
+      const lastFiltered = data.filter(e => e.date.startsWith(lastMonth))
+      const lastTotal = lastFiltered.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+      setLastMonthTotal(lastTotal)
+
+      const now = new Date()
+      const daysElapsed = monthOffset === 0 ? now.getDate() : new Date(currentMonth + '-01').getDate()
+      setDaysInMonth(daysElapsed)
+    }
+    setLoading(false)
+    setRefreshing(false)
   }
-  setRefreshing(false)
-}
 
-  useFocusEffect(useCallback(() => { fetchData() }, []))
+  useFocusEffect(useCallback(() => { fetchData() }, [currentMonth]))
 
-  // Calculate total
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
 
-  // Calculate by category
   const byCategory = CATEGORIES.map(cat => {
     const catExpenses = expenses.filter(e => e.category === cat.label)
     const catTotal = catExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
     return { ...cat, total: catTotal }
   }).filter(c => c.total > 0).sort((a, b) => b.total - a.total)
 
-  // Recent 5 expenses
   const recent = expenses.slice(0, 5)
 
   function getCategoryInfo(label) {
     return CATEGORIES.find(c => c.label === label) || { icon: '📦', color: '#888' }
   }
 
+  if (loading) return <DashboardSkeleton />
+
   return (
-  <View style={{ flex: 1 }}>
-  <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 40 }}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData() }} tintColor={COLORS.accent} />
-      }
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
+    <View style={{ flex: 1 }}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData() }} tintColor={COLORS.accent} />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
           <Text style={styles.greeting}>Hey, {userName} 👋</Text>
-          <Text style={styles.month}>{monthName}</Text>
         </View>
-      </View>
 
-      {/* Total Card */}
-      <View style={styles.totalCard}>
-        <Text style={styles.totalLabel}>Total Spent This Month</Text>
-        <Text style={styles.totalAmount}>₹{total.toFixed(2)}</Text>
-        <Text style={styles.totalSub}>{expenses.length} transactions</Text>
-      </View>
+        {/* Month Navigator */}
+        <View style={styles.monthNav}>
+          <TouchableOpacity
+            style={styles.monthNavBtn}
+            onPress={() => { setLoading(true); setMonthOffset(o => o - 1) }}
+          >
+            <Ionicons name="chevron-back" size={20} color={COLORS.text} />
+          </TouchableOpacity>
+          <View style={styles.monthNavCenter}>
+            <Text style={styles.monthNavText}>{monthName}</Text>
+            {!isCurrentMonth && (
+              <TouchableOpacity onPress={() => { setLoading(true); setMonthOffset(0) }}>
+                <Text style={styles.monthNavBack}>Back to today</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <TouchableOpacity
+            style={[styles.monthNavBtn, isCurrentMonth && styles.monthNavBtnDisabled]}
+            onPress={() => { if (!isCurrentMonth) { setLoading(true); setMonthOffset(o => o + 1) } }}
+            disabled={isCurrentMonth}
+          >
+            <Ionicons name="chevron-forward" size={20} color={isCurrentMonth ? COLORS.border : COLORS.text} />
+          </TouchableOpacity>
+        </View>
 
-      {/* Category Breakdown */}
-      {byCategory.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>By Category</Text>
-          {byCategory.map(cat => (
-            <View key={cat.label} style={styles.categoryRow}>
-              <View style={[styles.catIconBox, { backgroundColor: cat.color + '22' }]}>
-                <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
-              </View>
-              <View style={styles.catInfo}>
-                <View style={styles.catTopRow}>
-                  <Text style={styles.catLabel}>{cat.label}</Text>
-                  <Text style={styles.catAmount}>₹{cat.total.toFixed(2)}</Text>
-                </View>
-                {/* Progress bar */}
-                <View style={styles.progressBg}>
-                  <View style={[
-                    styles.progressFill,
-                    {
-                      width: `${Math.min((cat.total / total) * 100, 100)}%`,
-                      backgroundColor: cat.color
-                    }
-                  ]} />
-                </View>
-              </View>
+        {/* Total Card */}
+        <View style={styles.totalCard}>
+          <Text style={styles.totalLabel}>Total Spent</Text>
+          <CountUp value={total} style={styles.totalAmount} />
+          <Text style={styles.totalSub}>{expenses.length} transactions</Text>
+        </View>
+
+        {/* Stats Row */}
+        {expenses.length > 0 && (
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Text style={styles.statLabel}>Daily Avg</Text>
+              <Text style={styles.statValue}>₹{(total / Math.max(daysInMonth, 1)).toFixed(0)}</Text>
             </View>
-          ))}
-        </View>
-      )}
+            <View style={styles.statDivider} />
+            <View style={styles.statCard}>
+              <Text style={styles.statLabel}>vs Last Month</Text>
+              <Text style={[
+                styles.statValue,
+                { color: total > lastMonthTotal ? COLORS.accentRed : COLORS.accentGreen }
+              ]}>
+                {lastMonthTotal === 0 ? 'N/A' :
+                  `${total > lastMonthTotal ? '▲' : '▼'} ₹${Math.abs(total - lastMonthTotal).toFixed(0)}`
+                }
+              </Text>
+            </View>
+          </View>
+        )}
 
-      {/* Recent Transactions */}
-      {recent.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Transactions</Text>
-          {recent.map(item => {
-            const cat = getCategoryInfo(item.category)
-            return (
-              <View key={item.id} style={styles.txRow}>
-                <View style={[styles.txIcon, { backgroundColor: cat.color + '22' }]}>
+        {/* Spending Insights */}
+        {expenses.length >= 3 && (() => {
+          const insights = []
+          const topCat = byCategory[0]
+          if (topCat) {
+            const pct = ((topCat.total / total) * 100).toFixed(0)
+            insights.push(`🏆 ${topCat.icon} ${topCat.label} is your biggest spend at ${pct}% of total`)
+          }
+          if (total > lastMonthTotal && lastMonthTotal > 0) {
+            const diff = ((total - lastMonthTotal) / lastMonthTotal * 100).toFixed(0)
+            insights.push(`📈 You're spending ${diff}% more than last month`)
+          }
+          if (total < lastMonthTotal && lastMonthTotal > 0) {
+            const diff = ((lastMonthTotal - total) / lastMonthTotal * 100).toFixed(0)
+            insights.push(`📉 Great job! You're spending ${diff}% less than last month`)
+          }
+          const dailyAvg = total / Math.max(daysInMonth, 1)
+          if (dailyAvg > 500) insights.push(`💡 You're averaging ₹${dailyAvg.toFixed(0)}/day this month`)
+          if (byCategory.length >= 3) insights.push(`📊 You've spent across ${byCategory.length} categories this month`)
+          if (insights.length === 0) return null
+          return (
+            <View style={styles.insightsCard}>
+              <Text style={styles.insightsTitle}>💡 Insights</Text>
+              {insights.map((insight, i) => (
+                <Text key={i} style={styles.insightText}>{insight}</Text>
+              ))}
+            </View>
+          )
+        })()}
+
+        {/* Category Breakdown */}
+        {byCategory.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>By Category</Text>
+            {byCategory.map(cat => (
+              <View key={cat.label} style={styles.categoryRow}>
+                <View style={[styles.catIconBox, { backgroundColor: cat.color + '22' }]}>
                   <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
                 </View>
-                <View style={styles.txInfo}>
-                  <Text style={styles.txCategory}>{item.category}</Text>
-                  <Text style={styles.txNote}>{item.note || item.date}</Text>
+                <View style={styles.catInfo}>
+                  <View style={styles.catTopRow}>
+                    <Text style={styles.catLabel}>{cat.label}</Text>
+                    <Text style={styles.catAmount}>₹{cat.total.toFixed(2)}</Text>
+                  </View>
+                  <View style={styles.progressBg}>
+                    <View style={[
+                      styles.progressFill,
+                      { width: `${Math.min((cat.total / total) * 100, 100)}%`, backgroundColor: cat.color }
+                    ]} />
+                  </View>
                 </View>
-                <Text style={styles.txAmount}>₹{parseFloat(item.amount).toFixed(2)}</Text>
               </View>
-            )
-          })}
-        </View>
+            ))}
+          </View>
+        )}
+
+        {/* Recent Transactions */}
+        {recent.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recent Transactions</Text>
+            {recent.map(item => {
+              const cat = getCategoryInfo(item.category)
+              return (
+                <View key={item.id} style={styles.txRow}>
+                  <View style={[styles.txIcon, { backgroundColor: cat.color + '22' }]}>
+                    <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
+                  </View>
+                  <View style={styles.txInfo}>
+                    <Text style={styles.txCategory}>{item.category}</Text>
+                    <Text style={styles.txNote}>{item.note || item.date}</Text>
+                  </View>
+                  <Text style={styles.txAmount}>₹{parseFloat(item.amount).toFixed(2)}</Text>
+                </View>
+              )
+            })}
+          </View>
+        )}
+
+        {/* Empty state */}
+        {expenses.length === 0 && (
+          <View style={styles.empty}>
+            <Text style={{ fontSize: 48 }}>📊</Text>
+            <Text style={styles.emptyText}>No expenses in {monthName}</Text>
+            <Text style={styles.emptySub}>{isCurrentMonth ? 'Tap + to start tracking' : 'Nothing recorded this month'}</Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {isCurrentMonth && (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => router.push('/(tabs)/add')}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={28} color="#fff" />
+        </TouchableOpacity>
       )}
-
-      {/* Empty state */}
-      {expenses.length === 0 && (
-        <View style={styles.empty}>
-          <Text style={{ fontSize: 48 }}>📊</Text>
-          <Text style={styles.emptyText}>No expenses this month</Text>
-          <Text style={styles.emptySub}>Tap ➕ to start tracking</Text>
-        </View>
-      )}
-    </ScrollView>
-
-    {/* Floating Add Button */}
-    <TouchableOpacity
-      style={styles.fab}
-      onPress={() => router.push('/(tabs)/add')}
-      activeOpacity={0.85}
-    >
-      <Ionicons name="add" size={28} color="#fff" />
-    </TouchableOpacity>
-
-  </View>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
+  header: { marginBottom: 16 },
   greeting: { fontSize: 22, fontWeight: '700', color: COLORS.text },
-  month: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
-  signOutBtn: { paddingVertical: 6, paddingHorizontal: 12, backgroundColor: COLORS.card, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border },
-  signOutText: { color: COLORS.textMuted, fontSize: 12 },
+  monthNav: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: COLORS.card, borderRadius: 14, padding: 12,
+    marginBottom: 20, borderWidth: 1, borderColor: COLORS.border,
+  },
+  monthNavBtn: { padding: 4 },
+  monthNavBtnDisabled: { opacity: 0.3 },
+  monthNavCenter: { alignItems: 'center' },
+  monthNavText: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  monthNavBack: { fontSize: 12, color: COLORS.accent, marginTop: 4 },
   totalCard: {
-    backgroundColor: COLORS.accent,
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 24,
-    alignItems: 'center',
+    backgroundColor: COLORS.accent, borderRadius: 20,
+    padding: 24, marginBottom: 16, alignItems: 'center',
   },
   totalLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 8 },
   totalAmount: { fontSize: 42, fontWeight: '800', color: '#fff' },
   totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 },
+  statsRow: {
+    flexDirection: 'row', backgroundColor: COLORS.card,
+    borderRadius: 16, padding: 16, marginBottom: 16,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  statCard: { flex: 1, alignItems: 'center' },
+  statLabel: { fontSize: 12, color: COLORS.textMuted, marginBottom: 6 },
+  statValue: { fontSize: 18, fontWeight: '800', color: COLORS.text },
+  statDivider: { width: 1, backgroundColor: COLORS.border, marginHorizontal: 8 },
+  insightsCard: {
+    backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
+    marginBottom: 16, borderWidth: 1, borderColor: COLORS.border,
+  },
+  insightsTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
+  insightText: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, lineHeight: 20 },
   section: { marginBottom: 24 },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 14 },
   categoryRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
@@ -193,19 +328,10 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },
   fab: {
-  position: 'absolute',
-  bottom: 24,
-  right: 24,
-  width: 58,
-  height: 58,
-  borderRadius: 29,
-  backgroundColor: COLORS.accent,
-  justifyContent: 'center',
-  alignItems: 'center',
-  shadowColor: COLORS.accent,
-  shadowOffset: { width: 0, height: 4 },
-  shadowOpacity: 0.4,
-  shadowRadius: 8,
-  elevation: 8,
-},
+    position: 'absolute', bottom: 24, right: 24,
+    width: 58, height: 58, borderRadius: 29,
+    backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center',
+    shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 8, elevation: 8,
+  },
 })
