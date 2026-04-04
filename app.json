@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0F0F0F"
+      "backgroundColor": "#FFFFFF"
     },
     "scheme": "savr",
     "ios": {
@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#6C63FF"
+        "backgroundColor": "#FFFFFF"
       },
       "package": "com.saver.savr"
     },
