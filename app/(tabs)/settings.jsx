@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Alert, Switch, TextInput, Modal,
+  TouchableOpacity, Alert, Switch, TextInput,
   KeyboardAvoidingView, Platform
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
@@ -10,6 +10,7 @@ import { supabase } from '../../src/lib/supabase'
 import { COLORS, CURRENCIES } from '../../src/constants/theme'
 import { sendNotification, requestNotificationPermission } from '../../src/lib/notifications'
 import { saveCurrency, loadCurrency } from '../../src/lib/currency'
+import BottomSheet from '../../src/components/BottomSheet'
 
 const APP_VERSION = '1.0.0'
 
@@ -47,19 +48,13 @@ export default function Settings() {
   }
 
   async function saveProfile() {
-    if (!editName.trim()) {
-      return Alert.alert('Invalid', 'Name cannot be empty')
-    }
+    if (!editName.trim()) return Alert.alert('Invalid', 'Name cannot be empty')
     setSaving(true)
     const { error } = await supabase.auth.updateUser({
-      data: {
-        display_name: editName.trim(),
-        phone_number: editPhone.trim(),
-      }
+      data: { display_name: editName.trim(), phone_number: editPhone.trim() }
     })
-    if (error) {
-      Alert.alert('Error', error.message)
-    } else {
+    if (error) Alert.alert('Error', error.message)
+    else {
       setDisplayName(editName.trim())
       setPhone(editPhone.trim())
       setProfileModalVisible(false)
@@ -234,100 +229,79 @@ export default function Settings() {
 
       <Text style={styles.footer}>Made with 💸 by you</Text>
 
-      {/* Currency Modal */}
-      <Modal
-        visible={showCurrencyModal}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowCurrencyModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { maxHeight: '85%' }]}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Currency</Text>
-              <TouchableOpacity onPress={() => setShowCurrencyModal(false)}>
-                <Ionicons name="close" size={22} color={COLORS.textMuted} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {CURRENCIES.map(cur => (
-                <TouchableOpacity
-                  key={cur.code}
-                  style={[styles.currencyRow, currency === cur.code && styles.currencyRowActive]}
-                  onPress={async () => {
-                    setCurrency(cur.code)
-                    await saveCurrency(cur.code)
-                    setShowCurrencyModal(false)
-                  }}
-                >
-                  <Text style={styles.currencyFlag}>{cur.flag}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.currencyName}>{cur.name}</Text>
-                    <Text style={styles.currencyCode}>{cur.code}</Text>
-                  </View>
-                  <Text style={styles.currencySymbol}>{cur.symbol}</Text>
-                  {currency === cur.code && (
-                    <Ionicons name="checkmark-circle" size={20} color={COLORS.accent} style={{ marginLeft: 8 }} />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
+      {/* Currency Bottom Sheet */}
+      <BottomSheet visible={showCurrencyModal} onClose={() => setShowCurrencyModal(false)} maxHeight="85%">
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Select Currency</Text>
+          <TouchableOpacity onPress={() => setShowCurrencyModal(false)}>
+            <Ionicons name="close" size={22} color={COLORS.textMuted} />
+          </TouchableOpacity>
         </View>
-      </Modal>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {CURRENCIES.map(cur => (
+            <TouchableOpacity
+              key={cur.code}
+              style={[styles.currencyRow, currency === cur.code && styles.currencyRowActive]}
+              onPress={async () => {
+                setCurrency(cur.code)
+                await saveCurrency(cur.code)
+                setShowCurrencyModal(false)
+              }}
+            >
+              <Text style={styles.currencyFlag}>{cur.flag}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.currencyName}>{cur.name}</Text>
+                <Text style={styles.currencyCode}>{cur.code}</Text>
+              </View>
+              <Text style={styles.currencySymbol}>{cur.symbol}</Text>
+              {currency === cur.code && (
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.accent} style={{ marginLeft: 8 }} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </BottomSheet>
 
-      {/* Profile Edit Modal */}
-      <Modal
-        visible={profileModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setProfileModalVisible(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Profile</Text>
-              <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
-                <Ionicons name="close" size={22} color={COLORS.textMuted} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.modalAvatar}>
-              <Text style={styles.modalAvatarText}>{getInitials()}</Text>
-            </View>
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your name"
-              placeholderTextColor={COLORS.textMuted}
-              value={editName}
-              onChangeText={setEditName}
-              autoCapitalize="words"
-            />
-            <Text style={styles.label}>Phone Number</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="+91 00000 00000"
-              placeholderTextColor={COLORS.textMuted}
-              value={editPhone}
-              onChangeText={setEditPhone}
-              keyboardType="phone-pad"
-            />
-            <Text style={styles.label}>Email</Text>
-            <View style={styles.readOnlyInput}>
-              <Text style={styles.readOnlyText}>{user?.email}</Text>
-              <Ionicons name="lock-closed-outline" size={14} color={COLORS.textMuted} />
-            </View>
-            <TouchableOpacity style={styles.saveBtn} onPress={saveProfile} disabled={saving}>
-              <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Profile'}</Text>
+      {/* Profile Edit Bottom Sheet */}
+      <BottomSheet visible={profileModalVisible} onClose={() => setProfileModalVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Edit Profile</Text>
+            <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
+              <Ionicons name="close" size={22} color={COLORS.textMuted} />
             </TouchableOpacity>
           </View>
+          <View style={styles.modalAvatar}>
+            <Text style={styles.modalAvatarText}>{getInitials()}</Text>
+          </View>
+          <Text style={styles.label}>Full Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your name"
+            placeholderTextColor={COLORS.textMuted}
+            value={editName}
+            onChangeText={setEditName}
+            autoCapitalize="words"
+          />
+          <Text style={styles.label}>Phone Number</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="+91 00000 00000"
+            placeholderTextColor={COLORS.textMuted}
+            value={editPhone}
+            onChangeText={setEditPhone}
+            keyboardType="phone-pad"
+          />
+          <Text style={styles.label}>Email</Text>
+          <View style={styles.readOnlyInput}>
+            <Text style={styles.readOnlyText}>{user?.email}</Text>
+            <Ionicons name="lock-closed-outline" size={14} color={COLORS.textMuted} />
+          </View>
+          <TouchableOpacity style={styles.saveBtn} onPress={saveProfile} disabled={saving}>
+            <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Profile'}</Text>
+          </TouchableOpacity>
         </KeyboardAvoidingView>
-      </Modal>
+      </BottomSheet>
     </ScrollView>
   )
 }
@@ -373,14 +347,11 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: COLORS.border, marginLeft: 66 },
   versionText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
   footer: { textAlign: 'center', color: COLORS.textMuted, fontSize: 13, marginTop: 8 },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
-  modalSheet: {
-    backgroundColor: COLORS.card, borderTopLeftRadius: 24,
-    borderTopRightRadius: 24, padding: 24, paddingBottom: 40,
+  sheetHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 20,
   },
-  modalHandle: { width: 40, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
+  sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
   modalAvatar: {
     width: 72, height: 72, borderRadius: 36,
     backgroundColor: COLORS.accent,

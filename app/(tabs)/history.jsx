@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Alert, RefreshControl, Modal, TextInput,
-  KeyboardAvoidingView, Platform, ScrollView
+  Alert, RefreshControl, TextInput,
+  Platform, ScrollView
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -10,6 +10,7 @@ import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { HistorySkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol } from '../../src/lib/currency'
+import BottomSheet from '../../src/components/BottomSheet'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 
@@ -235,115 +236,110 @@ export default function History() {
         />
       )}
 
-      {/* Filter Modal */}
-      <Modal visible={showFilters} animationType="slide" transparent onRequestClose={() => setShowFilters(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Filter</Text>
-              <TouchableOpacity onPress={() => setShowFilters(false)}>
-                <Ionicons name="close" size={22} color={COLORS.textMuted} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView>
-              <Text style={styles.filterLabel}>Category</Text>
-              <View style={styles.filterGrid}>
-                {['All', ...CATEGORIES.map(c => c.label)].map(cat => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[styles.filterChip, selectedCategory === cat && styles.filterChipActive]}
-                    onPress={() => setSelectedCategory(cat)}
-                  >
-                    {cat !== 'All' && (
-                      <Text style={{ fontSize: 14 }}>{CATEGORIES.find(c => c.label === cat)?.icon}</Text>
-                    )}
-                    <Text style={[styles.filterChipText, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={styles.filterLabel}>Month</Text>
-              <View style={styles.filterGrid}>
-                {['All', ...getMonths()].map(m => (
-                  <TouchableOpacity
-                    key={m}
-                    style={[styles.filterChip, selectedMonth === m && styles.filterChipActive]}
-                    onPress={() => setSelectedMonth(m)}
-                  >
-                    <Text style={[styles.filterChipText, selectedMonth === m && { color: '#fff' }]}>
-                      {m === 'All' ? 'All' : new Date(m + '-01').toLocaleString('default', { month: 'short', year: 'numeric' })}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <TouchableOpacity style={styles.applyBtn} onPress={() => setShowFilters(false)}>
-                <Text style={styles.applyBtnText}>Apply Filters</Text>
-              </TouchableOpacity>
-              {activeFilters > 0 && (
-                <TouchableOpacity style={styles.clearBtn} onPress={() => { clearFilters(); setShowFilters(false) }}>
-                  <Text style={styles.clearBtnText}>Clear All Filters</Text>
-                </TouchableOpacity>
-              )}
-            </ScrollView>
-          </View>
+      {/* Filter Bottom Sheet */}
+      <BottomSheet visible={showFilters} onClose={() => setShowFilters(false)}>
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Filter</Text>
+          <TouchableOpacity onPress={() => setShowFilters(false)}>
+            <Ionicons name="close" size={22} color={COLORS.textMuted} />
+          </TouchableOpacity>
         </View>
-      </Modal>
-
-      {/* Edit Modal */}
-      <Modal visible={editingExpense !== null} animationType="slide" transparent onRequestClose={() => setEditingExpense(null)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Edit Expense</Text>
-            <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.filterLabel}>Amount ({currencySymbol})</Text>
-              <TextInput
-                style={styles.input}
-                value={editAmount}
-                onChangeText={setEditAmount}
-                keyboardType="numeric"
-                placeholderTextColor={COLORS.textMuted}
-              />
-              <Text style={styles.filterLabel}>Category</Text>
-              <View style={styles.categoryGrid}>
-                {CATEGORIES.map(cat => (
-                  <TouchableOpacity
-                    key={cat.label}
-                    style={[styles.categoryBtn, editCategory === cat.label && { backgroundColor: cat.color, borderColor: cat.color }]}
-                    onPress={() => setEditCategory(cat.label)}
-                  >
-                    <Text style={styles.categoryIcon}>{cat.icon}</Text>
-                    <Text style={[styles.categoryLabel, editCategory === cat.label && { color: '#fff' }]}>{cat.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={styles.filterLabel}>Date</Text>
-              <TextInput
-                style={styles.input}
-                value={editDate}
-                onChangeText={setEditDate}
-                placeholderTextColor={COLORS.textMuted}
-              />
-              <Text style={styles.filterLabel}>Note</Text>
-              <TextInput
-                style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-                value={editNote}
-                onChangeText={setEditNote}
-                multiline
-                placeholderTextColor={COLORS.textMuted}
-              />
-              <View style={styles.modalBtns}>
-                <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingExpense(null)}>
-                  <Text style={styles.cancelText}>Cancel</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit} disabled={saving}>
-                  <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save'}</Text>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
+        <ScrollView>
+          <Text style={styles.filterLabel}>Category</Text>
+          <View style={styles.filterGrid}>
+            {['All', ...CATEGORIES.map(c => c.label)].map(cat => (
+              <TouchableOpacity
+                key={cat}
+                style={[styles.filterChip, selectedCategory === cat && styles.filterChipActive]}
+                onPress={() => setSelectedCategory(cat)}
+              >
+                {cat !== 'All' && (
+                  <Text style={{ fontSize: 14 }}>{CATEGORIES.find(c => c.label === cat)?.icon}</Text>
+                )}
+                <Text style={[styles.filterChipText, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-        </KeyboardAvoidingView>
-      </Modal>
+          <Text style={styles.filterLabel}>Month</Text>
+          <View style={styles.filterGrid}>
+            {['All', ...getMonths()].map(m => (
+              <TouchableOpacity
+                key={m}
+                style={[styles.filterChip, selectedMonth === m && styles.filterChipActive]}
+                onPress={() => setSelectedMonth(m)}
+              >
+                <Text style={[styles.filterChipText, selectedMonth === m && { color: '#fff' }]}>
+                  {m === 'All' ? 'All' : new Date(m + '-01').toLocaleString('default', { month: 'short', year: 'numeric' })}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity style={styles.applyBtn} onPress={() => setShowFilters(false)}>
+            <Text style={styles.applyBtnText}>Apply Filters</Text>
+          </TouchableOpacity>
+          {activeFilters > 0 && (
+            <TouchableOpacity style={styles.clearBtn} onPress={() => { clearFilters(); setShowFilters(false) }}>
+              <Text style={styles.clearBtnText}>Clear All Filters</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+      </BottomSheet>
+
+      {/* Edit Bottom Sheet */}
+      <BottomSheet visible={editingExpense !== null} onClose={() => setEditingExpense(null)} maxHeight="92%">
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Edit Expense</Text>
+          <TouchableOpacity onPress={() => setEditingExpense(null)}>
+            <Ionicons name="close" size={22} color={COLORS.textMuted} />
+          </TouchableOpacity>
+        </View>
+        <ScrollView keyboardShouldPersistTaps="handled">
+          <Text style={styles.filterLabel}>Amount ({currencySymbol})</Text>
+          <TextInput
+            style={styles.input}
+            value={editAmount}
+            onChangeText={setEditAmount}
+            keyboardType="numeric"
+            placeholderTextColor={COLORS.textMuted}
+          />
+          <Text style={styles.filterLabel}>Category</Text>
+          <View style={styles.categoryGrid}>
+            {CATEGORIES.map(cat => (
+              <TouchableOpacity
+                key={cat.label}
+                style={[styles.categoryBtn, editCategory === cat.label && { backgroundColor: cat.color, borderColor: cat.color }]}
+                onPress={() => setEditCategory(cat.label)}
+              >
+                <Text style={styles.categoryIcon}>{cat.icon}</Text>
+                <Text style={[styles.categoryLabel, editCategory === cat.label && { color: '#fff' }]}>{cat.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <Text style={styles.filterLabel}>Date</Text>
+          <TextInput
+            style={styles.input}
+            value={editDate}
+            onChangeText={setEditDate}
+            placeholderTextColor={COLORS.textMuted}
+          />
+          <Text style={styles.filterLabel}>Note</Text>
+          <TextInput
+            style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+            value={editNote}
+            onChangeText={setEditNote}
+            multiline
+            placeholderTextColor={COLORS.textMuted}
+          />
+          <View style={styles.modalBtns}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingExpense(null)}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSaveEdit} disabled={saving}>
+              <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save'}</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </BottomSheet>
     </View>
   )
 }
@@ -387,11 +383,8 @@ const styles = StyleSheet.create({
   deleteText: { color: COLORS.accentRed, fontSize: 14, fontWeight: '700' },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' },
-  modalSheet: { backgroundColor: COLORS.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
-  modalHandle: { width: 40, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text, marginBottom: 16 },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
   filterLabel: { fontSize: 13, color: COLORS.textMuted, marginBottom: 10, marginLeft: 2, fontWeight: '600' },
   filterGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   filterChip: {
