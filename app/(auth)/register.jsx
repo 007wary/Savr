@@ -33,7 +33,7 @@ export default function Register() {
       style={styles.container}
     >
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
-        <Text style={styles.logo}>💸</Text>
+        <Text style={styles.logoText}>Savr</Text>
         <Text style={styles.title}>Create account</Text>
         <Text style={styles.subtitle}>Start tracking your expenses today</Text>
 
@@ -76,7 +76,14 @@ export default function Register() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   inner: { flexGrow: 1, justifyContent: 'center', padding: 28 },
-  logo: { fontSize: 56, textAlign: 'center', marginBottom: 16 },
+  logoText: {
+  fontSize: 48,
+  fontWeight: '900',
+  color: COLORS.accent,
+  textAlign: 'center',
+  marginBottom: 16,
+  letterSpacing: -2,
+},
   title: { fontSize: 28, fontWeight: '700', color: COLORS.text, textAlign: 'center' },
   subtitle: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', marginBottom: 36 },
   label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 6, marginLeft: 2 },
