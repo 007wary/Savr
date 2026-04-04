@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { HistorySkeleton } from '../../src/components/SkeletonLoader'
+import { getCurrencySymbol } from '../../src/lib/currency'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 
@@ -21,8 +22,7 @@ export default function History() {
   const [editNote, setEditNote] = useState('')
   const [editDate, setEditDate] = useState('')
   const [saving, setSaving] = useState(false)
-
-  // Search & filter
+  const [currencySymbol, setCurrencySymbol] = useState('₹')
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [selectedMonth, setSelectedMonth] = useState('All')
@@ -30,26 +30,25 @@ export default function History() {
 
   async function fetchExpenses() {
     const { data: { user } } = await supabase.auth.getUser()
+    const symbol = await getCurrencySymbol()
+    setCurrencySymbol(symbol)
     const { data, error } = await supabase
       .from('expenses')
       .select('*')
       .eq('user_id', user.id)
       .order('date', { ascending: false })
-
     if (!error) setExpenses(data)
     setRefreshing(false)
   }
 
   useFocusEffect(useCallback(() => { fetchExpenses() }, []))
 
-  // Get unique months from expenses
   function getMonths() {
     if (!expenses) return []
     const months = [...new Set(expenses.map(e => e.date.slice(0, 7)))]
     return months.sort((a, b) => b.localeCompare(a))
   }
 
-  // Apply filters
   const filtered = (expenses || []).filter(e => {
     const matchSearch = search === '' ||
       e.note?.toLowerCase().includes(search.toLowerCase()) ||
@@ -103,7 +102,6 @@ export default function History() {
         date: editDate,
       })
       .eq('id', editingExpense.id)
-
     if (error) Alert.alert('Error', error.message)
     else {
       setEditingExpense(null)
@@ -145,7 +143,7 @@ export default function History() {
           <Text style={styles.note}>{item.note || item.date}</Text>
         </View>
         <View style={styles.right}>
-          <Text style={styles.amount}>₹{parseFloat(item.amount).toFixed(2)}</Text>
+          <Text style={styles.amount}>{currencySymbol}{parseFloat(item.amount).toFixed(2)}</Text>
           <Text style={styles.date}>{item.date}</Text>
         </View>
         <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}>
@@ -159,7 +157,6 @@ export default function History() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.headingRow}>
         <Text style={styles.heading}>History</Text>
         <TouchableOpacity style={styles.exportBtn} onPress={handleExport}>
@@ -167,7 +164,6 @@ export default function History() {
         </TouchableOpacity>
       </View>
 
-      {/* Search bar */}
       <View style={styles.searchRow}>
         <View style={styles.searchBox}>
           <Ionicons name="search-outline" size={16} color={COLORS.textMuted} style={{ marginRight: 8 }} />
@@ -193,7 +189,6 @@ export default function History() {
         </TouchableOpacity>
       </View>
 
-      {/* Active filter chips */}
       {activeFilters > 0 && (
         <View style={styles.chipRow}>
           {selectedCategory !== 'All' && (
@@ -212,7 +207,6 @@ export default function History() {
         </View>
       )}
 
-      {/* Results count */}
       {(search !== '' || activeFilters > 0) && (
         <Text style={styles.resultsText}>{filtered.length} result{filtered.length !== 1 ? 's' : ''}</Text>
       )}
@@ -242,12 +236,7 @@ export default function History() {
       )}
 
       {/* Filter Modal */}
-      <Modal
-        visible={showFilters}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowFilters(false)}
-      >
+      <Modal visible={showFilters} animationType="slide" transparent onRequestClose={() => setShowFilters(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
@@ -257,9 +246,7 @@ export default function History() {
                 <Ionicons name="close" size={22} color={COLORS.textMuted} />
               </TouchableOpacity>
             </View>
-
             <ScrollView>
-              {/* Category filter */}
               <Text style={styles.filterLabel}>Category</Text>
               <View style={styles.filterGrid}>
                 {['All', ...CATEGORIES.map(c => c.label)].map(cat => (
@@ -269,18 +256,12 @@ export default function History() {
                     onPress={() => setSelectedCategory(cat)}
                   >
                     {cat !== 'All' && (
-                      <Text style={{ fontSize: 14 }}>
-                        {CATEGORIES.find(c => c.label === cat)?.icon}
-                      </Text>
+                      <Text style={{ fontSize: 14 }}>{CATEGORIES.find(c => c.label === cat)?.icon}</Text>
                     )}
-                    <Text style={[styles.filterChipText, selectedCategory === cat && { color: '#fff' }]}>
-                      {cat}
-                    </Text>
+                    <Text style={[styles.filterChipText, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
-
-              {/* Month filter */}
               <Text style={styles.filterLabel}>Month</Text>
               <View style={styles.filterGrid}>
                 {['All', ...getMonths()].map(m => (
@@ -295,14 +276,9 @@ export default function History() {
                   </TouchableOpacity>
                 ))}
               </View>
-
-              <TouchableOpacity
-                style={styles.applyBtn}
-                onPress={() => setShowFilters(false)}
-              >
+              <TouchableOpacity style={styles.applyBtn} onPress={() => setShowFilters(false)}>
                 <Text style={styles.applyBtnText}>Apply Filters</Text>
               </TouchableOpacity>
-
               {activeFilters > 0 && (
                 <TouchableOpacity style={styles.clearBtn} onPress={() => { clearFilters(); setShowFilters(false) }}>
                   <Text style={styles.clearBtnText}>Clear All Filters</Text>
@@ -314,21 +290,13 @@ export default function History() {
       </Modal>
 
       {/* Edit Modal */}
-      <Modal
-        visible={editingExpense !== null}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setEditingExpense(null)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
+      <Modal visible={editingExpense !== null} animationType="slide" transparent onRequestClose={() => setEditingExpense(null)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Edit Expense</Text>
             <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.filterLabel}>Amount (₹)</Text>
+              <Text style={styles.filterLabel}>Amount ({currencySymbol})</Text>
               <TextInput
                 style={styles.input}
                 value={editAmount}
@@ -345,9 +313,7 @@ export default function History() {
                     onPress={() => setEditCategory(cat.label)}
                   >
                     <Text style={styles.categoryIcon}>{cat.icon}</Text>
-                    <Text style={[styles.categoryLabel, editCategory === cat.label && { color: '#fff' }]}>
-                      {cat.label}
-                    </Text>
+                    <Text style={[styles.categoryLabel, editCategory === cat.label && { color: '#fff' }]}>{cat.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -395,10 +361,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.border,
   },
   searchInput: { flex: 1, color: COLORS.text, fontSize: 14, paddingVertical: 12 },
-  filterBtn: {
-    width: 46, height: 46, borderRadius: 12, justifyContent: 'center', alignItems: 'center',
-    backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border,
-  },
+  filterBtn: { width: 46, height: 46, borderRadius: 12, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
   filterBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   filterBadge: { position: 'absolute', top: 6, right: 6, fontSize: 9, color: '#fff', fontWeight: '700' },
   chipRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' },

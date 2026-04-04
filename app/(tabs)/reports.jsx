@@ -6,6 +6,7 @@ import {
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
+import { getCurrencySymbol } from '../../src/lib/currency'
 import { Ionicons } from '@expo/vector-icons'
 
 const SCREEN_WIDTH = Dimensions.get('window').width - 40
@@ -14,6 +15,7 @@ export default function Reports() {
   const [expenses, setExpenses] = useState([])
   const [lastMonthExpenses, setLastMonthExpenses] = useState([])
   const [refreshing, setRefreshing] = useState(false)
+  const [currencySymbol, setCurrencySymbol] = useState('₹')
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -21,6 +23,9 @@ export default function Reports() {
 
   async function fetchData() {
     const { data: { user } } = await supabase.auth.getUser()
+    const symbol = await getCurrencySymbol()
+    setCurrencySymbol(symbol)
+
     const { data } = await supabase
       .from('expenses')
       .select('*')
@@ -93,7 +98,7 @@ export default function Reports() {
           {/* Total card */}
           <View style={styles.totalCard}>
             <Text style={styles.totalLabel}>Total Spent</Text>
-            <Text style={styles.totalAmount}>₹{total.toFixed(2)}</Text>
+            <Text style={styles.totalAmount}>{currencySymbol}{total.toFixed(2)}</Text>
             <Text style={styles.totalSub}>{expenses.length} transactions</Text>
           </View>
 
@@ -110,11 +115,13 @@ export default function Reports() {
                   <Text style={styles.compareText}>
                     You spent{' '}
                     <Text style={{ color: isMore ? COLORS.accentRed : COLORS.accentGreen, fontWeight: '700' }}>
-                      {isMore ? `₹${diff.toFixed(0)} more` : `₹${Math.abs(diff).toFixed(0)} less`}
+                      {isMore ? `${currencySymbol}${diff.toFixed(0)} more` : `${currencySymbol}${Math.abs(diff).toFixed(0)} less`}
                     </Text>
                     {' '}({pct}% {isMore ? 'increase' : 'decrease'})
                   </Text>
-                  <Text style={styles.compareSubtext}>Last month: ₹{lastTotal.toFixed(0)} · Daily avg: ₹{dailyAvg.toFixed(0)}/day</Text>
+                  <Text style={styles.compareSubtext}>
+                    Last month: {currencySymbol}{lastTotal.toFixed(0)} · Daily avg: {currencySymbol}{dailyAvg.toFixed(0)}/day
+                  </Text>
                 </View>
               </View>
             )
@@ -127,7 +134,7 @@ export default function Reports() {
               {last7.map((d, i) => (
                 <View key={i} style={styles.barCol}>
                   <Text style={styles.barAmount}>
-                    {d.amount > 0 ? `₹${d.amount >= 1000 ? (d.amount / 1000).toFixed(1) + 'k' : d.amount.toFixed(0)}` : ''}
+                    {d.amount > 0 ? `${currencySymbol}${d.amount >= 1000 ? (d.amount / 1000).toFixed(1) + 'k' : d.amount.toFixed(0)}` : ''}
                   </Text>
                   <View style={styles.barBg}>
                     <View style={[
@@ -153,7 +160,7 @@ export default function Reports() {
                   <View style={styles.catTopRow}>
                     <Text style={styles.catName}>{cat.label}</Text>
                     <View style={styles.catRight}>
-                      <Text style={styles.catAmount}>₹{cat.total.toFixed(2)}</Text>
+                      <Text style={styles.catAmount}>{currencySymbol}{cat.total.toFixed(2)}</Text>
                       <Text style={styles.catPercent}>{cat.percentage.toFixed(1)}%</Text>
                     </View>
                   </View>
@@ -178,7 +185,7 @@ export default function Reports() {
                     <Text style={styles.bigCategory}>{biggest.category}</Text>
                     <Text style={styles.bigNote}>{biggest.note || biggest.date}</Text>
                   </View>
-                  <Text style={styles.bigAmount}>₹{parseFloat(biggest.amount).toFixed(2)}</Text>
+                  <Text style={styles.bigAmount}>{currencySymbol}{parseFloat(biggest.amount).toFixed(2)}</Text>
                 </View>
               </View>
             )
@@ -210,7 +217,7 @@ const styles = StyleSheet.create({
   compareText: { fontSize: 15, color: COLORS.text, lineHeight: 22 },
   compareSubtext: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
   section: { marginBottom: 28 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 16 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, marginBottom: 16, letterSpacing: 1, textTransform: 'uppercase' },
   barChart: {
     flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
     height: 160, backgroundColor: COLORS.card, borderRadius: 16, padding: 16,

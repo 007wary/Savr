@@ -7,8 +7,9 @@ import {
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
-import { COLORS } from '../../src/constants/theme'
+import { COLORS, CURRENCIES } from '../../src/constants/theme'
 import { sendNotification, requestNotificationPermission } from '../../src/lib/notifications'
+import { saveCurrency, loadCurrency } from '../../src/lib/currency'
 
 const APP_VERSION = '1.0.0'
 
@@ -19,6 +20,8 @@ export default function Settings() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
   const [budgetAlerts, setBudgetAlerts] = useState(true)
   const [profileModalVisible, setProfileModalVisible] = useState(false)
+  const [showCurrencyModal, setShowCurrencyModal] = useState(false)
+  const [currency, setCurrency] = useState('INR')
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [saving, setSaving] = useState(false)
@@ -31,6 +34,8 @@ export default function Settings() {
     const ph = user.user_metadata?.phone_number || ''
     setDisplayName(name)
     setPhone(ph)
+    const savedCurrency = await loadCurrency()
+    setCurrency(savedCurrency)
   }
 
   useFocusEffect(useCallback(() => { fetchUser() }, []))
@@ -75,6 +80,8 @@ export default function Settings() {
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
     return displayName.slice(0, 2).toUpperCase()
   }
+
+  const selectedCurrency = CURRENCIES.find(c => c.code === currency)
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
@@ -145,6 +152,23 @@ export default function Settings() {
             thumbColor="#fff"
           />
         </View>
+
+        <View style={styles.divider} />
+
+        <TouchableOpacity style={styles.row} onPress={() => setShowCurrencyModal(true)}>
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#00D9A522' }]}>
+              <Ionicons name="cash-outline" size={18} color={COLORS.accentGreen} />
+            </View>
+            <View>
+              <Text style={styles.rowTitle}>Currency</Text>
+              <Text style={styles.rowSubtitle}>
+                {selectedCurrency?.flag} {currency} — {selectedCurrency?.name}
+              </Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
       </View>
 
       {/* About */}
@@ -167,10 +191,7 @@ export default function Settings() {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => router.push({
-            pathname: '/webview',
-            params: { type: 'privacy', title: 'Privacy Policy' }
-          })}
+          onPress={() => router.push({ pathname: '/webview', params: { type: 'privacy', title: 'Privacy Policy' } })}
         >
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#5B9BD522' }]}>
@@ -185,10 +206,7 @@ export default function Settings() {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => router.push({
-            pathname: '/webview',
-            params: { type: 'terms', title: 'Terms of Service' }
-          })}
+          onPress={() => router.push({ pathname: '/webview', params: { type: 'terms', title: 'Terms of Service' } })}
         >
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#88888822' }]}>
@@ -215,6 +233,49 @@ export default function Settings() {
       </View>
 
       <Text style={styles.footer}>Made with 💸 by you</Text>
+
+      {/* Currency Modal */}
+      <Modal
+        visible={showCurrencyModal}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowCurrencyModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { maxHeight: '85%' }]}>
+            <View style={styles.modalHandle} />
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Currency</Text>
+              <TouchableOpacity onPress={() => setShowCurrencyModal(false)}>
+                <Ionicons name="close" size={22} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {CURRENCIES.map(cur => (
+                <TouchableOpacity
+                  key={cur.code}
+                  style={[styles.currencyRow, currency === cur.code && styles.currencyRowActive]}
+                  onPress={async () => {
+                    setCurrency(cur.code)
+                    await saveCurrency(cur.code)
+                    setShowCurrencyModal(false)
+                  }}
+                >
+                  <Text style={styles.currencyFlag}>{cur.flag}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.currencyName}>{cur.name}</Text>
+                    <Text style={styles.currencyCode}>{cur.code}</Text>
+                  </View>
+                  <Text style={styles.currencySymbol}>{cur.symbol}</Text>
+                  {currency === cur.code && (
+                    <Ionicons name="checkmark-circle" size={20} color={COLORS.accent} style={{ marginLeft: 8 }} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* Profile Edit Modal */}
       <Modal
@@ -261,11 +322,7 @@ export default function Settings() {
               <Text style={styles.readOnlyText}>{user?.email}</Text>
               <Ionicons name="lock-closed-outline" size={14} color={COLORS.textMuted} />
             </View>
-            <TouchableOpacity
-              style={styles.saveBtn}
-              onPress={saveProfile}
-              disabled={saving}
-            >
+            <TouchableOpacity style={styles.saveBtn} onPress={saveProfile} disabled={saving}>
               <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Profile'}</Text>
             </TouchableOpacity>
           </View>
@@ -287,8 +344,7 @@ const styles = StyleSheet.create({
   avatar: {
     width: 56, height: 56, borderRadius: 28,
     backgroundColor: COLORS.accent,
-    justifyContent: 'center', alignItems: 'center',
-    marginRight: 16,
+    justifyContent: 'center', alignItems: 'center', marginRight: 16,
   },
   avatarText: { fontSize: 20, fontWeight: '700', color: '#fff' },
   profileInfo: { flex: 1 },
@@ -323,7 +379,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24, padding: 24, paddingBottom: 40,
   },
   modalHandle: { width: 40, height: 4, backgroundColor: COLORS.border, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
   modalAvatar: {
     width: 72, height: 72, borderRadius: 36,
@@ -344,9 +400,15 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.border, marginBottom: 24,
   },
   readOnlyText: { fontSize: 15, color: COLORS.textMuted },
-  saveBtn: {
-    backgroundColor: COLORS.accent, borderRadius: 12,
-    padding: 16, alignItems: 'center',
-  },
+  saveBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  currencyRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    padding: 14, borderRadius: 12, marginBottom: 4,
+  },
+  currencyRowActive: { backgroundColor: COLORS.accent + '15' },
+  currencyFlag: { fontSize: 24 },
+  currencyName: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
+  currencyCode: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  currencySymbol: { fontSize: 16, color: COLORS.textMuted, fontWeight: '700' },
 })

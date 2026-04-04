@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, Alert, KeyboardAvoidingView,
+  StyleSheet, ScrollView, KeyboardAvoidingView,
   Platform, Switch
 } from 'react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
@@ -9,6 +9,8 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
+import CustomAlert from '../../src/components/CustomAlert'
+import useAlert from '../../src/hooks/useAlert'
 
 const FREQUENCIES = [
   { label: 'Daily', value: 'daily', icon: '📅' },
@@ -23,10 +25,9 @@ export default function AddExpense() {
   const [date, setDate] = useState(new Date())
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [loading, setLoading] = useState(false)
-
-  // Recurring
   const [isRecurring, setIsRecurring] = useState(false)
   const [frequency, setFrequency] = useState('monthly')
+  const { alertConfig, showAlert, hideAlert } = useAlert()
 
   function formatDate(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -38,17 +39,16 @@ export default function AddExpense() {
 
   async function handleAdd() {
     if (!amount || !selectedCategory) {
-      return Alert.alert('Missing info', 'Please enter an amount and select a category')
+      return showAlert('Missing info', 'Please enter an amount and select a category')
     }
     if (isNaN(parseFloat(amount))) {
-      return Alert.alert('Invalid amount', 'Please enter a valid number')
+      return showAlert('Invalid amount', 'Please enter a valid number')
     }
 
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
 
     if (isRecurring) {
-      // Save to recurring_expenses
       const { error } = await supabase.from('recurring_expenses').insert({
         user_id: user.id,
         amount: parseFloat(amount),
@@ -60,13 +60,12 @@ export default function AddExpense() {
       })
 
       if (error) {
-        Alert.alert('Error', error.message)
+        showAlert('Error', error.message)
       } else {
-        Alert.alert('🔄 Recurring Added!', `This expense will auto-log ${frequency}`)
+        showAlert('Recurring Added!', `This expense will auto-log ${frequency}`)
         resetForm()
       }
     } else {
-      // Save as regular expense
       const { error } = await supabase.from('expenses').insert({
         user_id: user.id,
         amount: parseFloat(amount),
@@ -76,11 +75,10 @@ export default function AddExpense() {
       })
 
       if (error) {
-        Alert.alert('Error', error.message)
+        showAlert('Error', error.message)
       } else {
-        Alert.alert('✅ Saved!', 'Expense added successfully')
+        showAlert('Saved!', 'Expense added successfully')
 
-        // Check budget alerts
         const now = new Date()
         const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
         const [{ data: allExpenses }, { data: budgets }] = await Promise.all([
@@ -117,27 +115,29 @@ export default function AddExpense() {
 
         {/* Amount */}
         <Text style={styles.label}>Amount (₹)</Text>
-<TextInput
-  style={styles.input}
-  placeholder="0.00"
-  placeholderTextColor={COLORS.textMuted}
-  value={amount}
-  onChangeText={setAmount}
-  keyboardType="numeric"
-/>
-<View style={styles.quickAmounts}>
-  {['50', '100', '200', '500', '1000', '2000'].map(q => (
-    <TouchableOpacity
-      key={q}
-      style={[styles.quickBtn, amount === q && styles.quickBtnActive]}
-      onPress={() => setAmount(q)}
-    >
-      <Text style={[styles.quickText, amount === q && styles.quickTextActive]}>
-        ₹{q}
-      </Text>
-    </TouchableOpacity>
-  ))}
-</View>
+        <TextInput
+          style={styles.input}
+          placeholder="0.00"
+          placeholderTextColor={COLORS.textMuted}
+          value={amount}
+          onChangeText={setAmount}
+          keyboardType="numeric"
+        />
+
+        {/* Quick amounts */}
+        <View style={styles.quickAmounts}>
+          {['50', '100', '200', '500', '1000', '2000'].map(q => (
+            <TouchableOpacity
+              key={q}
+              style={[styles.quickBtn, amount === q && styles.quickBtnActive]}
+              onPress={() => setAmount(q)}
+            >
+              <Text style={[styles.quickText, amount === q && styles.quickTextActive]}>
+                ₹{q}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
 
         {/* Category */}
         <Text style={styles.label}>Category</Text>
@@ -211,7 +211,7 @@ export default function AddExpense() {
           />
         </View>
 
-        {/* Frequency selector — only when recurring is on */}
+        {/* Frequency selector */}
         {isRecurring && (
           <View style={styles.frequencySection}>
             <Text style={styles.label}>Repeat every</Text>
@@ -219,17 +219,11 @@ export default function AddExpense() {
               {FREQUENCIES.map(f => (
                 <TouchableOpacity
                   key={f.value}
-                  style={[
-                    styles.freqBtn,
-                    frequency === f.value && styles.freqBtnActive
-                  ]}
+                  style={[styles.freqBtn, frequency === f.value && styles.freqBtnActive]}
                   onPress={() => setFrequency(f.value)}
                 >
                   <Text style={{ fontSize: 16 }}>{f.icon}</Text>
-                  <Text style={[
-                    styles.freqLabel,
-                    frequency === f.value && { color: '#fff' }
-                  ]}>
+                  <Text style={[styles.freqLabel, frequency === f.value && { color: '#fff' }]}>
                     {f.label}
                   </Text>
                 </TouchableOpacity>
@@ -254,8 +248,15 @@ export default function AddExpense() {
             {loading ? 'Saving...' : isRecurring ? 'Add Recurring Expense' : 'Add Expense'}
           </Text>
         </TouchableOpacity>
-
       </ScrollView>
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onClose={hideAlert}
+      />
     </KeyboardAvoidingView>
   )
 }
@@ -269,6 +270,18 @@ const styles = StyleSheet.create({
     color: COLORS.text, fontSize: 15, borderWidth: 1,
     borderColor: COLORS.border, marginBottom: 20,
   },
+  quickAmounts: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    gap: 8, marginBottom: 20, marginTop: -12,
+  },
+  quickBtn: {
+    paddingVertical: 8, paddingHorizontal: 14,
+    borderRadius: 20, borderWidth: 1,
+    borderColor: COLORS.border, backgroundColor: COLORS.card,
+  },
+  quickBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  quickText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
+  quickTextActive: { color: '#fff' },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
   categoryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -315,31 +328,4 @@ const styles = StyleSheet.create({
     marginTop: 8, marginBottom: 40,
   },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  quickAmounts: {
-  flexDirection: 'row',
-  flexWrap: 'wrap',
-  gap: 8,
-  marginBottom: 20,
-  marginTop: -12,
-},
-quickBtn: {
-  paddingVertical: 8,
-  paddingHorizontal: 14,
-  borderRadius: 20,
-  borderWidth: 1,
-  borderColor: COLORS.border,
-  backgroundColor: COLORS.card,
-},
-quickBtnActive: {
-  backgroundColor: COLORS.accent,
-  borderColor: COLORS.accent,
-},
-quickText: {
-  fontSize: 13,
-  color: COLORS.textMuted,
-  fontWeight: '600',
-},
-quickTextActive: {
-  color: '#fff',
-},
 })

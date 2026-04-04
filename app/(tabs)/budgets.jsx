@@ -6,6 +6,7 @@ import {
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
+import { getCurrencySymbol } from '../../src/lib/currency'
 
 export default function Budgets() {
   const [budgets, setBudgets] = useState([])
@@ -13,6 +14,7 @@ export default function Budgets() {
   const [editing, setEditing] = useState(null)
   const [inputValue, setInputValue] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [currencySymbol, setCurrencySymbol] = useState('₹')
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -20,6 +22,8 @@ export default function Budgets() {
 
   async function fetchData() {
     const { data: { user } } = await supabase.auth.getUser()
+    const symbol = await getCurrencySymbol()
+    setCurrencySymbol(symbol)
 
     const [{ data: budgetData }, { data: expenseData }] = await Promise.all([
       supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth),
@@ -99,7 +103,6 @@ export default function Budgets() {
 
         return (
           <View key={cat.label} style={styles.card}>
-            {/* Top row */}
             <View style={styles.cardHeader}>
               <View style={[styles.iconBox, { backgroundColor: cat.color + '22' }]}>
                 <Text style={{ fontSize: 20 }}>{cat.icon}</Text>
@@ -107,8 +110,11 @@ export default function Budgets() {
               <View style={styles.cardInfo}>
                 <Text style={styles.catName}>{cat.label}</Text>
                 <Text style={styles.spentText}>
-                  Spent: <Text style={{ color: isOver ? COLORS.accentRed : COLORS.accentGreen }}>₹{spent.toFixed(2)}</Text>
-                  {limit ? <Text style={styles.limitText}> / ₹{limit.toFixed(2)}</Text> : <Text style={styles.limitText}> (no budget set)</Text>}
+                  Spent: <Text style={{ color: isOver ? COLORS.accentRed : COLORS.accentGreen }}>{currencySymbol}{spent.toFixed(2)}</Text>
+                  {limit
+                    ? <Text style={styles.limitText}> / {currencySymbol}{limit.toFixed(2)}</Text>
+                    : <Text style={styles.limitText}> (no budget set)</Text>
+                  }
                 </Text>
               </View>
               <TouchableOpacity
@@ -126,32 +132,26 @@ export default function Budgets() {
               </TouchableOpacity>
             </View>
 
-            {/* Progress bar */}
             {limit && (
               <View style={styles.progressBg}>
                 <View style={[
                   styles.progressFill,
-                  {
-                    width: `${percentage}%`,
-                    backgroundColor: isOver ? COLORS.accentRed : cat.color
-                  }
+                  { width: `${percentage}%`, backgroundColor: isOver ? COLORS.accentRed : cat.color }
                 ]} />
               </View>
             )}
 
-            {/* Over budget warning */}
             {isOver && (
               <Text style={styles.overText}>
-                ⚠️ Over budget by ₹{(spent - limit).toFixed(2)}
+                ⚠️ Over budget by {currencySymbol}{(spent - limit).toFixed(2)}
               </Text>
             )}
 
-            {/* Edit input */}
             {isEditing && (
               <View style={styles.editRow}>
                 <TextInput
                   style={styles.editInput}
-                  placeholder="Set budget amount"
+                  placeholder={`Set budget amount`}
                   placeholderTextColor={COLORS.textMuted}
                   value={inputValue}
                   onChangeText={setInputValue}
@@ -180,12 +180,9 @@ const styles = StyleSheet.create({
   heading: { fontSize: 26, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
   subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 24 },
   card: {
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    backgroundColor: COLORS.card, borderRadius: 16,
+    padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: COLORS.border,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },

@@ -5,8 +5,9 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
+import { getCurrencySymbol } from '../../src/lib/currency'
 
-function CountUp({ value, style }) {
+function CountUp({ value, style, symbol }) {
   const [display, setDisplay] = useState(0)
   const prev = useRef(0)
 
@@ -33,7 +34,7 @@ function CountUp({ value, style }) {
     return () => clearInterval(timer)
   }, [value])
 
-  return <Text style={style}>₹{display.toFixed(2)}</Text>
+  return <Text style={style}>{symbol}{display.toFixed(2)}</Text>
 }
 
 export default function Dashboard() {
@@ -44,6 +45,7 @@ export default function Dashboard() {
   const [monthOffset, setMonthOffset] = useState(0)
   const [lastMonthTotal, setLastMonthTotal] = useState(0)
   const [daysInMonth, setDaysInMonth] = useState(1)
+  const [currencySymbol, setCurrencySymbol] = useState('₹')
   const router = useRouter()
 
   function getMonthInfo(offset) {
@@ -61,6 +63,9 @@ export default function Dashboard() {
   async function fetchData() {
     const { data: { user } } = await supabase.auth.getUser()
     setUserName(user.email.split('@')[0])
+
+    const symbol = await getCurrencySymbol()
+    setCurrencySymbol(symbol)
 
     const { data } = await supabase
       .from('expenses')
@@ -145,7 +150,7 @@ export default function Dashboard() {
         {/* Total Card */}
         <View style={styles.totalCard}>
           <Text style={styles.totalLabel}>Total Spent</Text>
-          <CountUp value={total} style={styles.totalAmount} />
+          <CountUp value={total} style={styles.totalAmount} symbol={currencySymbol} />
           <Text style={styles.totalSub}>{expenses.length} transactions</Text>
         </View>
 
@@ -154,7 +159,7 @@ export default function Dashboard() {
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>Daily Avg</Text>
-              <Text style={styles.statValue}>₹{(total / Math.max(daysInMonth, 1)).toFixed(0)}</Text>
+              <Text style={styles.statValue}>{currencySymbol}{(total / Math.max(daysInMonth, 1)).toFixed(0)}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statCard}>
@@ -164,7 +169,7 @@ export default function Dashboard() {
                 { color: total > lastMonthTotal ? COLORS.accentRed : COLORS.accentGreen }
               ]}>
                 {lastMonthTotal === 0 ? 'N/A' :
-                  `${total > lastMonthTotal ? '▲' : '▼'} ₹${Math.abs(total - lastMonthTotal).toFixed(0)}`
+                  `${total > lastMonthTotal ? '▲' : '▼'} ${currencySymbol}${Math.abs(total - lastMonthTotal).toFixed(0)}`
                 }
               </Text>
             </View>
@@ -188,7 +193,7 @@ export default function Dashboard() {
             insights.push(`📉 Great job! You're spending ${diff}% less than last month`)
           }
           const dailyAvg = total / Math.max(daysInMonth, 1)
-          if (dailyAvg > 500) insights.push(`💡 You're averaging ₹${dailyAvg.toFixed(0)}/day this month`)
+          if (dailyAvg > 500) insights.push(`💡 You're averaging ${currencySymbol}${dailyAvg.toFixed(0)}/day this month`)
           if (byCategory.length >= 3) insights.push(`📊 You've spent across ${byCategory.length} categories this month`)
           if (insights.length === 0) return null
           return (
@@ -213,7 +218,7 @@ export default function Dashboard() {
                 <View style={styles.catInfo}>
                   <View style={styles.catTopRow}>
                     <Text style={styles.catLabel}>{cat.label}</Text>
-                    <Text style={styles.catAmount}>₹{cat.total.toFixed(2)}</Text>
+                    <Text style={styles.catAmount}>{currencySymbol}{cat.total.toFixed(2)}</Text>
                   </View>
                   <View style={styles.progressBg}>
                     <View style={[
@@ -242,7 +247,7 @@ export default function Dashboard() {
                     <Text style={styles.txCategory}>{item.category}</Text>
                     <Text style={styles.txNote}>{item.note || item.date}</Text>
                   </View>
-                  <Text style={styles.txAmount}>₹{parseFloat(item.amount).toFixed(2)}</Text>
+                  <Text style={styles.txAmount}>{currencySymbol}{parseFloat(item.amount).toFixed(2)}</Text>
                 </View>
               )
             })}
@@ -275,7 +280,7 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
   header: { marginBottom: 16 },
-  greeting: { fontSize: 22, fontWeight: '700', color: COLORS.text },
+  greeting: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
   monthNav: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     backgroundColor: COLORS.card, borderRadius: 14, padding: 12,
@@ -291,7 +296,7 @@ const styles = StyleSheet.create({
     padding: 24, marginBottom: 16, alignItems: 'center',
   },
   totalLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginBottom: 8 },
-  totalAmount: { fontSize: 42, fontWeight: '800', color: '#fff' },
+  totalAmount: { fontSize: 44, fontWeight: '900', color: '#fff', letterSpacing: -2 },
   totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 },
   statsRow: {
     flexDirection: 'row', backgroundColor: COLORS.card,
@@ -309,7 +314,7 @@ const styles = StyleSheet.create({
   insightsTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
   insightText: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, lineHeight: 20 },
   section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 14 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, marginBottom: 14, letterSpacing: 1, textTransform: 'uppercase' },
   categoryRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
   catIconBox: { width: 42, height: 42, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   catInfo: { flex: 1 },
