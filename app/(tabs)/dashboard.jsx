@@ -62,7 +62,10 @@ export default function Dashboard() {
 
   async function fetchData() {
     const { data: { user } } = await supabase.auth.getUser()
-    setUserName(user.email.split('@')[0])
+    const meta = user.user_metadata?.display_name
+const emailName = user.email.split('@')[0]
+const firstName = meta ? meta.split(' ')[0] : emailName
+setUserName(firstName)
 
     const symbol = await getCurrencySymbol()
     setCurrencySymbol(symbol)
@@ -105,9 +108,28 @@ export default function Dashboard() {
   function getCategoryInfo(label) {
     return CATEGORIES.find(c => c.label === label) || { icon: '📦', color: '#888' }
   }
+  function formatDate(dateStr) {
+  const today = new Date()
+  const date = new Date(dateStr)
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+
+  if (dateStr === todayStr) return 'Today'
+  if (dateStr === yesterdayStr) return 'Yesterday'
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+}
 
   if (loading) return <DashboardSkeleton />
 
+  function getGreeting() {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  if (hour < 21) return 'Good evening'
+  return 'Good night'
+}
   return (
     <View style={{ flex: 1 }}>
       <ScrollView
@@ -119,7 +141,7 @@ export default function Dashboard() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.greeting}>Hey, {userName} 👋</Text>
+          <Text style={styles.greeting}>{getGreeting()}, {userName} 👋</Text>
         </View>
 
         {/* Month Navigator */}
@@ -245,7 +267,7 @@ export default function Dashboard() {
                   </View>
                   <View style={styles.txInfo}>
                     <Text style={styles.txCategory}>{item.category}</Text>
-                    <Text style={styles.txNote}>{item.note || item.date}</Text>
+                    <Text style={styles.txNote}>{item.note || formatDate(item.date)}</Text>
                   </View>
                   <Text style={styles.txAmount}>{currencySymbol}{parseFloat(item.amount).toFixed(2)}</Text>
                 </View>

@@ -6,6 +6,7 @@ import {
 } from 'react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
@@ -24,10 +25,10 @@ export default function AddExpense() {
   const [selectedCategory, setSelectedCategory] = useState(null)
   const [date, setDate] = useState(new Date())
   const [showDatePicker, setShowDatePicker] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [isRecurring, setIsRecurring] = useState(false)
   const [frequency, setFrequency] = useState('monthly')
   const { alertConfig, showAlert, hideAlert } = useAlert()
+  const router = useRouter()
 
   function formatDate(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -35,65 +36,6 @@ export default function AddExpense() {
 
   function formatDisplayDate(d) {
     return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
-  }
-
-  async function handleAdd() {
-    if (!amount || !selectedCategory) {
-      return showAlert('Missing info', 'Please enter an amount and select a category')
-    }
-    if (isNaN(parseFloat(amount))) {
-      return showAlert('Invalid amount', 'Please enter a valid number')
-    }
-
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (isRecurring) {
-      const { error } = await supabase.from('recurring_expenses').insert({
-        user_id: user.id,
-        amount: parseFloat(amount),
-        category: selectedCategory,
-        note: note.trim(),
-        frequency,
-        next_due: formatDate(date),
-        is_active: true,
-      })
-
-      if (error) {
-        showAlert('Error', error.message)
-      } else {
-        showAlert('Recurring Added!', `This expense will auto-log ${frequency}`)
-        resetForm()
-      }
-    } else {
-      const { error } = await supabase.from('expenses').insert({
-        user_id: user.id,
-        amount: parseFloat(amount),
-        category: selectedCategory,
-        note: note.trim(),
-        date: formatDate(date),
-      })
-
-      if (error) {
-        showAlert('Error', error.message)
-      } else {
-        showAlert('Saved!', 'Expense added successfully')
-
-        const now = new Date()
-        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-        const [{ data: allExpenses }, { data: budgets }] = await Promise.all([
-          supabase.from('expenses').select('*').eq('user_id', user.id),
-          supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth)
-        ])
-        if (allExpenses && budgets && budgets.length > 0) {
-          await checkBudgetAlerts(allExpenses, budgets, currentMonth)
-        }
-
-        resetForm()
-      }
-    }
-
-    setLoading(false)
   }
 
   function resetForm() {
@@ -105,6 +47,53 @@ export default function AddExpense() {
     setFrequency('monthly')
   }
 
+  async function handleAdd() {
+    if (!amount || !selectedCategory) {
+      return showAlert('Missing info', 'Please enter an amount and select a category')
+    }
+    if (isNaN(parseFloat(amount))) {
+      return showAlert('Invalid amount', 'Please enter a valid number')
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+
+    // Redirect instantly
+    resetForm()
+    router.replace('/(tabs)/dashboard')
+
+    // Save in background
+    if (isRecurring) {
+      supabase.from('recurring_expenses').insert({
+        user_id: user.id,
+        amount: parseFloat(amount),
+        category: selectedCategory,
+        note: note.trim(),
+        frequency,
+        next_due: formatDate(date),
+        is_active: true,
+      })
+    } else {
+      supabase.from('expenses').insert({
+        user_id: user.id,
+        amount: parseFloat(amount),
+        category: selectedCategory,
+        note: note.trim(),
+        date: formatDate(date),
+      }).then(() => {
+        const now = new Date()
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+        Promise.all([
+          supabase.from('expenses').select('*').eq('user_id', user.id),
+          supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth)
+        ]).then(([{ data: allExpenses }, { data: budgets }]) => {
+          if (allExpenses && budgets && budgets.length > 0) {
+            checkBudgetAlerts(allExpenses, budgets, currentMonth)
+          }
+        })
+      })
+    }
+  }
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -114,7 +103,7 @@ export default function AddExpense() {
         <Text style={styles.heading}>Add Expense</Text>
 
         {/* Amount */}
-        <Text style={styles.label}>Amount (₹)</Text>
+        <Text style={styles.label}>Amount</Text>
         <TextInput
           style={styles.input}
           placeholder="0.00"
@@ -133,7 +122,7 @@ export default function AddExpense() {
               onPress={() => setAmount(q)}
             >
               <Text style={[styles.quickText, amount === q && styles.quickTextActive]}>
-                ₹{q}
+                {q}
               </Text>
             </TouchableOpacity>
           ))}
@@ -236,7 +225,6 @@ export default function AddExpense() {
         <TouchableOpacity
           style={[styles.btn, isRecurring && { backgroundColor: COLORS.accentGreen }]}
           onPress={handleAdd}
-          disabled={loading}
         >
           <Ionicons
             name={isRecurring ? 'repeat' : 'checkmark'}
@@ -245,7 +233,7 @@ export default function AddExpense() {
             style={{ marginRight: 8 }}
           />
           <Text style={styles.btnText}>
-            {loading ? 'Saving...' : isRecurring ? 'Add Recurring Expense' : 'Add Expense'}
+            {isRecurring ? 'Add Recurring Expense' : 'Add Expense'}
           </Text>
         </TouchableOpacity>
       </ScrollView>
