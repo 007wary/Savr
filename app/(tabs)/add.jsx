@@ -7,6 +7,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
+import { checkBudgetAlerts } from '../../src/lib/notifications'
 
 export default function AddExpense() {
   const [amount, setAmount] = useState('')
@@ -44,14 +45,28 @@ export default function AddExpense() {
     })
 
     if (error) {
-      Alert.alert('Error', error.message)
-    } else {
-      Alert.alert('✅ Saved!', 'Expense added successfully')
-      setAmount('')
-      setNote('')
-      setSelectedCategory(null)
-      setDate(new Date())
-    }
+  Alert.alert('Error', error.message)
+} else {
+  Alert.alert('✅ Saved!', 'Expense added successfully')
+
+  // Check budget alerts after saving
+  const now = new Date()
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  const [{ data: allExpenses }, { data: budgets }] = await Promise.all([
+    supabase.from('expenses').select('*').eq('user_id', user.id),
+    supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth)
+  ])
+
+  if (allExpenses && budgets && budgets.length > 0) {
+    await checkBudgetAlerts(allExpenses, budgets, currentMonth)
+  }
+
+  setAmount('')
+  setNote('')
+  setSelectedCategory(null)
+  setDate(new Date())
+}
     setLoading(false)
   }
 

@@ -68,9 +68,6 @@ const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric'
           <Text style={styles.greeting}>Hey, {userName} 👋</Text>
           <Text style={styles.month}>{monthName}</Text>
         </View>
-        <TouchableOpacity onPress={() => supabase.auth.signOut()} style={styles.signOutBtn}>
-          <Text style={styles.signOutText}>Sign out</Text>
-        </TouchableOpacity>
       </View>
 
       {/* Total Card */}
