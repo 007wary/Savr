@@ -6,23 +6,24 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: COLORS.card,
-          borderTopColor: COLORS.border,
-          borderTopWidth: 1,
-          height: 64,
-          paddingBottom: 10,
-          paddingTop: 8,
-        },
-        tabBarActiveTintColor: COLORS.accent,
-        tabBarInactiveTintColor: COLORS.textMuted,
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
-          letterSpacing: 0.3,
-        },
-      }}
+  headerShown: false,
+  contentStyle: { backgroundColor: COLORS.bg },
+  tabBarStyle: {
+    backgroundColor: COLORS.card,
+    borderTopColor: COLORS.border,
+    borderTopWidth: 1,
+    height: 64,
+    paddingBottom: 10,
+    paddingTop: 8,
+  },
+  tabBarActiveTintColor: COLORS.accent,
+  tabBarInactiveTintColor: COLORS.textMuted,
+  tabBarLabelStyle: {
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+}}
     >
       <Tabs.Screen
         name="dashboard"

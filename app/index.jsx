@@ -1,6 +1,5 @@
-import { View } from 'react-native'
-import { COLORS } from '../src/constants/theme'
+import { Redirect } from 'expo-router'
 
 export default function Index() {
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />
+  return <Redirect href="/(auth)/login" />
 }
