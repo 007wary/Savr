@@ -6,6 +6,7 @@ import {
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
+import { Ionicons } from '@expo/vector-icons'
 
 const SCREEN_WIDTH = Dimensions.get('window').width - 40
 
@@ -83,7 +84,7 @@ export default function Reports() {
 
       {expenses.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={{ fontSize: 48 }}>📊</Text>
+          <Ionicons name="pie-chart-outline" size={56} color={COLORS.border} />
           <Text style={styles.emptyText}>No data this month</Text>
           <Text style={styles.emptySub}>Add expenses to see reports</Text>
         </View>

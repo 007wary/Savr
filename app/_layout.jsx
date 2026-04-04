@@ -6,14 +6,12 @@ import { COLORS } from '../src/constants/theme'
 
 export default function RootLayout() {
   const [session, setSession] = useState(undefined)
-  const [ready, setReady] = useState(false)
   const router = useRouter()
   const segments = useSegments()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session ?? null)
-      setReady(true)
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -24,14 +22,15 @@ export default function RootLayout() {
   }, [])
 
   useEffect(() => {
-    if (!ready) return
+    if (session === undefined) return
     const inAuth = segments[0] === '(auth)'
     if (!session && !inAuth) router.replace('/(auth)/login')
     if (session && inAuth) router.replace('/(tabs)/dashboard')
-  }, [ready, session])
+  }, [session, segments])
 
-  // Show pure black screen until we know where to route
-  if (!ready) return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />
+  if (session === undefined) {
+    return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />
+  }
 
   return <Slot />
 }
