@@ -6,11 +6,14 @@ import {
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
+import { useRouter } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 
 export default function Dashboard() {
   const [expenses, setExpenses] = useState([])
   const [userName, setUserName] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const router = useRouter()
 
   const now = new Date()
 const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -55,7 +58,8 @@ const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric'
   }
 
   return (
-    <ScrollView
+  <View style={{ flex: 1 }}>
+  <ScrollView
       style={styles.container}
       contentContainerStyle={{ paddingBottom: 40 }}
       refreshControl={
@@ -138,6 +142,17 @@ const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric'
         </View>
       )}
     </ScrollView>
+
+    {/* Floating Add Button */}
+    <TouchableOpacity
+      style={styles.fab}
+      onPress={() => router.push('/(tabs)/add')}
+      activeOpacity={0.85}
+    >
+      <Ionicons name="add" size={28} color="#fff" />
+    </TouchableOpacity>
+
+  </View>
   )
 }
 
@@ -177,4 +192,20 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', marginTop: 60 },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },
+  fab: {
+  position: 'absolute',
+  bottom: 24,
+  right: 24,
+  width: 58,
+  height: 58,
+  borderRadius: 29,
+  backgroundColor: COLORS.accent,
+  justifyContent: 'center',
+  alignItems: 'center',
+  shadowColor: COLORS.accent,
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.4,
+  shadowRadius: 8,
+  elevation: 8,
+},
 })

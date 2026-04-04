@@ -34,14 +34,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="add"
-        options={{
-          title: 'Add',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'add-circle' : 'add-circle-outline'} size={26} color={color} />
-          ),
-        }}
-      />
+  name="add"
+  options={{
+    href: null,
+  }}
+/>
       <Tabs.Screen
         name="history"
         options={{
@@ -51,7 +48,7 @@ export default function TabsLayout() {
           ),
         }}
       />
-      <Tabs.Screen
+    <Tabs.Screen
         name="budgets"
         options={{
           title: 'Budgets',
