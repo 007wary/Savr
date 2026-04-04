@@ -252,7 +252,7 @@ export default function Dashboard() {
         {/* Empty state */}
         {expenses.length === 0 && (
           <View style={styles.empty}>
-            <Text style={{ fontSize: 48 }}>📊</Text>
+            <Ionicons name="stats-chart-outline" size={56} color={COLORS.border} />
             <Text style={styles.emptyText}>No expenses in {monthName}</Text>
             <Text style={styles.emptySub}>{isCurrentMonth ? 'Tap + to start tracking' : 'Nothing recorded this month'}</Text>
           </View>

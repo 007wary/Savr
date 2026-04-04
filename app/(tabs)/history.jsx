@@ -219,7 +219,7 @@ export default function History() {
 
       {filtered.length === 0 ? (
         <View style={styles.centered}>
-          <Text style={{ fontSize: 48 }}>🔍</Text>
+          <Ionicons name="file-tray-outline" size={56} color={COLORS.border} />
           <Text style={styles.emptyText}>No results found</Text>
           <TouchableOpacity onPress={clearFilters}>
             <Text style={{ color: COLORS.accent, marginTop: 8 }}>Clear filters</Text>
