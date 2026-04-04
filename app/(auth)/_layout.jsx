@@ -6,6 +6,10 @@ export default function AuthLayout() {
     <Stack screenOptions={{
       headerShown: false,
       contentStyle: { backgroundColor: COLORS.bg }
-    }} />
+    }}>
+      <Stack.Screen name="login" />
+      <Stack.Screen name="register" />
+      <Stack.Screen name="webview" />
+    </Stack>
   )
 }

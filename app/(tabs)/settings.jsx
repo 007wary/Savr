@@ -4,12 +4,11 @@ import {
   TouchableOpacity, Alert, Switch, TextInput, Modal,
   KeyboardAvoidingView, Platform
 } from 'react-native'
-import { useFocusEffect } from 'expo-router'
+import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS } from '../../src/constants/theme'
 import { sendNotification, requestNotificationPermission } from '../../src/lib/notifications'
-import { useRouter } from 'expo-router'
 
 const APP_VERSION = '1.0.0'
 
@@ -23,7 +22,7 @@ export default function Settings() {
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [saving, setSaving] = useState(false)
-const router = useRouter()  // 👈 add this
+  const router = useRouter()
 
   async function fetchUser() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -113,12 +112,12 @@ const router = useRouter()  // 👈 add this
           <Switch
             value={notificationsEnabled}
             onValueChange={async (val) => {
-  setNotificationsEnabled(val)
-  if (val) {
-    const granted = await requestNotificationPermission()
-    if (granted) sendNotification('Notifications Enabled 🔔', 'You will now receive expense alerts')
-  }
-}}
+              setNotificationsEnabled(val)
+              if (val) {
+                const granted = await requestNotificationPermission()
+                if (granted) sendNotification('Notifications Enabled 🔔', 'You will now receive expense alerts')
+              }
+            }}
             trackColor={{ false: COLORS.border, true: COLORS.accent }}
             thumbColor="#fff"
           />
@@ -139,9 +138,9 @@ const router = useRouter()  // 👈 add this
           <Switch
             value={budgetAlerts}
             onValueChange={(val) => {
-  setBudgetAlerts(val)
-  if (val) sendNotification('Budget Alerts Enabled 💰', 'You will be warned when nearing your budget limit')
-}}
+              setBudgetAlerts(val)
+              if (val) sendNotification('Budget Alerts Enabled 💰', 'You will be warned when nearing your budget limit')
+            }}
             trackColor={{ false: COLORS.border, true: COLORS.accent }}
             thumbColor="#fff"
           />
@@ -167,38 +166,38 @@ const router = useRouter()  // 👈 add this
         <View style={styles.divider} />
 
         <TouchableOpacity
-  style={styles.row}
-  onPress={() => router.push({
-    pathname: '/screens/webview',
-    params: { type: 'privacy', title: 'Privacy Policy' }
-  })}
->
-  <View style={styles.rowLeft}>
-    <View style={[styles.rowIcon, { backgroundColor: '#5B9BD522' }]}>
-      <Ionicons name="shield-checkmark-outline" size={18} color='#5B9BD5' />
-    </View>
-    <Text style={styles.rowTitle}>Privacy Policy</Text>
-  </View>
-  <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-</TouchableOpacity>
+          style={styles.row}
+          onPress={() => router.push({
+            pathname: '/webview',
+            params: { type: 'privacy', title: 'Privacy Policy' }
+          })}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#5B9BD522' }]}>
+              <Ionicons name="shield-checkmark-outline" size={18} color='#5B9BD5' />
+            </View>
+            <Text style={styles.rowTitle}>Privacy Policy</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
 
         <View style={styles.divider} />
 
         <TouchableOpacity
-  style={styles.row}
-  onPress={() => router.push({
-    pathname: '/screens/webview',
-    params: { type: 'terms', title: 'Terms of Service' }
-  })}
->
-  <View style={styles.rowLeft}>
-    <View style={[styles.rowIcon, { backgroundColor: '#88888822' }]}>
-      <Ionicons name="document-text-outline" size={18} color={COLORS.textMuted} />
-    </View>
-    <Text style={styles.rowTitle}>Terms of Service</Text>
-  </View>
-  <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-</TouchableOpacity>
+          style={styles.row}
+          onPress={() => router.push({
+            pathname: '/webview',
+            params: { type: 'terms', title: 'Terms of Service' }
+          })}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#88888822' }]}>
+              <Ionicons name="document-text-outline" size={18} color={COLORS.textMuted} />
+            </View>
+            <Text style={styles.rowTitle}>Terms of Service</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
       </View>
 
       {/* Account */}
@@ -230,21 +229,15 @@ const router = useRouter()  // 👈 add this
         >
           <View style={styles.modalSheet}>
             <View style={styles.modalHandle} />
-
-            {/* Modal Header */}
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Profile</Text>
               <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
                 <Ionicons name="close" size={22} color={COLORS.textMuted} />
               </TouchableOpacity>
             </View>
-
-            {/* Avatar preview */}
             <View style={styles.modalAvatar}>
               <Text style={styles.modalAvatarText}>{getInitials()}</Text>
             </View>
-
-            {/* Name */}
             <Text style={styles.label}>Full Name</Text>
             <TextInput
               style={styles.input}
@@ -254,8 +247,6 @@ const router = useRouter()  // 👈 add this
               onChangeText={setEditName}
               autoCapitalize="words"
             />
-
-            {/* Phone */}
             <Text style={styles.label}>Phone Number</Text>
             <TextInput
               style={styles.input}
@@ -265,15 +256,11 @@ const router = useRouter()  // 👈 add this
               onChangeText={setEditPhone}
               keyboardType="phone-pad"
             />
-
-            {/* Email — read only */}
             <Text style={styles.label}>Email</Text>
             <View style={styles.readOnlyInput}>
               <Text style={styles.readOnlyText}>{user?.email}</Text>
               <Ionicons name="lock-closed-outline" size={14} color={COLORS.textMuted} />
             </View>
-
-            {/* Save button */}
             <TouchableOpacity
               style={styles.saveBtn}
               onPress={saveProfile}
