@@ -12,7 +12,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
       - name: Install dependencies
         run: npm install --legacy-peer-deps
@@ -31,7 +31,8 @@ jobs:
       - name: Bundle JS
         run: |
           mkdir -p android/app/src/main/assets
-          npx react-native bundle --platform android --dev false --entry-file node_modules/expo-router/entry.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res
+          npx expo export --platform android --output-dir dist
+          cp dist/_expo/static/js/android/*.js android/app/src/main/assets/index.android.bundle
 
       - name: Build APK
         run: |
