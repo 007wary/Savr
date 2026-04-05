@@ -15,8 +15,10 @@ import { SettingsSkeleton } from '../../src/components/SkeletonLoader'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import * as Notifications from 'expo-notifications'
+import { saveCache, loadCache } from '../../src/lib/cache'
 
 const APP_VERSION = '1.0.0'
+const CACHE_KEY = 'savr_cache_settings'
 
 export default function Settings() {
   const [user, setUser] = useState(null)
@@ -40,19 +42,49 @@ export default function Settings() {
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
-  async function fetchUser() {
+  async function fetchUser(forceRefresh = false) {
     const { status } = await Notifications.getPermissionsAsync()
     setNotificationsEnabled(status === 'granted')
     setBudgetAlerts(status === 'granted')
-    const { data: { user } } = await supabase.auth.getUser()
-    setUser(user)
-    const name = user.user_metadata?.display_name || user.email.split('@')[0]
-    const ph = user.user_metadata?.phone_number || ''
-    setDisplayName(name)
-    setPhone(ph)
-    const savedCurrency = await loadCurrency()
-    setCurrency(savedCurrency)
-    setLoading(false)
+
+    if (!forceRefresh) {
+      const cached = await loadCache(CACHE_KEY)
+      if (cached) {
+        setUser(cached.user)
+        setDisplayName(cached.displayName)
+        setPhone(cached.phone)
+        setCurrency(cached.currency)
+        setLoading(false)
+        syncFromSupabase()
+        return
+      }
+    }
+
+    await syncFromSupabase()
+  }
+
+  async function syncFromSupabase() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUser(user)
+      const name = user.user_metadata?.display_name || user.email.split('@')[0]
+      const ph = user.user_metadata?.phone_number || ''
+      setDisplayName(name)
+      setPhone(ph)
+      const savedCurrency = await loadCurrency()
+      setCurrency(savedCurrency)
+
+      await saveCache(CACHE_KEY, {
+        user,
+        displayName: name,
+        phone: ph,
+        currency: savedCurrency,
+      })
+    } catch {
+      // Silently fail — cache already shown
+    } finally {
+      setLoading(false)
+    }
   }
 
   useFocusEffect(useCallback(() => { fetchUser() }, []))
@@ -74,6 +106,13 @@ export default function Settings() {
       setDisplayName(editName.trim())
       setPhone(editPhone.trim())
       setProfileModalVisible(false)
+      // Update cache
+      await saveCache(CACHE_KEY, {
+        user,
+        displayName: editName.trim(),
+        phone: editPhone.trim(),
+        currency,
+      })
     }
     setSaving(false)
   }
@@ -269,10 +308,7 @@ export default function Settings() {
       {/* Account */}
       <Text style={styles.sectionLabel}>ACCOUNT</Text>
       <View style={styles.card}>
-        <TouchableOpacity
-          style={styles.row}
-          onPress={() => setShowPasswordModal(true)}
-        >
+        <TouchableOpacity style={styles.row} onPress={() => setShowPasswordModal(true)}>
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#6C63FF22' }]}>
               <Ionicons name="lock-closed-outline" size={18} color={COLORS.accent} />
@@ -336,6 +372,7 @@ export default function Settings() {
                   await saveCurrency(cur.code)
                   setCurrencySearch('')
                   setShowCurrencyModal(false)
+                  await saveCache(CACHE_KEY, { user, displayName, phone, currency: cur.code })
                 }}
               >
                 <Text style={styles.currencyFlag}>{cur.flag}</Text>

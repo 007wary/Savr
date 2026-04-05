@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ScrollView, KeyboardAvoidingView,
@@ -7,11 +7,14 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
+import NetInfo from '@react-native-community/netinfo'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
+import { addToQueue, syncQueue, getQueue } from '../../src/lib/offlineQueue'
+import { clearCache } from '../../src/lib/cache'
 
 const FREQUENCIES = [
   { label: 'Daily', value: 'daily', icon: '📅' },
@@ -27,8 +30,27 @@ export default function AddExpense() {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [isRecurring, setIsRecurring] = useState(false)
   const [frequency, setFrequency] = useState('monthly')
+  const [isOnline, setIsOnline] = useState(true)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
+
+  useEffect(() => {
+
+    // Listen for network changes
+    const unsub = NetInfo.addEventListener(async state => {
+      const online = state.isConnected && state.isInternetReachable
+      setIsOnline(online)
+      if (online) {
+        // Sync queue when back online
+        await syncQueue()
+        // Clear caches so screens reload fresh data
+        await clearCache('savr_cache_dashboard')
+        await clearCache('savr_cache_history')
+      }
+    })
+
+    return () => unsub()
+  }, [])
 
   function formatDate(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -55,10 +77,26 @@ export default function AddExpense() {
       return showAlert('Invalid amount', 'Please enter a valid number')
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const expenseData = {
+      amount: parseFloat(amount),
+      category: selectedCategory,
+      note: note.trim(),
+      date: formatDate(date),
+    }
 
     resetForm()
+
+    if (!isOnline) {
+      // Save to offline queue
+      await addToQueue(expenseData)
+      setPendingCount(prev => prev + 1)
+      router.replace('/(tabs)/dashboard')
+      return
+    }
+
     router.replace('/(tabs)/dashboard')
+
+    const { data: { user } } = await supabase.auth.getUser()
 
     if (isRecurring) {
       supabase.from('recurring_expenses').insert({
@@ -73,13 +111,14 @@ export default function AddExpense() {
     } else {
       supabase.from('expenses').insert({
         user_id: user.id,
-        amount: parseFloat(amount),
-        category: selectedCategory,
-        note: note.trim(),
-        date: formatDate(date),
+        ...expenseData,
       }).then(() => {
+        // Clear caches so dashboard shows updated data
         const now = new Date()
         const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+        clearCache(`savr_cache_dashboard_${currentMonth}`)
+        clearCache('savr_cache_history')
+
         Promise.all([
           supabase.from('expenses').select('*').eq('user_id', user.id),
           supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth)
@@ -155,9 +194,9 @@ export default function AddExpense() {
 
         <Text style={styles.label}>{isRecurring ? 'First Due Date' : 'Date'}</Text>
         <TouchableOpacity style={styles.datePicker} onPress={() => setShowDatePicker(true)}>
-  <Text style={styles.dateText}>{formatDisplayDate(date)}</Text>
-  <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} />
-</TouchableOpacity>
+          <Text style={styles.dateText}>{formatDisplayDate(date)}</Text>
+          <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} />
+        </TouchableOpacity>
 
         {showDatePicker && (
           <DateTimePicker
@@ -248,6 +287,26 @@ export default function AddExpense() {
 const styles = StyleSheet.create({
   container: { padding: 24, paddingTop: 60 },
   heading: { fontSize: 26, fontWeight: '700', color: COLORS.text, marginBottom: 28 },
+  offlineBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: COLORS.accentRed, borderRadius: 12,
+    padding: 12, marginBottom: 16,
+  },
+  offlineText: { color: '#fff', fontSize: 13, fontWeight: '600', flex: 1 },
+  syncBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: COLORS.accentGreen + '22', borderRadius: 12,
+    padding: 12, marginBottom: 16,
+    borderWidth: 1, borderColor: COLORS.accentGreen + '44',
+  },
+  syncText: { color: COLORS.accentGreen, fontSize: 13, fontWeight: '600' },
+  pendingBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: COLORS.accentYellow + '22', borderRadius: 12,
+    padding: 12, marginBottom: 16,
+    borderWidth: 1, borderColor: COLORS.accentYellow + '44',
+  },
+  pendingText: { color: COLORS.accentYellow, fontSize: 13, fontWeight: '600' },
   label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
   input: {
     backgroundColor: COLORS.card, borderRadius: 12, padding: 16,
@@ -273,12 +332,11 @@ const styles = StyleSheet.create({
   categoryIcon: { fontSize: 22 },
   categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
   datePicker: {
-  flexDirection: 'row', alignItems: 'center',
-  justifyContent: 'space-between',
-  backgroundColor: COLORS.card, borderRadius: 12, padding: 16,
-  marginBottom: 20, borderWidth: 1, borderColor: COLORS.border,
-},
-  dateIcon: { fontSize: 18 },
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.card, borderRadius: 12, padding: 16,
+    marginBottom: 20, borderWidth: 1, borderColor: COLORS.border,
+  },
   dateText: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
   recurringToggleRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

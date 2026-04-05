@@ -1,7 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
-const CACHE_EXPIRY = 1000 * 60 * 60 // 1 hour
-
 export async function saveCache(key, data) {
   try {
     const payload = {
@@ -18,9 +16,7 @@ export async function loadCache(key) {
   try {
     const raw = await AsyncStorage.getItem(key)
     if (!raw) return null
-    const { data, timestamp } = JSON.parse(raw)
-    const isExpired = Date.now() - timestamp > CACHE_EXPIRY
-    if (isExpired) return null
+    const { data } = JSON.parse(raw)
     return data
   } catch {
     return null
