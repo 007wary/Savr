@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
@@ -87,7 +87,7 @@ export default function Dashboard() {
     setRefreshing(false)
   }
 
-  useFocusEffect(useCallback(() => { fetchData() }, [currentMonth]))
+  useEffect(() => { fetchData() }, [currentMonth])
 
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
 

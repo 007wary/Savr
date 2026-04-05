@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   RefreshControl, TextInput, ScrollView, Platform
@@ -46,7 +46,7 @@ export default function History() {
     setRefreshing(false)
   }
 
-  useFocusEffect(useCallback(() => { fetchExpenses() }, []))
+  useEffect(() => { fetchExpenses() }, [])
 
   function getMonths() {
     if (!expenses) return []

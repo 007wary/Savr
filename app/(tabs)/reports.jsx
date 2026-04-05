@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
   RefreshControl, TouchableOpacity, Animated
@@ -66,7 +66,7 @@ export default function Reports() {
     setRefreshing(false)
   }
 
-  useFocusEffect(useCallback(() => { fetchData() }, []))
+  useEffect(() => { fetchData() }, [])
 
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
   const lastTotal = lastMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)

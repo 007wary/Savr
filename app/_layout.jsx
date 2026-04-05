@@ -3,6 +3,9 @@ import { supabase } from '../src/lib/supabase'
 import { View } from 'react-native'
 import { COLORS } from '../src/constants/theme'
 import { Stack, useRouter, useSegments } from 'expo-router'
+import * as SplashScreen from 'expo-splash-screen'
+
+SplashScreen.preventAutoHideAsync()
 
 export default function RootLayout() {
   const [session, setSession] = useState(undefined)
@@ -12,6 +15,7 @@ export default function RootLayout() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session ?? null)
+      SplashScreen.hideAsync()
     })
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
