@@ -58,20 +58,25 @@ export default function Dashboard() {
   const { month: currentMonth, name: monthName } = getMonthInfo(monthOffset)
   const isCurrentMonth = monthOffset === 0
 
+  function sortExpenses(data) {
+    return [...data].sort((a, b) => {
+      if (b.date !== a.date) return b.date.localeCompare(a.date)
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0)
+    })
+  }
+
   async function fetchData(forceRefresh = false) {
     const cacheKey = `savr_cache_dashboard_${currentMonth}`
 
-    // Load from cache first
     if (!forceRefresh) {
       const cached = await loadCache(cacheKey)
       if (cached) {
-        setExpenses(cached.expenses)
+        setExpenses(sortExpenses(cached.expenses))
         setUserName(cached.userName)
         setLastMonthTotal(cached.lastMonthTotal)
         setDaysInMonth(cached.daysInMonth)
         setCurrencySymbol(cached.currencySymbol)
         setLoading(false)
-        // Still sync in background
         syncFromSupabase(cacheKey)
         return
       }
@@ -94,9 +99,10 @@ export default function Dashboard() {
         .select('*')
         .eq('user_id', user.id)
         .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (data) {
-        const filtered = data.filter(e => e.date.startsWith(currentMonth))
+        const filtered = sortExpenses(data.filter(e => e.date.startsWith(currentMonth)))
         const lastMonth = getMonthInfo(monthOffset - 1).month
         const lastFiltered = data.filter(e => e.date.startsWith(lastMonth))
         const lastTotal = lastFiltered.reduce((sum, e) => sum + parseFloat(e.amount), 0)
@@ -109,7 +115,6 @@ export default function Dashboard() {
         setDaysInMonth(daysElapsed)
         setCurrencySymbol(symbol)
 
-        // Save to cache
         await saveCache(cacheKey, {
           expenses: filtered,
           userName: firstName,
@@ -136,7 +141,7 @@ export default function Dashboard() {
     return { ...cat, total: catTotal }
   }).filter(c => c.total > 0).sort((a, b) => b.total - a.total)
 
-  const recent = expenses.slice(0, 5)
+  const recent = sortExpenses(expenses).slice(0, 5)
 
   function getCategoryInfo(label) {
     return CATEGORIES.find(c => c.label === label) || { icon: '📦', color: '#888' }
@@ -202,7 +207,7 @@ export default function Dashboard() {
           </TouchableOpacity>
         </View>
 
-        {/* Total Card with Gradient */}
+        {/* Total Card */}
         <LinearGradient
           colors={['#7C75FF', '#6C63FF', '#5A50FF']}
           start={{ x: 0, y: 0 }}

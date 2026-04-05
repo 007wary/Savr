@@ -38,41 +38,48 @@ export default function History() {
   const CACHE_KEY = 'savr_cache_history'
 
   async function fetchExpenses(forceRefresh = false) {
-    const symbol = await getCurrencySymbol()
-    setCurrencySymbol(symbol)
+  const symbol = await getCurrencySymbol()
+  setCurrencySymbol(symbol)
 
-    if (!forceRefresh) {
-      const cached = await loadCache(CACHE_KEY)
-      if (cached) {
-        const sorted = [...cached].sort((a, b) => b.date.localeCompare(a.date))
-        setExpenses(sorted)
-        syncFromSupabase()
-        return
-      }
+  if (!forceRefresh) {
+    const cached = await loadCache(CACHE_KEY)
+    if (cached) {
+      const sorted = [...cached].sort((a, b) => {
+        if (b.date !== a.date) return b.date.localeCompare(a.date)
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0)
+      })
+      setExpenses(sorted)
+      syncFromSupabase()
+      return
     }
-
-    await syncFromSupabase()
   }
+
+  await syncFromSupabase()
+}
 
   async function syncFromSupabase() {
-    try {
-      const user = await getUser()
-      const { data, error } = await supabase
-        .from('expenses')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false })
-      if (!error && data) {
-        const sorted = [...data].sort((a, b) => b.date.localeCompare(a.date))
-        setExpenses(sorted)
-        await saveCache(CACHE_KEY, sorted)
-      }
-    } catch {
-      // Silently fail — cache already shown
-    } finally {
-      setRefreshing(false)
+  try {
+    const user = await getUser()
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
+    if (!error && data) {
+      const sorted = [...data].sort((a, b) => {
+        if (b.date !== a.date) return b.date.localeCompare(a.date)
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0)
+      })
+      setExpenses(sorted)
+      await saveCache(CACHE_KEY, sorted)
     }
+  } catch {
+    // Silently fail — cache already shown
+  } finally {
+    setRefreshing(false)
   }
+}
 
   useFocusEffect(useCallback(() => { fetchExpenses() }, []))
 
