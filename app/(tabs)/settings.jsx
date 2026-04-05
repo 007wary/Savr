@@ -44,6 +44,8 @@ export default function Settings() {
   const router = useRouter()
 
   const isGoogleUser = user?.app_metadata?.providers?.includes('google')
+  const hasEmailIdentity = user?.identities?.some(i => i.provider === 'email')
+  const showSetPassword = isGoogleUser && !hasEmailIdentity
 
   async function fetchUser(forceRefresh = false) {
     const { status } = await Notifications.getPermissionsAsync()
@@ -325,9 +327,9 @@ export default function Settings() {
             </View>
             <View>
               <Text style={styles.rowTitle}>
-                {isGoogleUser ? 'Set Password' : 'Change Password'}
+                {showSetPassword ? 'Set Password' : 'Change Password'}
               </Text>
-              {isGoogleUser && (
+              {showSetPassword && (
                 <Text style={styles.rowSubtitle}>Sign in with email too</Text>
               )}
             </View>
@@ -455,14 +457,14 @@ export default function Settings() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>
-              {isGoogleUser ? 'Set Password' : 'Change Password'}
+              {showSetPassword ? 'Set Password' : 'Change Password'}
             </Text>
             <TouchableOpacity onPress={closePasswordModal}>
               <Ionicons name="close" size={22} color={COLORS.textMuted} />
             </TouchableOpacity>
           </View>
 
-          {isGoogleUser ? (
+          {showSetPassword ? (
             <>
               <View style={styles.infoBox}>
                 <Ionicons name="information-circle-outline" size={18} color={COLORS.accent} />

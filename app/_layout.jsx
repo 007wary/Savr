@@ -5,6 +5,7 @@ import { COLORS } from '../src/constants/theme'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import * as Linking from 'expo-linking'
+import { requestNotificationPermission } from '../src/lib/notifications'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -22,7 +23,7 @@ export default function RootLayout() {
       }
     }, 5000)
 
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
       clearTimeout(timeout)
       setSession(session ?? null)
       SplashScreen.hideAsync()
@@ -32,9 +33,11 @@ export default function RootLayout() {
       SplashScreen.hideAsync()
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session ?? null)
       if (event === 'SIGNED_IN') {
+        // Request notification permission for new users
+        await requestNotificationPermission()
         router.replace('/(tabs)/dashboard')
       }
     })

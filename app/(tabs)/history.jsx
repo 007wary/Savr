@@ -41,11 +41,11 @@ export default function History() {
     const symbol = await getCurrencySymbol()
     setCurrencySymbol(symbol)
 
-    // Load from cache first
     if (!forceRefresh) {
       const cached = await loadCache(CACHE_KEY)
       if (cached) {
-        setExpenses(cached)
+        const sorted = [...cached].sort((a, b) => b.date.localeCompare(a.date))
+        setExpenses(sorted)
         syncFromSupabase()
         return
       }
@@ -63,8 +63,9 @@ export default function History() {
         .eq('user_id', user.id)
         .order('date', { ascending: false })
       if (!error && data) {
-        setExpenses(data)
-        await saveCache(CACHE_KEY, data)
+        const sorted = [...data].sort((a, b) => b.date.localeCompare(a.date))
+        setExpenses(sorted)
+        await saveCache(CACHE_KEY, sorted)
       }
     } catch {
       // Silently fail — cache already shown
@@ -116,13 +117,13 @@ export default function History() {
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-  await supabase.from('expenses').delete().eq('id', id)
-  const now = new Date()
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  await clearCache(`savr_cache_dashboard_${currentMonth}`)
-  await clearCache(`savr_cache_budgets_${currentMonth}`)
-  await clearCache(`savr_cache_reports_${currentMonth}`)
-  fetchExpenses(true)
+          await supabase.from('expenses').delete().eq('id', id)
+          const now = new Date()
+          const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+          await clearCache(`savr_cache_dashboard_${currentMonth}`)
+          await clearCache(`savr_cache_budgets_${currentMonth}`)
+          await clearCache(`savr_cache_reports_${currentMonth}`)
+          fetchExpenses(true)
         }
       }
     ])
@@ -154,12 +155,12 @@ export default function History() {
     if (error) showAlert('Error', error.message)
     else {
       setEditingExpense(null)
-const now = new Date()
-const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-await clearCache(`savr_cache_dashboard_${currentMonth}`)
-await clearCache(`savr_cache_budgets_${currentMonth}`)
-await clearCache(`savr_cache_reports_${currentMonth}`)
-fetchExpenses(true)
+      const now = new Date()
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      await clearCache(`savr_cache_dashboard_${currentMonth}`)
+      await clearCache(`savr_cache_budgets_${currentMonth}`)
+      await clearCache(`savr_cache_reports_${currentMonth}`)
+      fetchExpenses(true)
     }
     setSaving(false)
   }
