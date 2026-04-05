@@ -6,22 +6,23 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
-    },
     "scheme": "savr",
+    "splash": {
+      "backgroundColor": "#0F0F0F",
+      "resizeMode": "contain"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.saver.savr"
+      "bundleIdentifier": "com.saver.savr",
+      "backgroundColor": "#0F0F0F"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
+        "backgroundColor": "#0F0F0F"
       },
-      "package": "com.saver.savr"
+      "package": "com.saver.savr",
+      "backgroundColor": "#0F0F0F"
     },
     "plugins": [
       "expo-router",

@@ -239,7 +239,7 @@ export default function Settings() {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.footer}><Text style={styles.footerBold}>Savr</Text> · Track every rupee, every day</Text>
+      <Text style={styles.footer}><Text style={styles.footerBold}>Savr</Text> · Spend smart, save more</Text>
 
       {/* Currency Bottom Sheet */}
       <BottomSheet visible={showCurrencyModal} onClose={() => { setShowCurrencyModal(false); setCurrencySearch('') }} maxHeight="85%">
