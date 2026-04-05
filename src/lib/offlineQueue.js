@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from './supabase'
-import { getUser } from '../../src/lib/auth'
 
 const QUEUE_KEY = 'savr_offline_queue'
+let isSyncing = false // Prevent duplicate syncs
 
 export async function addToQueue(expense) {
   try {
@@ -28,11 +28,14 @@ export async function clearQueue() {
 }
 
 export async function syncQueue() {
+  if (isSyncing) return // Prevent duplicate syncs
   try {
     const queue = await getQueue()
     if (queue.length === 0) return
 
-    const user = await getUser()
+    isSyncing = true
+
+    const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
     const results = await Promise.all(
@@ -60,5 +63,7 @@ export async function syncQueue() {
 
     const allSucceeded = results.every(r => !r.error)
     if (allSucceeded) await clearQueue()
-  } catch {}
+  } catch {} finally {
+    isSyncing = false
+  }
 }

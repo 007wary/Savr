@@ -13,8 +13,8 @@ import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
-import { addToQueue, syncQueue, getQueue } from '../../src/lib/offlineQueue'
-import { clearCache } from '../../src/lib/cache'
+import { addToQueue, syncQueue } from '../../src/lib/offlineQueue'
+import { clearCache, saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
 
 const FREQUENCIES = [
@@ -32,26 +32,35 @@ export default function AddExpense() {
   const [isRecurring, setIsRecurring] = useState(false)
   const [frequency, setFrequency] = useState('monthly')
   const [isOnline, setIsOnline] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
-  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
+    let syncTimeout = null
 
-    // Listen for network changes
     const unsub = NetInfo.addEventListener(async state => {
       const online = state.isConnected && state.isInternetReachable
-      setIsOnline(online)
+      setIsOnline(!!online)
       if (online) {
-        // Sync queue when back online
-        await syncQueue()
-        // Clear caches so screens reload fresh data
-        await clearCache('savr_cache_dashboard')
-        await clearCache('savr_cache_history')
+        // Debounce to prevent multiple fires
+        if (syncTimeout) clearTimeout(syncTimeout)
+        syncTimeout = setTimeout(async () => {
+          await syncQueue()
+          const now = new Date()
+          const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+          await clearCache(`savr_cache_dashboard_${currentMonth}`)
+          await clearCache('savr_cache_history')
+          await clearCache(`savr_cache_budgets_${currentMonth}`)
+          await clearCache(`savr_cache_reports_${currentMonth}`)
+        }, 1000)
       }
     })
 
-    return () => unsub()
+    return () => {
+      unsub()
+      if (syncTimeout) clearTimeout(syncTimeout)
+    }
   }, [])
 
   function formatDate(d) {
@@ -72,80 +81,102 @@ export default function AddExpense() {
   }
 
   async function handleAdd() {
-  if (submitting) return
-  if (!amount || !selectedCategory) {
-    return showAlert('Missing info', 'Please enter an amount and select a category')
-  }
-  if (isNaN(parseFloat(amount))) {
-    return showAlert('Invalid amount', 'Please enter a valid number')
-  }
+    if (submitting) return
+    if (!amount || !selectedCategory) {
+      return showAlert('Missing info', 'Please enter an amount and select a category')
+    }
+    if (isNaN(parseFloat(amount))) {
+      return showAlert('Invalid amount', 'Please enter a valid number')
+    }
 
-  setSubmitting(true)
+    setSubmitting(true)
 
-  const expenseData = {
-    amount: parseFloat(amount),
-    category: selectedCategory,
-    note: note.trim(),
-    date: formatDate(date),
-  }
+    const now = new Date()
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
-  resetForm()
-
-  if (!isOnline) {
-  if (isRecurring) {
-    await addToQueue({
-      ...expenseData,
-      isRecurring: true,
-      frequency,
-      next_due: formatDate(date),
-    })
-  } else {
-    await addToQueue(expenseData)
-  }
-  router.replace('/(tabs)/dashboard')
-  setSubmitting(false)
-  return
-}
-
-  router.replace('/(tabs)/dashboard')
-
-  const user = await getUser()
-
-  if (isRecurring) {
-    await supabase.from('recurring_expenses').insert({
-      user_id: user.id,
-      amount: parseFloat(expenseData.amount),
+    const expenseData = {
+      amount: parseFloat(amount),
       category: selectedCategory,
-      note: expenseData.note,
-      frequency,
-      next_due: formatDate(date),
-      is_active: true,
-    })
-  } else {
-    await supabase.from('expenses').insert({
-      user_id: user.id,
-      ...expenseData,
-    }).then(() => {
-      const now = new Date()
-      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-      clearCache(`savr_cache_dashboard_${currentMonth}`)
-      clearCache('savr_cache_history')
-      clearCache(`savr_cache_budgets_${currentMonth}`)
-      clearCache(`savr_cache_reports_${currentMonth}`)
+      note: note.trim(),
+      date: formatDate(date),
+    }
 
-      Promise.all([
-        supabase.from('expenses').select('*').eq('user_id', user.id),
-        supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth)
-      ]).then(([{ data: allExpenses }, { data: budgets }]) => {
+    resetForm()
+
+    if (!isOnline) {
+      if (isRecurring) {
+        await addToQueue({
+          ...expenseData,
+          isRecurring: true,
+          frequency,
+          next_due: formatDate(date),
+        })
+      } else {
+        await addToQueue(expenseData)
+
+        // Add to local caches immediately so UI updates offline
+        const tempExpense = {
+          ...expenseData,
+          id: `offline_${Date.now()}`,
+          user_id: 'offline',
+          created_at: new Date().toISOString(),
+        }
+
+        // Update history cache
+        const historyCached = await loadCache('savr_cache_history') || []
+        const updatedHistory = [tempExpense, ...historyCached]
+        await saveCache('savr_cache_history', updatedHistory)
+
+        // Update dashboard cache
+        const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
+        const dashCached = await loadCache(dashCacheKey)
+        if (dashCached) {
+          const updatedExpenses = [tempExpense, ...dashCached.expenses]
+          await saveCache(dashCacheKey, { ...dashCached, expenses: updatedExpenses })
+        }
+      }
+
+      router.replace('/(tabs)/dashboard')
+      setSubmitting(false)
+      return
+    }
+
+    router.replace('/(tabs)/dashboard')
+
+    const user = await getUser()
+
+    if (isRecurring) {
+      await supabase.from('recurring_expenses').insert({
+        user_id: user.id,
+        amount: expenseData.amount,
+        category: selectedCategory,
+        note: expenseData.note,
+        frequency,
+        next_due: formatDate(date),
+        is_active: true,
+      })
+    } else {
+      await supabase.from('expenses').insert({
+        user_id: user.id,
+        ...expenseData,
+      }).then(async () => {
+        await clearCache(`savr_cache_dashboard_${currentMonth}`)
+        await clearCache('savr_cache_history')
+        await clearCache(`savr_cache_budgets_${currentMonth}`)
+        await clearCache(`savr_cache_reports_${currentMonth}`)
+
+        const [{ data: allExpenses }, { data: budgets }] = await Promise.all([
+          supabase.from('expenses').select('*').eq('user_id', user.id),
+          supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth)
+        ])
         if (allExpenses && budgets && budgets.length > 0) {
           checkBudgetAlerts(allExpenses, budgets, currentMonth)
         }
       })
-    })
-  }
+    }
 
-  setSubmitting(false)
-}
+    setSubmitting(false)
+  }
 
   return (
     <KeyboardAvoidingView
@@ -275,19 +306,23 @@ export default function AddExpense() {
         )}
 
         <TouchableOpacity
-  style={[styles.btn, isRecurring && { backgroundColor: COLORS.accentGreen }, submitting && { opacity: 0.6 }]}
-  onPress={handleAdd}
-  disabled={submitting}
->
-  <Ionicons
-    name={isRecurring ? 'repeat' : 'checkmark'}
-    size={18} color="#fff"
-    style={{ marginRight: 8 }}
-  />
-  <Text style={styles.btnText}>
-    {submitting ? 'Saving...' : isRecurring ? 'Add Recurring Expense' : 'Add Expense'}
-  </Text>
-</TouchableOpacity>
+          style={[
+            styles.btn,
+            isRecurring && { backgroundColor: COLORS.accentGreen },
+            submitting && { opacity: 0.6 }
+          ]}
+          onPress={handleAdd}
+          disabled={submitting}
+        >
+          <Ionicons
+            name={isRecurring ? 'repeat' : 'checkmark'}
+            size={18} color="#fff"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.btnText}>
+            {submitting ? 'Saving...' : isRecurring ? 'Add Recurring Expense' : 'Add Expense'}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
 
       <CustomAlert
@@ -304,26 +339,6 @@ export default function AddExpense() {
 const styles = StyleSheet.create({
   container: { padding: 24, paddingTop: 60 },
   heading: { fontSize: 26, fontWeight: '700', color: COLORS.text, marginBottom: 28 },
-  offlineBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: COLORS.accentRed, borderRadius: 12,
-    padding: 12, marginBottom: 16,
-  },
-  offlineText: { color: '#fff', fontSize: 13, fontWeight: '600', flex: 1 },
-  syncBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: COLORS.accentGreen + '22', borderRadius: 12,
-    padding: 12, marginBottom: 16,
-    borderWidth: 1, borderColor: COLORS.accentGreen + '44',
-  },
-  syncText: { color: COLORS.accentGreen, fontSize: 13, fontWeight: '600' },
-  pendingBanner: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: COLORS.accentYellow + '22', borderRadius: 12,
-    padding: 12, marginBottom: 16,
-    borderWidth: 1, borderColor: COLORS.accentYellow + '44',
-  },
-  pendingText: { color: COLORS.accentYellow, fontSize: 13, fontWeight: '600' },
   label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
   input: {
     backgroundColor: COLORS.card, borderRadius: 12, padding: 16,
