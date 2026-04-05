@@ -31,7 +31,8 @@
           "image": "./assets/icon.png",
           "imageWidth": 80
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

@@ -4,6 +4,7 @@ import { View } from 'react-native'
 import { COLORS } from '../src/constants/theme'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
+import * as Linking from 'expo-linking'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -18,11 +19,38 @@ export default function RootLayout() {
       SplashScreen.hideAsync()
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session ?? null)
+      if (event === 'SIGNED_IN') {
+        router.replace('/(tabs)/dashboard')
+      }
     })
 
-    return () => subscription.unsubscribe()
+    // Handle deep link when app opens from email confirmation
+    const handleDeepLink = async (url) => {
+      if (!url) return
+      if (url.includes('access_token') || url.includes('confirmation')) {
+        const { data, error } = await supabase.auth.getSessionFromUrl({ url })
+        if (data?.session) {
+          setSession(data.session)
+        }
+      }
+    }
+
+    // Check if app was opened from a link
+    Linking.getInitialURL().then(url => {
+      if (url) handleDeepLink(url)
+    })
+
+    // Listen for links while app is open
+    const linkSub = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url)
+    })
+
+    return () => {
+      subscription.unsubscribe()
+      linkSub.remove()
+    }
   }, [])
 
   useEffect(() => {
