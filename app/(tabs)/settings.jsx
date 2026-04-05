@@ -14,6 +14,7 @@ import BottomSheet from '../../src/components/BottomSheet'
 import { SettingsSkeleton } from '../../src/components/SkeletonLoader'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
+import * as Notifications from 'expo-notifications'
 
 const APP_VERSION = '1.0.0'
 
@@ -21,8 +22,8 @@ export default function Settings() {
   const [user, setUser] = useState(null)
   const [displayName, setDisplayName] = useState('')
   const [phone, setPhone] = useState('')
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
-  const [budgetAlerts, setBudgetAlerts] = useState(true)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false)
+const [budgetAlerts, setBudgetAlerts] = useState(false)
   const [profileModalVisible, setProfileModalVisible] = useState(false)
   const [showCurrencyModal, setShowCurrencyModal] = useState(false)
   const [currency, setCurrency] = useState('INR')
@@ -35,6 +36,9 @@ export default function Settings() {
   const router = useRouter()
 
   async function fetchUser() {
+    const { status } = await Notifications.getPermissionsAsync()
+setNotificationsEnabled(status === 'granted')
+setBudgetAlerts(status === 'granted')
     const { data: { user } } = await supabase.auth.getUser()
     setUser(user)
     const name = user.user_metadata?.display_name || user.email.split('@')[0]

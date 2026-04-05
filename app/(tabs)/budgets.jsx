@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, TextInput, Alert, RefreshControl
@@ -42,7 +42,7 @@ export default function Budgets() {
     setRefreshing(false)
   }
 
-  useEffect(() => { fetchData() }, [])
+  useFocusEffect(useCallback(() => { fetchData() }, []))
 
   async function saveBudget(category) {
     if (!inputValue || isNaN(parseFloat(inputValue))) {
