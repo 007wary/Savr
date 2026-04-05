@@ -7,14 +7,9 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "scheme": "savr",
-    "splash": {
-      "backgroundColor": "#0F0F0F",
-      "resizeMode": "contain"
-    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.saver.savr",
-      "backgroundColor": "#0F0F0F"
+      "bundleIdentifier": "com.saver.savr"
     },
     "android": {
       "adaptiveIcon": {
