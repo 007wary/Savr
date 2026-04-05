@@ -98,6 +98,15 @@ export default function Login() {
           secureTextEntry
         />
 
+        <TouchableOpacity
+          style={{ marginBottom: 20, alignItems: 'flex-end' }}
+          onPress={() => router.push('/(auth)/forgot-password')}
+        >
+          <Text style={{ color: COLORS.accent, fontSize: 13, fontWeight: '600' }}>
+            Forgot Password?
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.btn} onPress={handleLogin} disabled={loading}>
           <Text style={styles.btnText}>{loading ? 'Signing in...' : 'Sign In'}</Text>
         </TouchableOpacity>
@@ -170,7 +179,7 @@ const styles = StyleSheet.create({
   },
   btn: {
     backgroundColor: COLORS.accent, borderRadius: 12, padding: 16,
-    alignItems: 'center', marginTop: 4, marginBottom: 24,
+    alignItems: 'center', marginBottom: 24,
   },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   dividerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
@@ -182,5 +191,5 @@ const styles = StyleSheet.create({
     marginBottom: 24, borderWidth: 1, borderColor: COLORS.border,
   },
   googleBtnText: { color: COLORS.text, fontWeight: '600', fontSize: 15 },
-  link: { color: COLORS.textMuted, textAlign: 'center', fontSize: 14 },
+  link: { color: COLORS.textMuted, textAlign: 'center', fontSize: 14, marginBottom: 12 },
 })
