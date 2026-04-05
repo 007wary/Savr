@@ -155,9 +155,9 @@ export default function AddExpense() {
 
         <Text style={styles.label}>{isRecurring ? 'First Due Date' : 'Date'}</Text>
         <TouchableOpacity style={styles.datePicker} onPress={() => setShowDatePicker(true)}>
-          <Text style={styles.dateIcon}>📅</Text>
-          <Text style={styles.dateText}>{formatDisplayDate(date)}</Text>
-        </TouchableOpacity>
+  <Text style={styles.dateText}>{formatDisplayDate(date)}</Text>
+  <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} />
+</TouchableOpacity>
 
         {showDatePicker && (
           <DateTimePicker
@@ -273,10 +273,11 @@ const styles = StyleSheet.create({
   categoryIcon: { fontSize: 22 },
   categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
   datePicker: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: COLORS.card, borderRadius: 12, padding: 16,
-    marginBottom: 20, borderWidth: 1, borderColor: COLORS.border,
-  },
+  flexDirection: 'row', alignItems: 'center',
+  justifyContent: 'space-between',
+  backgroundColor: COLORS.card, borderRadius: 12, padding: 16,
+  marginBottom: 20, borderWidth: 1, borderColor: COLORS.border,
+},
   dateIcon: { fontSize: 18 },
   dateText: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
   recurringToggleRow: {

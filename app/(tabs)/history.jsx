@@ -1,9 +1,9 @@
 import { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Alert, RefreshControl, TextInput,
-  Platform, ScrollView
+  RefreshControl, TextInput, ScrollView, Platform
 } from 'react-native'
+import DateTimePicker from '@react-native-community/datetimepicker'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
@@ -11,6 +11,8 @@ import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { HistorySkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol } from '../../src/lib/currency'
 import BottomSheet from '../../src/components/BottomSheet'
+import CustomAlert from '../../src/components/CustomAlert'
+import useAlert from '../../src/hooks/useAlert'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 
@@ -22,12 +24,14 @@ export default function History() {
   const [editCategory, setEditCategory] = useState('')
   const [editNote, setEditNote] = useState('')
   const [editDate, setEditDate] = useState('')
+  const [showEditDatePicker, setShowEditDatePicker] = useState(false)
   const [saving, setSaving] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [selectedMonth, setSelectedMonth] = useState('All')
   const [showFilters, setShowFilters] = useState(false)
+  const { alertConfig, showAlert, hideAlert } = useAlert()
 
   async function fetchExpenses() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -80,7 +84,7 @@ export default function History() {
   }
 
   async function handleDelete(id) {
-    Alert.alert('Delete Expense', 'Are you sure?', [
+    showAlert('Delete Expense', 'Are you sure you want to delete this expense?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
@@ -98,11 +102,12 @@ export default function History() {
     setEditCategory(expense.category)
     setEditNote(expense.note || '')
     setEditDate(expense.date)
+    setShowEditDatePicker(false)
   }
 
   async function handleSaveEdit() {
     if (!editAmount || isNaN(parseFloat(editAmount))) {
-      return Alert.alert('Invalid', 'Please enter a valid amount')
+      return showAlert('Invalid', 'Please enter a valid amount')
     }
     setSaving(true)
     const { error } = await supabase
@@ -114,7 +119,7 @@ export default function History() {
         date: editDate,
       })
       .eq('id', editingExpense.id)
-    if (error) Alert.alert('Error', error.message)
+    if (error) showAlert('Error', error.message)
     else {
       setEditingExpense(null)
       fetchExpenses()
@@ -124,7 +129,7 @@ export default function History() {
 
   async function handleExport() {
     if (!expenses || expenses.length === 0) {
-      return Alert.alert('No data', 'No expenses to export')
+      return showAlert('No data', 'No expenses to export')
     }
     const headers = 'Date,Category,Amount,Note\n'
     const rows = expenses.map(e =>
@@ -159,7 +164,7 @@ export default function History() {
           <Text style={styles.date}>{formatDate(item.date)}</Text>
         </View>
         <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}>
-          <Text style={styles.deleteText}>✕</Text>
+          <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
         </TouchableOpacity>
       </TouchableOpacity>
     )
@@ -172,9 +177,9 @@ export default function History() {
       <View style={styles.headingRow}>
         <Text style={styles.heading}>History</Text>
         <TouchableOpacity style={styles.exportBtn} onPress={handleExport}>
-  <Ionicons name="share-outline" size={16} color={COLORS.accent} style={{ marginRight: 6 }} />
-  <Text style={styles.exportText}>Export</Text>
-</TouchableOpacity>
+          <Ionicons name="share-outline" size={16} color={COLORS.accent} style={{ marginRight: 6 }} />
+          <Text style={styles.exportText}>Export</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.searchRow}>
@@ -345,12 +350,29 @@ export default function History() {
             ))}
           </View>
           <Text style={styles.filterLabel}>Date</Text>
-          <TextInput
-            style={styles.input}
-            value={editDate}
-            onChangeText={setEditDate}
-            placeholderTextColor={COLORS.textMuted}
-          />
+          <TouchableOpacity
+            style={styles.datePicker}
+            onPress={() => setShowEditDatePicker(true)}
+          >
+            <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} style={{ marginRight: 10 }} />
+            <Text style={styles.datePickerText}>
+  {editDate ? new Date(editDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+</Text>
+          </TouchableOpacity>
+          {showEditDatePicker && (
+            <DateTimePicker
+              value={new Date(editDate)}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(event, selectedDate) => {
+                setShowEditDatePicker(Platform.OS === 'ios')
+                if (selectedDate) {
+                  const formatted = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
+                  setEditDate(formatted)
+                }
+              }}
+            />
+          )}
           <Text style={styles.filterLabel}>Note</Text>
           <TextInput
             style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
@@ -369,6 +391,14 @@ export default function History() {
           </View>
         </ScrollView>
       </BottomSheet>
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onClose={hideAlert}
+      />
     </View>
   )
 }
@@ -377,7 +407,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
   headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
-  exportBtn: { backgroundColor: COLORS.card, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center' },
+  exportBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
   exportText: { color: COLORS.accent, fontWeight: '600', fontSize: 13 },
   searchRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   searchBox: {
@@ -408,8 +438,7 @@ const styles = StyleSheet.create({
   right: { alignItems: 'flex-end', marginRight: 10 },
   amount: { fontSize: 15, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5 },
   date: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
-  deleteBtn: { padding: 4 },
-  deleteText: { color: COLORS.accentRed, fontSize: 14, fontWeight: '700' },
+  deleteBtn: { padding: 6 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
@@ -432,6 +461,12 @@ const styles = StyleSheet.create({
     color: COLORS.text, fontSize: 15, borderWidth: 1,
     borderColor: COLORS.border, marginBottom: 16,
   },
+  datePicker: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14,
+    borderWidth: 1, borderColor: COLORS.border, marginBottom: 16,
+  },
+  datePickerText: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
   categoryBtn: {
     width: '22%', alignItems: 'center',

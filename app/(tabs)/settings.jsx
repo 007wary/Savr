@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, Alert, Switch, TextInput,
+  TouchableOpacity, Switch, TextInput,
   KeyboardAvoidingView, Platform
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
@@ -12,6 +12,8 @@ import { sendNotification, requestNotificationPermission } from '../../src/lib/n
 import { saveCurrency, loadCurrency } from '../../src/lib/currency'
 import BottomSheet from '../../src/components/BottomSheet'
 import { SettingsSkeleton } from '../../src/components/SkeletonLoader'
+import CustomAlert from '../../src/components/CustomAlert'
+import useAlert from '../../src/hooks/useAlert'
 
 const APP_VERSION = '1.0.0'
 
@@ -24,10 +26,12 @@ export default function Settings() {
   const [profileModalVisible, setProfileModalVisible] = useState(false)
   const [showCurrencyModal, setShowCurrencyModal] = useState(false)
   const [currency, setCurrency] = useState('INR')
+  const [currencySearch, setCurrencySearch] = useState('')
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
   async function fetchUser() {
@@ -51,12 +55,12 @@ export default function Settings() {
   }
 
   async function saveProfile() {
-    if (!editName.trim()) return Alert.alert('Invalid', 'Name cannot be empty')
+    if (!editName.trim()) return showAlert('Invalid', 'Name cannot be empty')
     setSaving(true)
     const { error } = await supabase.auth.updateUser({
       data: { display_name: editName.trim(), phone_number: editPhone.trim() }
     })
-    if (error) Alert.alert('Error', error.message)
+    if (error) showAlert('Error', error.message)
     else {
       setDisplayName(editName.trim())
       setPhone(editPhone.trim())
@@ -66,7 +70,7 @@ export default function Settings() {
   }
 
   async function handleSignOut() {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+    showAlert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign Out', style: 'destructive', onPress: () => supabase.auth.signOut() }
     ])
@@ -80,6 +84,11 @@ export default function Settings() {
   }
 
   const selectedCurrency = CURRENCIES.find(c => c.code === currency)
+
+  const filteredCurrencies = CURRENCIES.filter(cur =>
+    cur.name.toLowerCase().includes(currencySearch.toLowerCase()) ||
+    cur.code.toLowerCase().includes(currencySearch.toLowerCase())
+  )
 
   if (loading) return <SettingsSkeleton />
 
@@ -119,12 +128,11 @@ export default function Settings() {
           <Switch
             value={notificationsEnabled}
             onValueChange={async (val) => {
-              setNotificationsEnabled(val)
-              if (val) {
-                const granted = await requestNotificationPermission()
-                if (granted) sendNotification('Notifications Enabled 🔔', 'You will now receive expense alerts')
-              }
-            }}
+  setNotificationsEnabled(val)
+  if (val) {
+    await requestNotificationPermission()
+  }
+}}
             trackColor={{ false: COLORS.border, true: COLORS.accent }}
             thumbColor="#fff"
           />
@@ -145,9 +153,8 @@ export default function Settings() {
           <Switch
             value={budgetAlerts}
             onValueChange={(val) => {
-              setBudgetAlerts(val)
-              if (val) sendNotification('Budget Alerts Enabled 💰', 'You will be warned when nearing your budget limit')
-            }}
+  setBudgetAlerts(val)
+}}
             trackColor={{ false: COLORS.border, true: COLORS.accent }}
             thumbColor="#fff"
           />
@@ -232,38 +239,61 @@ export default function Settings() {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.footer}>Made with 💸 by you</Text>
+      <Text style={styles.footer}><Text style={styles.footerBold}>Savr</Text> · Track every rupee, every day</Text>
 
       {/* Currency Bottom Sheet */}
-      <BottomSheet visible={showCurrencyModal} onClose={() => setShowCurrencyModal(false)} maxHeight="85%">
+      <BottomSheet visible={showCurrencyModal} onClose={() => { setShowCurrencyModal(false); setCurrencySearch('') }} maxHeight="85%">
         <View style={styles.sheetHeader}>
           <Text style={styles.sheetTitle}>Select Currency</Text>
-          <TouchableOpacity onPress={() => setShowCurrencyModal(false)}>
+          <TouchableOpacity onPress={() => { setShowCurrencyModal(false); setCurrencySearch('') }}>
             <Ionicons name="close" size={22} color={COLORS.textMuted} />
           </TouchableOpacity>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {CURRENCIES.map(cur => (
-            <TouchableOpacity
-              key={cur.code}
-              style={[styles.currencyRow, currency === cur.code && styles.currencyRowActive]}
-              onPress={async () => {
-                setCurrency(cur.code)
-                await saveCurrency(cur.code)
-                setShowCurrencyModal(false)
-              }}
-            >
-              <Text style={styles.currencyFlag}>{cur.flag}</Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.currencyName}>{cur.name}</Text>
-                <Text style={styles.currencyCode}>{cur.code}</Text>
-              </View>
-              <Text style={styles.currencySymbol}>{cur.symbol}</Text>
-              {currency === cur.code && (
-                <Ionicons name="checkmark-circle" size={20} color={COLORS.accent} style={{ marginLeft: 8 }} />
-              )}
+        <View style={styles.currencySearch}>
+          <Ionicons name="search-outline" size={16} color={COLORS.textMuted} style={{ marginRight: 8 }} />
+          <TextInput
+            style={styles.currencySearchInput}
+            placeholder="Search currency or country..."
+            placeholderTextColor={COLORS.textMuted}
+            value={currencySearch}
+            onChangeText={setCurrencySearch}
+            autoCorrect={false}
+          />
+          {currencySearch !== '' && (
+            <TouchableOpacity onPress={() => setCurrencySearch('')}>
+              <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
             </TouchableOpacity>
-          ))}
+          )}
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {filteredCurrencies.length === 0 ? (
+            <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+              <Text style={{ color: COLORS.textMuted, fontSize: 14 }}>No results found</Text>
+            </View>
+          ) : (
+            filteredCurrencies.map(cur => (
+              <TouchableOpacity
+                key={cur.code}
+                style={[styles.currencyRow, currency === cur.code && styles.currencyRowActive]}
+                onPress={async () => {
+                  setCurrency(cur.code)
+                  await saveCurrency(cur.code)
+                  setCurrencySearch('')
+                  setShowCurrencyModal(false)
+                }}
+              >
+                <Text style={styles.currencyFlag}>{cur.flag}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.currencyName}>{cur.name}</Text>
+                  <Text style={styles.currencyCode}>{cur.code}</Text>
+                </View>
+                <Text style={styles.currencySymbol}>{cur.symbol}</Text>
+                {currency === cur.code && (
+                  <Ionicons name="checkmark-circle" size={20} color={COLORS.accent} style={{ marginLeft: 8 }} />
+                )}
+              </TouchableOpacity>
+            ))
+          )}
         </ScrollView>
       </BottomSheet>
 
@@ -307,6 +337,14 @@ export default function Settings() {
           </TouchableOpacity>
         </KeyboardAvoidingView>
       </BottomSheet>
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onClose={hideAlert}
+      />
     </ScrollView>
   )
 }
@@ -351,9 +389,25 @@ const styles = StyleSheet.create({
   rowSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 1 },
   divider: { height: 1, backgroundColor: COLORS.border, marginLeft: 66 },
   versionText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
-  footer: { textAlign: 'center', color: COLORS.textMuted, fontSize: 13, marginTop: 8 },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  footer: { textAlign: 'center', color: COLORS.textMuted, fontSize: 13, marginTop: 8, marginBottom: 32 },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
+  currencySearch: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: COLORS.cardAlt, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 10,
+    borderWidth: 1, borderColor: COLORS.border, marginBottom: 12,
+  },
+  currencySearchInput: { flex: 1, color: COLORS.text, fontSize: 14 },
+  currencyRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    padding: 14, borderRadius: 12, marginBottom: 4,
+  },
+  currencyRowActive: { backgroundColor: COLORS.accent + '15' },
+  currencyFlag: { fontSize: 24 },
+  currencyName: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
+  currencyCode: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  currencySymbol: { fontSize: 16, color: COLORS.textMuted, fontWeight: '700' },
   modalAvatar: {
     width: 72, height: 72, borderRadius: 36,
     backgroundColor: COLORS.accent,
@@ -375,13 +429,5 @@ const styles = StyleSheet.create({
   readOnlyText: { fontSize: 15, color: COLORS.textMuted },
   saveBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  currencyRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    padding: 14, borderRadius: 12, marginBottom: 4,
-  },
-  currencyRowActive: { backgroundColor: COLORS.accent + '15' },
-  currencyFlag: { fontSize: 24 },
-  currencyName: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
-  currencyCode: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  currencySymbol: { fontSize: 16, color: COLORS.textMuted, fontWeight: '700' },
+  footerBold: { fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
 })
