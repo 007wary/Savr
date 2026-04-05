@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   RefreshControl, TextInput, ScrollView, Platform
@@ -13,7 +13,7 @@ import { getCurrencySymbol } from '../../src/lib/currency'
 import BottomSheet from '../../src/components/BottomSheet'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
-import * as FileSystem from 'expo-file-system/legacy'
+import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
 
 export default function History() {
@@ -46,7 +46,7 @@ export default function History() {
     setRefreshing(false)
   }
 
-  useEffect(() => { fetchExpenses() }, [])
+  useFocusEffect(useCallback(() => { fetchExpenses() }, []))
 
   function getMonths() {
     if (!expenses) return []
