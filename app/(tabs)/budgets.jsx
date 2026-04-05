@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, TextInput, Alert, RefreshControl
+  TouchableOpacity, TextInput, RefreshControl
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '../../src/lib/supabase'
@@ -9,6 +9,7 @@ import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { getCurrencySymbol } from '../../src/lib/currency'
 import { BudgetsSkeleton } from '../../src/components/SkeletonLoader'
 import { Ionicons } from '@expo/vector-icons'
+import { saveCache, loadCache } from '../../src/lib/cache'
 
 export default function Budgets() {
   const [budgets, setBudgets] = useState([])
@@ -23,31 +24,56 @@ export default function Budgets() {
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
 
-  async function fetchData() {
-    const { data: { user } } = await supabase.auth.getUser()
+  const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
+
+  async function fetchData(forceRefresh = false) {
     const symbol = await getCurrencySymbol()
     setCurrencySymbol(symbol)
 
-    const [{ data: budgetData }, { data: expenseData }] = await Promise.all([
-      supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth),
-      supabase.from('expenses').select('*').eq('user_id', user.id)
-    ])
-
-    if (budgetData) setBudgets(budgetData)
-    if (expenseData) {
-      const filtered = expenseData.filter(e => e.date.startsWith(currentMonth))
-      setExpenses(filtered)
+    if (!forceRefresh) {
+      const cached = await loadCache(CACHE_KEY)
+      if (cached) {
+        setBudgets(cached.budgets)
+        setExpenses(cached.expenses)
+        setLoading(false)
+        syncFromSupabase()
+        return
+      }
     }
-    setLoading(false)
-    setRefreshing(false)
+
+    await syncFromSupabase()
+  }
+
+  async function syncFromSupabase() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+
+      const [{ data: budgetData }, { data: expenseData }] = await Promise.all([
+        supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth),
+        supabase.from('expenses').select('*').eq('user_id', user.id)
+      ])
+
+      if (budgetData) setBudgets(budgetData)
+      if (expenseData) {
+        const filtered = expenseData.filter(e => e.date.startsWith(currentMonth))
+        setExpenses(filtered)
+        await saveCache(CACHE_KEY, {
+          budgets: budgetData || [],
+          expenses: filtered,
+        })
+      }
+    } catch {
+      // Silently fail — cache already shown
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }
 
   useFocusEffect(useCallback(() => { fetchData() }, []))
 
   async function saveBudget(category) {
-    if (!inputValue || isNaN(parseFloat(inputValue))) {
-      return Alert.alert('Invalid', 'Please enter a valid amount')
-    }
+    if (!inputValue || isNaN(parseFloat(inputValue))) return
     const { data: { user } } = await supabase.auth.getUser()
     const existing = budgets.find(b => b.category === category)
     if (existing) {
@@ -60,14 +86,14 @@ export default function Budgets() {
     }
     setEditing(null)
     setInputValue('')
-    fetchData()
+    fetchData(true)
   }
 
   async function deleteBudget(category) {
     const existing = budgets.find(b => b.category === category)
     if (existing) {
       await supabase.from('budgets').delete().eq('id', existing.id)
-      fetchData()
+      fetchData(true)
     }
   }
 
@@ -87,7 +113,11 @@ export default function Budgets() {
       style={styles.container}
       contentContainerStyle={{ paddingBottom: 40 }}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData() }} tintColor={COLORS.accent} />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); fetchData(true) }}
+          tintColor={COLORS.accent}
+        />
       }
     >
       <Text style={styles.heading}>Budgets</Text>
@@ -117,20 +147,20 @@ export default function Budgets() {
                 </Text>
               </View>
               <TouchableOpacity
-  style={[styles.editBtn, isEditing && styles.editBtnActive]}
-  onPress={() => {
-    if (isEditing) { setEditing(null) }
-    else { setEditing(cat.label); setInputValue(limit ? String(limit) : '') }
-  }}
->
-  {isEditing
-    ? <Ionicons name="close" size={14} color={COLORS.accentRed} />
-    : <Ionicons name="pencil" size={14} color={COLORS.accent} />
-  }
-  <Text style={[styles.editBtnText, isEditing && { color: COLORS.accentRed }]}>
-    {isEditing ? 'Cancel' : 'Edit'}
-  </Text>
-</TouchableOpacity>
+                style={[styles.editBtn, isEditing && styles.editBtnActive]}
+                onPress={() => {
+                  if (isEditing) { setEditing(null) }
+                  else { setEditing(cat.label); setInputValue(limit ? String(limit) : '') }
+                }}
+              >
+                {isEditing
+                  ? <Ionicons name="close" size={14} color={COLORS.accentRed} />
+                  : <Ionicons name="pencil" size={14} color={COLORS.accent} />
+                }
+                <Text style={[styles.editBtnText, isEditing && { color: COLORS.accentRed }]}>
+                  {isEditing ? 'Cancel' : 'Edit'}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {limit && (
@@ -187,18 +217,16 @@ const styles = StyleSheet.create({
   spentText: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
   limitText: { color: COLORS.textMuted },
   editBtn: {
-  flexDirection: 'row', alignItems: 'center', gap: 4,
-  paddingVertical: 6, paddingHorizontal: 10,
-  borderRadius: 8, borderWidth: 1,
-  borderColor: COLORS.border, backgroundColor: COLORS.cardAlt,
-},
-editBtnActive: {
-  borderColor: COLORS.accentRed + '44',
-  backgroundColor: COLORS.accentRed + '11',
-},
-editBtnText: {
-  fontSize: 12, fontWeight: '600', color: COLORS.accent,
-},
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingVertical: 6, paddingHorizontal: 10,
+    borderRadius: 8, borderWidth: 1,
+    borderColor: COLORS.border, backgroundColor: COLORS.cardAlt,
+  },
+  editBtnActive: {
+    borderColor: COLORS.accentRed + '44',
+    backgroundColor: COLORS.accentRed + '11',
+  },
+  editBtnText: { fontSize: 12, fontWeight: '600', color: COLORS.accent },
   progressBg: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, marginBottom: 6 },
   progressFill: { height: 6, borderRadius: 3 },
   overText: { fontSize: 12, color: COLORS.accentRed, marginTop: 4, fontWeight: '600' },

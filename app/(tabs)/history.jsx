@@ -15,6 +15,7 @@ import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
+import { saveCache, loadCache } from '../../src/lib/cache'
 
 export default function History() {
   const [expenses, setExpenses] = useState(null)
@@ -33,17 +34,42 @@ export default function History() {
   const [showFilters, setShowFilters] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
 
-  async function fetchExpenses() {
-    const { data: { user } } = await supabase.auth.getUser()
+  const CACHE_KEY = 'savr_cache_history'
+
+  async function fetchExpenses(forceRefresh = false) {
     const symbol = await getCurrencySymbol()
     setCurrencySymbol(symbol)
-    const { data, error } = await supabase
-      .from('expenses')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('date', { ascending: false })
-    if (!error) setExpenses(data)
-    setRefreshing(false)
+
+    // Load from cache first
+    if (!forceRefresh) {
+      const cached = await loadCache(CACHE_KEY)
+      if (cached) {
+        setExpenses(cached)
+        syncFromSupabase()
+        return
+      }
+    }
+
+    await syncFromSupabase()
+  }
+
+  async function syncFromSupabase() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data, error } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+      if (!error && data) {
+        setExpenses(data)
+        await saveCache(CACHE_KEY, data)
+      }
+    } catch {
+      // Silently fail — cache already shown
+    } finally {
+      setRefreshing(false)
+    }
   }
 
   useFocusEffect(useCallback(() => { fetchExpenses() }, []))
@@ -90,7 +116,7 @@ export default function History() {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
           await supabase.from('expenses').delete().eq('id', id)
-          fetchExpenses()
+          fetchExpenses(true)
         }
       }
     ])
@@ -122,7 +148,7 @@ export default function History() {
     if (error) showAlert('Error', error.message)
     else {
       setEditingExpense(null)
-      fetchExpenses()
+      fetchExpenses(true)
     }
     setSaving(false)
   }
@@ -246,7 +272,7 @@ export default function History() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => { setRefreshing(true); fetchExpenses() }}
+              onRefresh={() => { setRefreshing(true); fetchExpenses(true) }}
               tintColor={COLORS.accent}
             />
           }
@@ -356,8 +382,8 @@ export default function History() {
           >
             <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} style={{ marginRight: 10 }} />
             <Text style={styles.datePickerText}>
-  {editDate ? new Date(editDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
-</Text>
+              {editDate ? new Date(editDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+            </Text>
           </TouchableOpacity>
           {showEditDatePicker && (
             <DateTimePicker

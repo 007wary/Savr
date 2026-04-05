@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
@@ -7,6 +7,7 @@ import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol } from '../../src/lib/currency'
+import { saveCache, loadCache } from '../../src/lib/cache'
 
 function CountUp({ value, style, symbol }) {
   const [display, setDisplay] = useState(0)
@@ -56,38 +57,75 @@ export default function Dashboard() {
   const { month: currentMonth, name: monthName } = getMonthInfo(monthOffset)
   const isCurrentMonth = monthOffset === 0
 
-  async function fetchData() {
-    const { data: { user } } = await supabase.auth.getUser()
-    const meta = user.user_metadata?.display_name
-    const emailName = user.email.split('@')[0]
-    const firstName = meta ? meta.split(' ')[0] : emailName
-    setUserName(firstName)
+  async function fetchData(forceRefresh = false) {
+    const cacheKey = `savr_cache_dashboard_${currentMonth}`
 
-    const symbol = await getCurrencySymbol()
-    setCurrencySymbol(symbol)
-
-    const { data } = await supabase
-      .from('expenses')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('date', { ascending: false })
-
-    if (data) {
-      const filtered = data.filter(e => e.date.startsWith(currentMonth))
-      setExpenses(filtered)
-      const lastMonth = getMonthInfo(monthOffset - 1).month
-      const lastFiltered = data.filter(e => e.date.startsWith(lastMonth))
-      const lastTotal = lastFiltered.reduce((sum, e) => sum + parseFloat(e.amount), 0)
-      setLastMonthTotal(lastTotal)
-      const now = new Date()
-      const daysElapsed = monthOffset === 0 ? now.getDate() : new Date(currentMonth + '-01').getDate()
-      setDaysInMonth(daysElapsed)
+    // Load from cache first
+    if (!forceRefresh) {
+      const cached = await loadCache(cacheKey)
+      if (cached) {
+        setExpenses(cached.expenses)
+        setUserName(cached.userName)
+        setLastMonthTotal(cached.lastMonthTotal)
+        setDaysInMonth(cached.daysInMonth)
+        setCurrencySymbol(cached.currencySymbol)
+        setLoading(false)
+        // Still sync in background
+        syncFromSupabase(cacheKey)
+        return
+      }
     }
-    setLoading(false)
-    setRefreshing(false)
+
+    await syncFromSupabase(cacheKey)
   }
 
-  useEffect(() => { fetchData() }, [currentMonth])
+  async function syncFromSupabase(cacheKey) {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const meta = user.user_metadata?.display_name
+      const emailName = user.email.split('@')[0]
+      const firstName = meta ? meta.split(' ')[0] : emailName
+
+      const symbol = await getCurrencySymbol()
+
+      const { data } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+
+      if (data) {
+        const filtered = data.filter(e => e.date.startsWith(currentMonth))
+        const lastMonth = getMonthInfo(monthOffset - 1).month
+        const lastFiltered = data.filter(e => e.date.startsWith(lastMonth))
+        const lastTotal = lastFiltered.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+        const now = new Date()
+        const daysElapsed = monthOffset === 0 ? now.getDate() : new Date(currentMonth + '-01').getDate()
+
+        setExpenses(filtered)
+        setUserName(firstName)
+        setLastMonthTotal(lastTotal)
+        setDaysInMonth(daysElapsed)
+        setCurrencySymbol(symbol)
+
+        // Save to cache
+        await saveCache(cacheKey, {
+          expenses: filtered,
+          userName: firstName,
+          lastMonthTotal: lastTotal,
+          daysInMonth: daysElapsed,
+          currencySymbol: symbol,
+        })
+      }
+    } catch {
+      // Silently fail — cache already shown
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
+
+  useFocusEffect(useCallback(() => { fetchData() }, [currentMonth]))
 
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
 
@@ -130,7 +168,11 @@ export default function Dashboard() {
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData() }} tintColor={COLORS.accent} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); fetchData(true) }}
+            tintColor={COLORS.accent}
+          />
         }
       >
         <View style={styles.header}>

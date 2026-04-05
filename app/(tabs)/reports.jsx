@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
   RefreshControl, TouchableOpacity, Animated
@@ -10,6 +10,7 @@ import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { getCurrencySymbol } from '../../src/lib/currency'
 import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
+import { saveCache, loadCache } from '../../src/lib/cache'
 
 function AnimatedBar({ percentage, color, delay = 0 }) {
   const anim = useRef(new Animated.Value(0)).current
@@ -43,30 +44,61 @@ export default function Reports() {
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
 
-  async function fetchData() {
-    const { data: { user } } = await supabase.auth.getUser()
+  const CACHE_KEY = `savr_cache_reports_${currentMonth}`
+
+  async function fetchData(forceRefresh = false) {
     const symbol = await getCurrencySymbol()
     setCurrencySymbol(symbol)
 
-    const { data } = await supabase
-      .from('expenses')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('date', { ascending: true })
-
-    if (data) {
-      setAllExpenses(data)
-      const filtered = data.filter(e => e.date.startsWith(currentMonth))
-      setExpenses(filtered)
-      const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-      const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
-      setLastMonthExpenses(data.filter(e => e.date.startsWith(lastMonthKey)))
+    if (!forceRefresh) {
+      const cached = await loadCache(CACHE_KEY)
+      if (cached) {
+        setExpenses(cached.expenses)
+        setLastMonthExpenses(cached.lastMonthExpenses)
+        setAllExpenses(cached.allExpenses)
+        setLoading(false)
+        syncFromSupabase()
+        return
+      }
     }
-    setLoading(false)
-    setRefreshing(false)
+
+    await syncFromSupabase()
   }
 
-  useEffect(() => { fetchData() }, [])
+  async function syncFromSupabase() {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: true })
+
+      if (data) {
+        const filtered = data.filter(e => e.date.startsWith(currentMonth))
+        const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
+        const lastMonth = data.filter(e => e.date.startsWith(lastMonthKey))
+
+        setAllExpenses(data)
+        setExpenses(filtered)
+        setLastMonthExpenses(lastMonth)
+
+        await saveCache(CACHE_KEY, {
+          expenses: filtered,
+          lastMonthExpenses: lastMonth,
+          allExpenses: data,
+        })
+      }
+    } catch {
+      // Silently fail — cache already shown
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
+
+  useFocusEffect(useCallback(() => { fetchData() }, []))
 
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
   const lastTotal = lastMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
@@ -75,14 +107,12 @@ export default function Reports() {
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
   const forecast = dailyAvg * daysInMonth
 
-  // Category totals
   const categoryTotals = CATEGORIES.map(cat => {
     const catExpenses = expenses.filter(e => e.category === cat.label)
     const catTotal = catExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
     return { ...cat, total: catTotal, percentage: total > 0 ? (catTotal / total) * 100 : 0, expenses: catExpenses }
   }).filter(c => c.total > 0).sort((a, b) => b.total - a.total)
 
-  // 7-day chart
   const dailyMap = {}
   expenses.forEach(e => {
     dailyMap[e.date] = (dailyMap[e.date] || 0) + parseFloat(e.amount)
@@ -98,7 +128,6 @@ export default function Reports() {
   }
   const max7 = Math.max(...last7.map(d => d.amount), 1)
 
-  // Last 6 months trend
   const last6Months = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
@@ -111,7 +140,6 @@ export default function Reports() {
   }
   const max6 = Math.max(...last6Months.map(m => m.amount), 1)
 
-  // Heatmap
   const daysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
   const heatmapDays = []
   for (let d = 1; d <= daysInCurrentMonth; d++) {
@@ -121,7 +149,6 @@ export default function Reports() {
   }
   const maxHeatmap = Math.max(...heatmapDays.map(d => d.amount), 1)
 
-  // Weekend vs weekday
   const weekendExpenses = expenses.filter(e => {
     const day = new Date(e.date).getDay()
     return day === 0 || day === 6
@@ -133,7 +160,6 @@ export default function Reports() {
   const weekendTotal = weekendExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
   const weekdayTotal = weekdayExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
 
-  // Top note/merchant
   const noteCounts = {}
   expenses.forEach(e => {
     if (e.note && e.note.trim()) {
@@ -143,14 +169,12 @@ export default function Reports() {
   })
   const topNote = Object.entries(noteCounts).sort((a, b) => b[1] - a[1])[0]
 
-  // Biggest day
   const dayTotals = {}
   expenses.forEach(e => {
     dayTotals[e.date] = (dayTotals[e.date] || 0) + parseFloat(e.amount)
   })
   const biggestDay = Object.entries(dayTotals).sort((a, b) => b[1] - a[1])[0]
 
-  // Spending streak
   let streak = 0
   for (let i = 0; i < 30; i++) {
     const d = new Date()
@@ -167,7 +191,11 @@ export default function Reports() {
       style={styles.container}
       contentContainerStyle={{ paddingBottom: 60 }}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData() }} tintColor={COLORS.accent} />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => { setRefreshing(true); fetchData(true) }}
+          tintColor={COLORS.accent}
+        />
       }
     >
       <Text style={styles.heading}>Reports</Text>
@@ -181,7 +209,6 @@ export default function Reports() {
         </View>
       ) : (
         <>
-          {/* Total card */}
           <LinearGradient
             colors={['#7C75FF', '#6C63FF', '#5A50FF']}
             start={{ x: 0, y: 0 }}
@@ -193,7 +220,6 @@ export default function Reports() {
             <Text style={styles.totalSub}>{expenses.length} transactions</Text>
           </LinearGradient>
 
-          {/* 4 Mini stat cards */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
             <View style={styles.miniCard}>
               <Text style={styles.miniLabel}>DAILY AVG</Text>
@@ -219,7 +245,6 @@ export default function Reports() {
             </View>
           </ScrollView>
 
-          {/* Spending streak */}
           {streak > 0 && (
             <View style={styles.streakCard}>
               <Text style={styles.streakEmoji}>🔥</Text>
@@ -230,7 +255,6 @@ export default function Reports() {
             </View>
           )}
 
-          {/* Spending forecast */}
           <View style={styles.forecastCard}>
             <View style={styles.forecastHeader}>
               <Ionicons name="trending-up-outline" size={20} color={COLORS.accent} />
@@ -251,7 +275,6 @@ export default function Reports() {
             </Text>
           </View>
 
-          {/* Month comparison */}
           {lastTotal > 0 && (() => {
             const diff = total - lastTotal
             const pct = ((Math.abs(diff) / lastTotal) * 100).toFixed(0)
@@ -276,7 +299,6 @@ export default function Reports() {
             )
           })()}
 
-          {/* Last 6 months trend */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>6 Month Trend</Text>
             <View style={styles.barChart}>
@@ -300,7 +322,6 @@ export default function Reports() {
             </View>
           </View>
 
-          {/* Animated 7-day bar chart */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Last 7 Days</Text>
             <View style={styles.barChart}>
@@ -322,7 +343,6 @@ export default function Reports() {
             </View>
           </View>
 
-          {/* Spending heatmap */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Spending Heatmap</Text>
             <View style={styles.heatmapCard}>
@@ -356,15 +376,14 @@ export default function Reports() {
             </View>
           </View>
 
-          {/* Weekend vs Weekday */}
           {(weekendTotal > 0 || weekdayTotal > 0) && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Weekend vs Weekday</Text>
               <View style={styles.splitCard}>
                 <View style={styles.splitItem}>
                   <View style={[styles.splitIconBox, { backgroundColor: COLORS.accent + '22' }]}>
-  <Ionicons name="briefcase-outline" size={20} color={COLORS.accent} />
-</View>
+                    <Ionicons name="briefcase-outline" size={20} color={COLORS.accent} />
+                  </View>
                   <Text style={styles.splitLabel}>Weekdays</Text>
                   <Text style={styles.splitAmount}>{currencySymbol}{weekdayTotal.toFixed(0)}</Text>
                   <Text style={styles.splitPct}>
@@ -377,8 +396,8 @@ export default function Reports() {
                 <View style={styles.splitDivider} />
                 <View style={styles.splitItem}>
                   <View style={[styles.splitIconBox, { backgroundColor: COLORS.accentYellow + '22' }]}>
-  <Ionicons name="sunny-outline" size={20} color={COLORS.accentYellow} />
-</View>
+                    <Ionicons name="sunny-outline" size={20} color={COLORS.accentYellow} />
+                  </View>
                   <Text style={styles.splitLabel}>Weekends</Text>
                   <Text style={styles.splitAmount}>{currencySymbol}{weekendTotal.toFixed(0)}</Text>
                   <Text style={styles.splitPct}>
@@ -392,7 +411,6 @@ export default function Reports() {
             </View>
           )}
 
-          {/* Category breakdown — tappable */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Category Breakdown</Text>
             {categoryTotals.map(cat => (
@@ -424,7 +442,6 @@ export default function Reports() {
                   />
                 </TouchableOpacity>
 
-                {/* Expanded expenses */}
                 {expandedCategory === cat.label && (
                   <View style={styles.expandedList}>
                     {cat.expenses.sort((a, b) => b.amount - a.amount).map(exp => (
@@ -442,7 +459,6 @@ export default function Reports() {
             ))}
           </View>
 
-          {/* Top merchant */}
           {topNote && topNote[1] > 1 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Top Merchant</Text>
@@ -457,7 +473,6 @@ export default function Reports() {
             </View>
           )}
 
-          {/* Biggest expense */}
           {expenses.length > 0 && (() => {
             const biggest = [...expenses].sort((a, b) => b.amount - a.amount)[0]
             const cat = CATEGORIES.find(c => c.label === biggest.category) || { icon: '📦', color: '#888' }
@@ -555,6 +570,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.border,
   },
   splitItem: { flex: 1, alignItems: 'center', gap: 6 },
+  splitIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   splitLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
   splitAmount: { fontSize: 18, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
   splitPct: { fontSize: 12, color: COLORS.textMuted },
@@ -604,8 +620,4 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', marginTop: 80 },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },
-  splitIconBox: {
-  width: 40, height: 40, borderRadius: 12,
-  justifyContent: 'center', alignItems: 'center',
-},
 })
