@@ -23,22 +23,27 @@ export default function Settings() {
   const [displayName, setDisplayName] = useState('')
   const [phone, setPhone] = useState('')
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
-const [budgetAlerts, setBudgetAlerts] = useState(false)
+  const [budgetAlerts, setBudgetAlerts] = useState(false)
   const [profileModalVisible, setProfileModalVisible] = useState(false)
   const [showCurrencyModal, setShowCurrencyModal] = useState(false)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [currency, setCurrency] = useState('INR')
   const [currencySearch, setCurrencySearch] = useState('')
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [changingPassword, setChangingPassword] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
   async function fetchUser() {
     const { status } = await Notifications.getPermissionsAsync()
-setNotificationsEnabled(status === 'granted')
-setBudgetAlerts(status === 'granted')
+    setNotificationsEnabled(status === 'granted')
+    setBudgetAlerts(status === 'granted')
     const { data: { user } } = await supabase.auth.getUser()
     setUser(user)
     const name = user.user_metadata?.display_name || user.email.split('@')[0]
@@ -71,6 +76,42 @@ setBudgetAlerts(status === 'granted')
       setProfileModalVisible(false)
     }
     setSaving(false)
+  }
+
+  async function handleChangePassword() {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return showAlert('Error', 'Please fill in all fields')
+    }
+    if (newPassword.length < 6) {
+      return showAlert('Error', 'New password must be at least 6 characters')
+    }
+    if (newPassword !== confirmPassword) {
+      return showAlert('Error', 'New passwords do not match')
+    }
+    setChangingPassword(true)
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    })
+    if (signInError) {
+      setChangingPassword(false)
+      return showAlert('Error', 'Current password is incorrect')
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    setChangingPassword(false)
+    if (error) return showAlert('Error', error.message)
+    setShowPasswordModal(false)
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+    showAlert('Success! 🎉', 'Your password has been changed successfully.')
+  }
+
+  function closePasswordModal() {
+    setShowPasswordModal(false)
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
   }
 
   async function handleSignOut() {
@@ -132,11 +173,9 @@ setBudgetAlerts(status === 'granted')
           <Switch
             value={notificationsEnabled}
             onValueChange={async (val) => {
-  setNotificationsEnabled(val)
-  if (val) {
-    await requestNotificationPermission()
-  }
-}}
+              setNotificationsEnabled(val)
+              if (val) await requestNotificationPermission()
+            }}
             trackColor={{ false: COLORS.border, true: COLORS.accent }}
             thumbColor="#fff"
           />
@@ -156,9 +195,7 @@ setBudgetAlerts(status === 'granted')
           </View>
           <Switch
             value={budgetAlerts}
-            onValueChange={(val) => {
-  setBudgetAlerts(val)
-}}
+            onValueChange={(val) => setBudgetAlerts(val)}
             trackColor={{ false: COLORS.border, true: COLORS.accent }}
             thumbColor="#fff"
           />
@@ -232,6 +269,21 @@ setBudgetAlerts(status === 'granted')
       {/* Account */}
       <Text style={styles.sectionLabel}>ACCOUNT</Text>
       <View style={styles.card}>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => setShowPasswordModal(true)}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#6C63FF22' }]}>
+              <Ionicons name="lock-closed-outline" size={18} color={COLORS.accent} />
+            </View>
+            <Text style={styles.rowTitle}>Change Password</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
+
+        <View style={styles.divider} />
+
         <TouchableOpacity style={styles.row} onPress={handleSignOut}>
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#FF5C5C22' }]}>
@@ -342,6 +394,54 @@ setBudgetAlerts(status === 'granted')
         </KeyboardAvoidingView>
       </BottomSheet>
 
+      {/* Change Password Bottom Sheet */}
+      <BottomSheet visible={showPasswordModal} onClose={closePasswordModal}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Change Password</Text>
+            <TouchableOpacity onPress={closePasswordModal}>
+              <Ionicons name="close" size={22} color={COLORS.textMuted} />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.label}>Current Password</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter current password"
+            placeholderTextColor={COLORS.textMuted}
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+            secureTextEntry
+          />
+          <Text style={styles.label}>New Password</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Min. 6 characters"
+            placeholderTextColor={COLORS.textMuted}
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry
+          />
+          <Text style={styles.label}>Confirm New Password</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Repeat new password"
+            placeholderTextColor={COLORS.textMuted}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+          />
+          <TouchableOpacity
+            style={styles.saveBtn}
+            onPress={handleChangePassword}
+            disabled={changingPassword}
+          >
+            <Text style={styles.saveBtnText}>
+              {changingPassword ? 'Changing...' : 'Change Password'}
+            </Text>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </BottomSheet>
+
       <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}
@@ -431,7 +531,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.border, marginBottom: 24,
   },
   readOnlyText: { fontSize: 15, color: COLORS.textMuted },
-  saveBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center' },
+  saveBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   footerBold: { fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
 })

@@ -4,6 +4,13 @@ import { COLORS } from '../constants/theme'
 export default function CustomAlert({ visible, title, message, buttons, onClose }) {
   if (!visible) return null
 
+  const handlePress = (btn) => {
+    onClose?.()
+    setTimeout(() => {
+      btn.onPress?.()
+    }, 100)
+  }
+
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -21,10 +28,7 @@ export default function CustomAlert({ visible, title, message, buttons, onClose 
                   !btn.style && styles.btnDefault,
                   buttons.length === 1 && { flex: 0, paddingHorizontal: 40 }
                 ]}
-                onPress={() => {
-                  btn.onPress?.()
-                  onClose?.()
-                }}
+                onPress={() => handlePress(btn)}
               >
                 <Text style={[
                   styles.btnText,

@@ -43,11 +43,14 @@ export default function Login() {
       setGoogleLoading(true)
       const redirectUrl = AuthSession.makeRedirectUri({ scheme: 'savr' })
       const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          skipBrowserRedirect: true,
-        },
+  provider: 'google',
+  options: {
+    redirectTo: redirectUrl,
+    skipBrowserRedirect: true,
+    queryParams: {
+      prompt: 'select_account',
+    },
+  },
       })
       if (error) throw error
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
