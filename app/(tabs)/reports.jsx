@@ -362,7 +362,9 @@ export default function Reports() {
               <Text style={styles.sectionTitle}>Weekend vs Weekday</Text>
               <View style={styles.splitCard}>
                 <View style={styles.splitItem}>
-                  <Text style={styles.splitEmoji}>📅</Text>
+                  <View style={[styles.splitIconBox, { backgroundColor: COLORS.accent + '22' }]}>
+  <Ionicons name="briefcase-outline" size={20} color={COLORS.accent} />
+</View>
                   <Text style={styles.splitLabel}>Weekdays</Text>
                   <Text style={styles.splitAmount}>{currencySymbol}{weekdayTotal.toFixed(0)}</Text>
                   <Text style={styles.splitPct}>
@@ -374,7 +376,9 @@ export default function Reports() {
                 </View>
                 <View style={styles.splitDivider} />
                 <View style={styles.splitItem}>
-                  <Text style={styles.splitEmoji}>🎉</Text>
+                  <View style={[styles.splitIconBox, { backgroundColor: COLORS.accentYellow + '22' }]}>
+  <Ionicons name="sunny-outline" size={20} color={COLORS.accentYellow} />
+</View>
                   <Text style={styles.splitLabel}>Weekends</Text>
                   <Text style={styles.splitAmount}>{currencySymbol}{weekendTotal.toFixed(0)}</Text>
                   <Text style={styles.splitPct}>
@@ -551,7 +555,6 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.border,
   },
   splitItem: { flex: 1, alignItems: 'center', gap: 6 },
-  splitEmoji: { fontSize: 24 },
   splitLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
   splitAmount: { fontSize: 18, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
   splitPct: { fontSize: 12, color: COLORS.textMuted },
@@ -601,4 +604,8 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', marginTop: 80 },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },
+  splitIconBox: {
+  width: 40, height: 40, borderRadius: 12,
+  justifyContent: 'center', alignItems: 'center',
+},
 })
