@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from './supabase'
+import { getUser } from '../../src/lib/auth'
 
 const QUEUE_KEY = 'savr_offline_queue'
 
@@ -31,13 +32,29 @@ export async function syncQueue() {
     const queue = await getQueue()
     if (queue.length === 0) return
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const user = await getUser()
     if (!user) return
 
     const results = await Promise.all(
       queue.map(expense => {
-        const { _queued, _id, ...data } = expense
-        return supabase.from('expenses').insert({ ...data, user_id: user.id })
+        const { _queued, _id, isRecurring, frequency, next_due, ...data } = expense
+
+        if (isRecurring) {
+          return supabase.from('recurring_expenses').insert({
+            user_id: user.id,
+            amount: data.amount,
+            category: data.category,
+            note: data.note,
+            frequency,
+            next_due,
+            is_active: true,
+          })
+        } else {
+          return supabase.from('expenses').insert({
+            user_id: user.id,
+            ...data,
+          })
+        }
       })
     )
 

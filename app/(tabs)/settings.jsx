@@ -8,7 +8,7 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CURRENCIES } from '../../src/constants/theme'
-import { sendNotification, requestNotificationPermission } from '../../src/lib/notifications'
+import { requestNotificationPermission } from '../../src/lib/notifications'
 import { saveCurrency, loadCurrency } from '../../src/lib/currency'
 import BottomSheet from '../../src/components/BottomSheet'
 import { SettingsSkeleton } from '../../src/components/SkeletonLoader'
@@ -16,6 +16,7 @@ import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import * as Notifications from 'expo-notifications'
 import { saveCache, loadCache } from '../../src/lib/cache'
+import { getUser } from '../../src/lib/auth'
 
 const APP_VERSION = '1.0.0'
 const CACHE_KEY = 'savr_cache_settings'
@@ -42,6 +43,8 @@ export default function Settings() {
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
+  const isGoogleUser = user?.app_metadata?.providers?.includes('google')
+
   async function fetchUser(forceRefresh = false) {
     const { status } = await Notifications.getPermissionsAsync()
     setNotificationsEnabled(status === 'granted')
@@ -65,7 +68,7 @@ export default function Settings() {
 
   async function syncFromSupabase() {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getUser()
       setUser(user)
       const name = user.user_metadata?.display_name || user.email.split('@')[0]
       const ph = user.user_metadata?.phone_number || ''
@@ -73,12 +76,8 @@ export default function Settings() {
       setPhone(ph)
       const savedCurrency = await loadCurrency()
       setCurrency(savedCurrency)
-
       await saveCache(CACHE_KEY, {
-        user,
-        displayName: name,
-        phone: ph,
-        currency: savedCurrency,
+        user, displayName: name, phone: ph, currency: savedCurrency,
       })
     } catch {
       // Silently fail — cache already shown
@@ -106,12 +105,8 @@ export default function Settings() {
       setDisplayName(editName.trim())
       setPhone(editPhone.trim())
       setProfileModalVisible(false)
-      // Update cache
       await saveCache(CACHE_KEY, {
-        user,
-        displayName: editName.trim(),
-        phone: editPhone.trim(),
-        currency,
+        user, displayName: editName.trim(), phone: editPhone.trim(), currency,
       })
     }
     setSaving(false)
@@ -139,11 +134,26 @@ export default function Settings() {
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     setChangingPassword(false)
     if (error) return showAlert('Error', error.message)
-    setShowPasswordModal(false)
-    setCurrentPassword('')
-    setNewPassword('')
-    setConfirmPassword('')
+    closePasswordModal()
     showAlert('Success! 🎉', 'Your password has been changed successfully.')
+  }
+
+  async function handleSetPassword() {
+    if (!newPassword || !confirmPassword) {
+      return showAlert('Error', 'Please fill in all fields')
+    }
+    if (newPassword.length < 6) {
+      return showAlert('Error', 'Password must be at least 6 characters')
+    }
+    if (newPassword !== confirmPassword) {
+      return showAlert('Error', 'Passwords do not match')
+    }
+    setChangingPassword(true)
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    setChangingPassword(false)
+    if (error) return showAlert('Error', error.message)
+    closePasswordModal()
+    showAlert('Password Set! 🎉', 'You can now sign in with your email and this password.')
   }
 
   function closePasswordModal() {
@@ -313,7 +323,14 @@ export default function Settings() {
             <View style={[styles.rowIcon, { backgroundColor: '#6C63FF22' }]}>
               <Ionicons name="lock-closed-outline" size={18} color={COLORS.accent} />
             </View>
-            <Text style={styles.rowTitle}>Change Password</Text>
+            <View>
+              <Text style={styles.rowTitle}>
+                {isGoogleUser ? 'Set Password' : 'Change Password'}
+              </Text>
+              {isGoogleUser && (
+                <Text style={styles.rowSubtitle}>Sign in with email too</Text>
+              )}
+            </View>
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
         </TouchableOpacity>
@@ -331,7 +348,9 @@ export default function Settings() {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.footer}><Text style={styles.footerBold}>Savr</Text> · Spend smart, save more</Text>
+      <Text style={styles.footer}>
+        <Text style={styles.footerBold}>Savr</Text> · Spend smart, save more
+      </Text>
 
       {/* Currency Bottom Sheet */}
       <BottomSheet visible={showCurrencyModal} onClose={() => { setShowCurrencyModal(false); setCurrencySearch('') }} maxHeight="85%">
@@ -431,51 +450,94 @@ export default function Settings() {
         </KeyboardAvoidingView>
       </BottomSheet>
 
-      {/* Change Password Bottom Sheet */}
+      {/* Change Password / Set Password Bottom Sheet */}
       <BottomSheet visible={showPasswordModal} onClose={closePasswordModal}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>Change Password</Text>
+            <Text style={styles.sheetTitle}>
+              {isGoogleUser ? 'Set Password' : 'Change Password'}
+            </Text>
             <TouchableOpacity onPress={closePasswordModal}>
               <Ionicons name="close" size={22} color={COLORS.textMuted} />
             </TouchableOpacity>
           </View>
-          <Text style={styles.label}>Current Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter current password"
-            placeholderTextColor={COLORS.textMuted}
-            value={currentPassword}
-            onChangeText={setCurrentPassword}
-            secureTextEntry
-          />
-          <Text style={styles.label}>New Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Min. 6 characters"
-            placeholderTextColor={COLORS.textMuted}
-            value={newPassword}
-            onChangeText={setNewPassword}
-            secureTextEntry
-          />
-          <Text style={styles.label}>Confirm New Password</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Repeat new password"
-            placeholderTextColor={COLORS.textMuted}
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-          />
-          <TouchableOpacity
-            style={styles.saveBtn}
-            onPress={handleChangePassword}
-            disabled={changingPassword}
-          >
-            <Text style={styles.saveBtnText}>
-              {changingPassword ? 'Changing...' : 'Change Password'}
-            </Text>
-          </TouchableOpacity>
+
+          {isGoogleUser ? (
+            <>
+              <View style={styles.infoBox}>
+                <Ionicons name="information-circle-outline" size={18} color={COLORS.accent} />
+                <Text style={styles.infoText}>
+                  Adding a password lets you also sign in with {user?.email} and password in addition to Google.
+                </Text>
+              </View>
+              <Text style={styles.label}>New Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Min. 6 characters"
+                placeholderTextColor={COLORS.textMuted}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+              />
+              <Text style={styles.label}>Confirm Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Repeat new password"
+                placeholderTextColor={COLORS.textMuted}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+              />
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={handleSetPassword}
+                disabled={changingPassword}
+              >
+                <Text style={styles.saveBtnText}>
+                  {changingPassword ? 'Setting...' : 'Set Password'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <Text style={styles.label}>Current Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter current password"
+                placeholderTextColor={COLORS.textMuted}
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                secureTextEntry
+              />
+              <Text style={styles.label}>New Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Min. 6 characters"
+                placeholderTextColor={COLORS.textMuted}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+              />
+              <Text style={styles.label}>Confirm New Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Repeat new password"
+                placeholderTextColor={COLORS.textMuted}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+              />
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={handleChangePassword}
+                disabled={changingPassword}
+              >
+                <Text style={styles.saveBtnText}>
+                  {changingPassword ? 'Changing...' : 'Change Password'}
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
         </KeyboardAvoidingView>
       </BottomSheet>
 
@@ -531,6 +593,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: COLORS.border, marginLeft: 66 },
   versionText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
   footer: { textAlign: 'center', color: COLORS.textMuted, fontSize: 13, marginTop: 8, marginBottom: 32 },
+  footerBold: { fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
   currencySearch: {
@@ -570,5 +633,11 @@ const styles = StyleSheet.create({
   readOnlyText: { fontSize: 15, color: COLORS.textMuted },
   saveBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  footerBold: { fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  infoBox: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    backgroundColor: COLORS.accent + '11', borderRadius: 12,
+    padding: 14, marginBottom: 20,
+    borderWidth: 1, borderColor: COLORS.accent + '33',
+  },
+  infoText: { flex: 1, fontSize: 13, color: COLORS.textMuted, lineHeight: 20 },
 })

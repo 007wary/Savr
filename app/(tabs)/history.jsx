@@ -15,7 +15,8 @@ import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
-import { saveCache, loadCache } from '../../src/lib/cache'
+import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
+import { getUser } from '../../src/lib/auth'
 
 export default function History() {
   const [expenses, setExpenses] = useState(null)
@@ -55,7 +56,7 @@ export default function History() {
 
   async function syncFromSupabase() {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getUser()
       const { data, error } = await supabase
         .from('expenses')
         .select('*')
@@ -115,8 +116,13 @@ export default function History() {
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-          await supabase.from('expenses').delete().eq('id', id)
-          fetchExpenses(true)
+  await supabase.from('expenses').delete().eq('id', id)
+  const now = new Date()
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  await clearCache(`savr_cache_dashboard_${currentMonth}`)
+  await clearCache(`savr_cache_budgets_${currentMonth}`)
+  await clearCache(`savr_cache_reports_${currentMonth}`)
+  fetchExpenses(true)
         }
       }
     ])
@@ -148,7 +154,12 @@ export default function History() {
     if (error) showAlert('Error', error.message)
     else {
       setEditingExpense(null)
-      fetchExpenses(true)
+const now = new Date()
+const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+await clearCache(`savr_cache_dashboard_${currentMonth}`)
+await clearCache(`savr_cache_budgets_${currentMonth}`)
+await clearCache(`savr_cache_reports_${currentMonth}`)
+fetchExpenses(true)
     }
     setSaving(false)
   }

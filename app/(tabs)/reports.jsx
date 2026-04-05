@@ -11,6 +11,7 @@ import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { getCurrencySymbol } from '../../src/lib/currency'
 import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
 import { saveCache, loadCache } from '../../src/lib/cache'
+import { getUser } from '../../src/lib/auth'
 
 function AnimatedBar({ percentage, color, delay = 0 }) {
   const anim = useRef(new Animated.Value(0)).current
@@ -66,13 +67,23 @@ export default function Reports() {
   }
 
   async function syncFromSupabase() {
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      const { data } = await supabase
+  try {
+    // Try to use history cache first to avoid duplicate fetch
+    const historyCached = await loadCache('savr_cache_history')
+    let data = historyCached
+
+    if (!data) {
+      const user = await getUser()
+      const { data: fetchedData } = await supabase
         .from('expenses')
         .select('*')
         .eq('user_id', user.id)
         .order('date', { ascending: true })
+      data = fetchedData
+    } else {
+      // Sort ascending for reports
+      data = [...data].sort((a, b) => a.date.localeCompare(b.date))
+    }
 
       if (data) {
         const filtered = data.filter(e => e.date.startsWith(currentMonth))

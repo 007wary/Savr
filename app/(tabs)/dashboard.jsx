@@ -8,6 +8,7 @@ import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol } from '../../src/lib/currency'
 import { saveCache, loadCache } from '../../src/lib/cache'
+import { getUser } from '../../src/lib/auth'
 
 function CountUp({ value, style, symbol }) {
   const [display, setDisplay] = useState(0)
@@ -81,7 +82,7 @@ export default function Dashboard() {
 
   async function syncFromSupabase(cacheKey) {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getUser()
       const meta = user.user_metadata?.display_name
       const emailName = user.email.split('@')[0]
       const firstName = meta ? meta.split(' ')[0] : emailName

@@ -15,6 +15,7 @@ import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { addToQueue, syncQueue, getQueue } from '../../src/lib/offlineQueue'
 import { clearCache } from '../../src/lib/cache'
+import { getUser } from '../../src/lib/auth'
 
 const FREQUENCIES = [
   { label: 'Daily', value: 'daily', icon: '📅' },
@@ -33,6 +34,7 @@ export default function AddExpense() {
   const [isOnline, setIsOnline] = useState(true)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
+  const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
 
@@ -70,66 +72,80 @@ export default function AddExpense() {
   }
 
   async function handleAdd() {
-    if (!amount || !selectedCategory) {
-      return showAlert('Missing info', 'Please enter an amount and select a category')
-    }
-    if (isNaN(parseFloat(amount))) {
-      return showAlert('Invalid amount', 'Please enter a valid number')
-    }
-
-    const expenseData = {
-      amount: parseFloat(amount),
-      category: selectedCategory,
-      note: note.trim(),
-      date: formatDate(date),
-    }
-
-    resetForm()
-
-    if (!isOnline) {
-      // Save to offline queue
-      await addToQueue(expenseData)
-      setPendingCount(prev => prev + 1)
-      router.replace('/(tabs)/dashboard')
-      return
-    }
-
-    router.replace('/(tabs)/dashboard')
-
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (isRecurring) {
-      supabase.from('recurring_expenses').insert({
-        user_id: user.id,
-        amount: parseFloat(amount),
-        category: selectedCategory,
-        note: note.trim(),
-        frequency,
-        next_due: formatDate(date),
-        is_active: true,
-      })
-    } else {
-      supabase.from('expenses').insert({
-        user_id: user.id,
-        ...expenseData,
-      }).then(() => {
-        // Clear caches so dashboard shows updated data
-        const now = new Date()
-        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-        clearCache(`savr_cache_dashboard_${currentMonth}`)
-        clearCache('savr_cache_history')
-
-        Promise.all([
-          supabase.from('expenses').select('*').eq('user_id', user.id),
-          supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth)
-        ]).then(([{ data: allExpenses }, { data: budgets }]) => {
-          if (allExpenses && budgets && budgets.length > 0) {
-            checkBudgetAlerts(allExpenses, budgets, currentMonth)
-          }
-        })
-      })
-    }
+  if (submitting) return
+  if (!amount || !selectedCategory) {
+    return showAlert('Missing info', 'Please enter an amount and select a category')
   }
+  if (isNaN(parseFloat(amount))) {
+    return showAlert('Invalid amount', 'Please enter a valid number')
+  }
+
+  setSubmitting(true)
+
+  const expenseData = {
+    amount: parseFloat(amount),
+    category: selectedCategory,
+    note: note.trim(),
+    date: formatDate(date),
+  }
+
+  resetForm()
+
+  if (!isOnline) {
+  if (isRecurring) {
+    await addToQueue({
+      ...expenseData,
+      isRecurring: true,
+      frequency,
+      next_due: formatDate(date),
+    })
+  } else {
+    await addToQueue(expenseData)
+  }
+  router.replace('/(tabs)/dashboard')
+  setSubmitting(false)
+  return
+}
+
+  router.replace('/(tabs)/dashboard')
+
+  const user = await getUser()
+
+  if (isRecurring) {
+    await supabase.from('recurring_expenses').insert({
+      user_id: user.id,
+      amount: parseFloat(expenseData.amount),
+      category: selectedCategory,
+      note: expenseData.note,
+      frequency,
+      next_due: formatDate(date),
+      is_active: true,
+    })
+  } else {
+    await supabase.from('expenses').insert({
+      user_id: user.id,
+      ...expenseData,
+    }).then(() => {
+      const now = new Date()
+      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+      clearCache(`savr_cache_dashboard_${currentMonth}`)
+      clearCache('savr_cache_history')
+      clearCache(`savr_cache_budgets_${currentMonth}`)
+      clearCache(`savr_cache_reports_${currentMonth}`)
+
+      Promise.all([
+        supabase.from('expenses').select('*').eq('user_id', user.id),
+        supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth)
+      ]).then(([{ data: allExpenses }, { data: budgets }]) => {
+        if (allExpenses && budgets && budgets.length > 0) {
+          checkBudgetAlerts(allExpenses, budgets, currentMonth)
+        }
+      })
+    })
+  }
+
+  setSubmitting(false)
+}
 
   return (
     <KeyboardAvoidingView
@@ -259,18 +275,19 @@ export default function AddExpense() {
         )}
 
         <TouchableOpacity
-          style={[styles.btn, isRecurring && { backgroundColor: COLORS.accentGreen }]}
-          onPress={handleAdd}
-        >
-          <Ionicons
-            name={isRecurring ? 'repeat' : 'checkmark'}
-            size={18} color="#fff"
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.btnText}>
-            {isRecurring ? 'Add Recurring Expense' : 'Add Expense'}
-          </Text>
-        </TouchableOpacity>
+  style={[styles.btn, isRecurring && { backgroundColor: COLORS.accentGreen }, submitting && { opacity: 0.6 }]}
+  onPress={handleAdd}
+  disabled={submitting}
+>
+  <Ionicons
+    name={isRecurring ? 'repeat' : 'checkmark'}
+    size={18} color="#fff"
+    style={{ marginRight: 8 }}
+  />
+  <Text style={styles.btnText}>
+    {submitting ? 'Saving...' : isRecurring ? 'Add Recurring Expense' : 'Add Expense'}
+  </Text>
+</TouchableOpacity>
       </ScrollView>
 
       <CustomAlert

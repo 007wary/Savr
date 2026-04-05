@@ -14,8 +14,21 @@ export default function RootLayout() {
   const segments = useSegments()
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Timeout fallback — if session check takes too long, default to logged out
+    const timeout = setTimeout(() => {
+      if (session === undefined) {
+        setSession(null)
+        SplashScreen.hideAsync()
+      }
+    }, 5000)
+
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      clearTimeout(timeout)
       setSession(session ?? null)
+      SplashScreen.hideAsync()
+    }).catch(() => {
+      clearTimeout(timeout)
+      setSession(null)
       SplashScreen.hideAsync()
     })
 
@@ -30,24 +43,23 @@ export default function RootLayout() {
     const handleDeepLink = async (url) => {
       if (!url) return
       if (url.includes('access_token') || url.includes('confirmation')) {
-        const { data, error } = await supabase.auth.getSessionFromUrl({ url })
+        const { data } = await supabase.auth.getSessionFromUrl({ url })
         if (data?.session) {
           setSession(data.session)
         }
       }
     }
 
-    // Check if app was opened from a link
     Linking.getInitialURL().then(url => {
       if (url) handleDeepLink(url)
     })
 
-    // Listen for links while app is open
     const linkSub = Linking.addEventListener('url', ({ url }) => {
       handleDeepLink(url)
     })
 
     return () => {
+      clearTimeout(timeout)
       subscription.unsubscribe()
       linkSub.remove()
     }

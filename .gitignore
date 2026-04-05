@@ -11,3 +11,7 @@ npm-debug.*
 web-build/
 .env
 .env.local
+# Keystore
+savr.keystore
+*.keystore
+*.jks

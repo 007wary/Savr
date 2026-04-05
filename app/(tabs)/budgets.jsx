@@ -10,6 +10,9 @@ import { getCurrencySymbol } from '../../src/lib/currency'
 import { BudgetsSkeleton } from '../../src/components/SkeletonLoader'
 import { Ionicons } from '@expo/vector-icons'
 import { saveCache, loadCache } from '../../src/lib/cache'
+import CustomAlert from '../../src/components/CustomAlert'
+import useAlert from '../../src/hooks/useAlert'
+import { getUser } from '../../src/lib/auth'
 
 export default function Budgets() {
   const [budgets, setBudgets] = useState([])
@@ -19,6 +22,7 @@ export default function Budgets() {
   const [refreshing, setRefreshing] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
   const [loading, setLoading] = useState(true)
+  const { alertConfig, showAlert, hideAlert } = useAlert()
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -46,7 +50,7 @@ export default function Budgets() {
 
   async function syncFromSupabase() {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
+      const user = await getUser()
 
       const [{ data: budgetData }, { data: expenseData }] = await Promise.all([
         supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth),
@@ -73,7 +77,9 @@ export default function Budgets() {
   useFocusEffect(useCallback(() => { fetchData() }, []))
 
   async function saveBudget(category) {
-    if (!inputValue || isNaN(parseFloat(inputValue))) return
+  if (!inputValue || isNaN(parseFloat(inputValue))) {
+    return showAlert('Invalid', 'Please enter a valid amount')
+  }
     const { data: { user } } = await supabase.auth.getUser()
     const existing = budgets.find(b => b.category === category)
     if (existing) {
@@ -197,6 +203,13 @@ export default function Budgets() {
           </View>
         )
       })}
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onClose={hideAlert}
+      />
     </ScrollView>
   )
 }
