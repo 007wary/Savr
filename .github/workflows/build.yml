@@ -32,7 +32,7 @@ jobs:
         run: |
           mkdir -p android/app/src/main/assets
           npx expo export --platform android --output-dir dist
-          cp dist/_expo/static/js/android/*.js android/app/src/main/assets/index.android.bundle
+          cp dist/_expo/static/js/android/*.hbc android/app/src/main/assets/index.android.bundle 2>/dev/null || cp dist/_expo/static/js/android/*.js android/app/src/main/assets/index.android.bundle
 
       - name: Build APK
         run: |
