@@ -10,9 +10,11 @@ import { getCurrencySymbol } from '../../src/lib/currency'
 import { BudgetsSkeleton } from '../../src/components/SkeletonLoader'
 import { Ionicons } from '@expo/vector-icons'
 import { saveCache, loadCache } from '../../src/lib/cache'
+import { getUser } from '../../src/lib/auth'
+import NetInfo from '@react-native-community/netinfo'
+import { addToQueue } from '../../src/lib/offlineQueue'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
-import { getUser } from '../../src/lib/auth'
 
 export default function Budgets() {
   const [budgets, setBudgets] = useState([])
@@ -22,13 +24,20 @@ export default function Budgets() {
   const [refreshing, setRefreshing] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
   const [loading, setLoading] = useState(true)
+  const [isOnline, setIsOnline] = useState(true)
   const { alertConfig, showAlert, hideAlert } = useAlert()
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
-
   const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
+
+  useEffect(() => {
+    const unsub = NetInfo.addEventListener(state => {
+      setIsOnline(!!(state.isConnected && state.isInternetReachable))
+    })
+    return () => unsub()
+  }, [])
 
   async function fetchData(forceRefresh = false) {
     const symbol = await getCurrencySymbol()
@@ -51,7 +60,6 @@ export default function Budgets() {
   async function syncFromSupabase() {
     try {
       const user = await getUser()
-
       const [{ data: budgetData }, { data: expenseData }] = await Promise.all([
         supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth),
         supabase.from('expenses').select('*').eq('user_id', user.id)
@@ -77,27 +85,75 @@ export default function Budgets() {
   useFocusEffect(useCallback(() => { fetchData() }, []))
 
   async function saveBudget(category) {
-  if (!inputValue || isNaN(parseFloat(inputValue))) {
-    return showAlert('Invalid', 'Please enter a valid amount')
-  }
-    const { data: { user } } = await supabase.auth.getUser()
-    const existing = budgets.find(b => b.category === category)
-    if (existing) {
-      await supabase.from('budgets').update({ limit_amount: parseFloat(inputValue) }).eq('id', existing.id)
-    } else {
-      await supabase.from('budgets').insert({
-        user_id: user.id, category,
-        limit_amount: parseFloat(inputValue), month: currentMonth
-      })
+    if (!inputValue || isNaN(parseFloat(inputValue))) {
+      return showAlert('Invalid', 'Please enter a valid amount')
     }
+
+    const limit = parseFloat(inputValue)
+    const existing = budgets.find(b => b.category === category)
+
+    // Update cache immediately
+    let updatedBudgets
+    if (existing) {
+      updatedBudgets = budgets.map(b =>
+        b.category === category ? { ...b, limit_amount: limit } : b
+      )
+    } else {
+      updatedBudgets = [...budgets, {
+        id: `offline_${Date.now()}`,
+        category,
+        limit_amount: limit,
+        month: currentMonth,
+        user_id: 'offline',
+      }]
+    }
+    setBudgets(updatedBudgets)
+    await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses })
+
     setEditing(null)
     setInputValue('')
-    fetchData(true)
+
+    if (!isOnline) {
+      await addToQueue({
+        type: 'save_budget',
+        category,
+        limit_amount: limit,
+        month: currentMonth,
+        existing_id: existing?.id,
+      })
+    } else {
+      const user = await getUser()
+      if (existing) {
+        await supabase.from('budgets')
+          .update({ limit_amount: limit })
+          .eq('id', existing.id)
+      } else {
+        await supabase.from('budgets').insert({
+          user_id: user.id,
+          category,
+          limit_amount: limit,
+          month: currentMonth,
+        })
+      }
+      fetchData(true)
+    }
   }
 
   async function deleteBudget(category) {
     const existing = budgets.find(b => b.category === category)
-    if (existing) {
+    if (!existing) return
+
+    // Update cache immediately
+    const updatedBudgets = budgets.filter(b => b.category !== category)
+    setBudgets(updatedBudgets)
+    await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses })
+
+    setEditing(null)
+    setInputValue('')
+
+    if (!isOnline) {
+      await addToQueue({ type: 'delete_budget', id: existing.id })
+    } else {
       await supabase.from('budgets').delete().eq('id', existing.id)
       fetchData(true)
     }
@@ -203,6 +259,7 @@ export default function Budgets() {
           </View>
         )
       })}
+
       <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}

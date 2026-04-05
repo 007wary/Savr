@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   RefreshControl, TextInput, ScrollView, Platform
@@ -17,6 +17,8 @@ import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
+import NetInfo from '@react-native-community/netinfo'
+import { addToQueue } from '../../src/lib/offlineQueue'
 
 export default function History() {
   const [expenses, setExpenses] = useState(null)
@@ -33,53 +35,61 @@ export default function History() {
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [selectedMonth, setSelectedMonth] = useState('All')
   const [showFilters, setShowFilters] = useState(false)
+  const [isOnline, setIsOnline] = useState(true)
   const { alertConfig, showAlert, hideAlert } = useAlert()
 
   const CACHE_KEY = 'savr_cache_history'
 
-  async function fetchExpenses(forceRefresh = false) {
-  const symbol = await getCurrencySymbol()
-  setCurrencySymbol(symbol)
+  useEffect(() => {
+    const unsub = NetInfo.addEventListener(state => {
+      setIsOnline(!!(state.isConnected && state.isInternetReachable))
+    })
+    return () => unsub()
+  }, [])
 
-  if (!forceRefresh) {
-    const cached = await loadCache(CACHE_KEY)
-    if (cached) {
-      const sorted = [...cached].sort((a, b) => {
-        if (b.date !== a.date) return b.date.localeCompare(a.date)
-        return new Date(b.created_at || 0) - new Date(a.created_at || 0)
-      })
-      setExpenses(sorted)
-      syncFromSupabase()
-      return
-    }
+  function sortExpenses(data) {
+    return [...data].sort((a, b) => {
+      if (b.date !== a.date) return b.date.localeCompare(a.date)
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0)
+    })
   }
 
-  await syncFromSupabase()
-}
+  async function fetchExpenses(forceRefresh = false) {
+    const symbol = await getCurrencySymbol()
+    setCurrencySymbol(symbol)
+
+    if (!forceRefresh) {
+      const cached = await loadCache(CACHE_KEY)
+      if (cached) {
+        setExpenses(sortExpenses(cached))
+        syncFromSupabase()
+        return
+      }
+    }
+
+    await syncFromSupabase()
+  }
 
   async function syncFromSupabase() {
-  try {
-    const user = await getUser()
-    const { data, error } = await supabase
-      .from('expenses')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('date', { ascending: false })
-      .order('created_at', { ascending: false })
-    if (!error && data) {
-      const sorted = [...data].sort((a, b) => {
-        if (b.date !== a.date) return b.date.localeCompare(a.date)
-        return new Date(b.created_at || 0) - new Date(a.created_at || 0)
-      })
-      setExpenses(sorted)
-      await saveCache(CACHE_KEY, sorted)
+    try {
+      const user = await getUser()
+      const { data, error } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
+      if (!error && data) {
+        const sorted = sortExpenses(data)
+        setExpenses(sorted)
+        await saveCache(CACHE_KEY, sorted)
+      }
+    } catch {
+      // Silently fail — cache already shown
+    } finally {
+      setRefreshing(false)
     }
-  } catch {
-    // Silently fail — cache already shown
-  } finally {
-    setRefreshing(false)
   }
-}
 
   useFocusEffect(useCallback(() => { fetchExpenses() }, []))
 
@@ -124,13 +134,22 @@ export default function History() {
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-          await supabase.from('expenses').delete().eq('id', id)
+          // Update cache immediately
+          const updated = (expenses || []).filter(e => e.id !== id)
+          setExpenses(updated)
+          await saveCache(CACHE_KEY, updated)
+
           const now = new Date()
           const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
           await clearCache(`savr_cache_dashboard_${currentMonth}`)
           await clearCache(`savr_cache_budgets_${currentMonth}`)
           await clearCache(`savr_cache_reports_${currentMonth}`)
-          fetchExpenses(true)
+
+          if (!isOnline) {
+            await addToQueue({ type: 'delete_expense', id })
+          } else {
+            await supabase.from('expenses').delete().eq('id', id)
+          }
         }
       }
     ])
@@ -150,25 +169,53 @@ export default function History() {
       return showAlert('Invalid', 'Please enter a valid amount')
     }
     setSaving(true)
-    const { error } = await supabase
-      .from('expenses')
-      .update({
+
+    const updatedExpense = {
+      ...editingExpense,
+      amount: parseFloat(editAmount),
+      category: editCategory,
+      note: editNote.trim(),
+      date: editDate,
+    }
+
+    // Update cache immediately
+    const updated = (expenses || []).map(e =>
+      e.id === editingExpense.id ? updatedExpense : e
+    )
+    const sorted = sortExpenses(updated)
+    setExpenses(sorted)
+    await saveCache(CACHE_KEY, sorted)
+
+    const now = new Date()
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    await clearCache(`savr_cache_dashboard_${currentMonth}`)
+    await clearCache(`savr_cache_budgets_${currentMonth}`)
+    await clearCache(`savr_cache_reports_${currentMonth}`)
+
+    setEditingExpense(null)
+
+    if (!isOnline) {
+      await addToQueue({
+        type: 'edit_expense',
+        id: editingExpense.id,
         amount: parseFloat(editAmount),
         category: editCategory,
         note: editNote.trim(),
         date: editDate,
       })
-      .eq('id', editingExpense.id)
-    if (error) showAlert('Error', error.message)
-    else {
-      setEditingExpense(null)
-      const now = new Date()
-      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-      await clearCache(`savr_cache_dashboard_${currentMonth}`)
-      await clearCache(`savr_cache_budgets_${currentMonth}`)
-      await clearCache(`savr_cache_reports_${currentMonth}`)
-      fetchExpenses(true)
+    } else {
+      const { error } = await supabase
+        .from('expenses')
+        .update({
+          amount: parseFloat(editAmount),
+          category: editCategory,
+          note: editNote.trim(),
+          date: editDate,
+        })
+        .eq('id', editingExpense.id)
+      if (error) showAlert('Error', error.message)
     }
+
     setSaving(false)
   }
 
