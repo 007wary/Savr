@@ -78,7 +78,7 @@ export async function syncQueue() {
         }
 
         if (type === 'save_budget') {
-          if (data.existing_id) {
+          if (data.existing_id && !data.existing_id.toString().startsWith('offline_')) {
             return supabase.from('budgets')
               .update({ limit_amount: data.limit_amount })
               .eq('id', data.existing_id)
@@ -93,6 +93,9 @@ export async function syncQueue() {
         }
 
         if (type === 'delete_budget') {
+          if (data.id?.toString().startsWith('offline_')) {
+            return Promise.resolve({ error: null })
+          }
           return supabase.from('budgets').delete().eq('id', data.id)
         }
 
@@ -100,7 +103,6 @@ export async function syncQueue() {
       })
     )
 
-    // Only remove successfully synced items
     const failedItems = queue.filter((_, i) =>
       results[i].status === 'rejected' ||
       (results[i].value && results[i].value.error)

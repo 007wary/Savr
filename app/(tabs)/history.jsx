@@ -115,7 +115,7 @@ export default function History() {
     const matchSearch = search === '' ||
       e.note?.toLowerCase().includes(search.toLowerCase()) ||
       e.category.toLowerCase().includes(search.toLowerCase()) ||
-      String(e.amount).includes(search)
+      String(parseFloat(e.amount).toFixed(2)).includes(search)
     const matchCategory = selectedCategory === 'All' || e.category === selectedCategory
     const matchMonth = selectedMonth === 'All' || e.date.startsWith(selectedMonth)
     return matchSearch && matchCategory && matchMonth

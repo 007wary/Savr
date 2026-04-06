@@ -15,8 +15,8 @@ import { SettingsSkeleton } from '../../src/components/SkeletonLoader'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import * as Notifications from 'expo-notifications'
-import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, clearUserCache } from '../../src/lib/auth'
+import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 
 const APP_VERSION = '1.0.0'
 const CACHE_KEY = 'savr_cache_settings'
@@ -69,24 +69,26 @@ export default function Settings() {
   }
 
   async function syncFromSupabase() {
-    try {
-      const user = await getUser()
-      setUser(user)
-      const name = user.user_metadata?.display_name || user.email.split('@')[0]
-      const ph = user.user_metadata?.phone_number || ''
-      setDisplayName(name)
-      setPhone(ph)
-      const savedCurrency = await loadCurrency()
-      setCurrency(savedCurrency)
-      await saveCache(CACHE_KEY, {
-        user, displayName: name, phone: ph, currency: savedCurrency,
-      })
-    } catch {
-      // Silently fail — cache already shown
-    } finally {
-      setLoading(false)
-    }
+  try {
+    const user = await getUser(true)
+    setUser(user)
+    const name = user.user_metadata?.display_name ||
+                 user.user_metadata?.full_name ||
+                 user.email.split('@')[0]
+    const ph = user.user_metadata?.phone_number || ''
+    setDisplayName(name)
+    setPhone(ph)
+    const savedCurrency = await loadCurrency()
+    setCurrency(savedCurrency)
+    await saveCache(CACHE_KEY, {
+      user, displayName: name, phone: ph, currency: savedCurrency,
+    })
+  } catch {
+    // Silently fail — cache already shown
+  } finally {
+    setLoading(false)
   }
+}
 
   useFocusEffect(useCallback(() => { fetchUser() }, []))
 
@@ -97,23 +99,27 @@ export default function Settings() {
   }
 
   async function saveProfile() {
-    if (!editName.trim()) return showAlert('Invalid', 'Name cannot be empty')
-    setSaving(true)
-    const { error } = await supabase.auth.updateUser({
-      data: { display_name: editName.trim(), phone_number: editPhone.trim() }
+  if (!editName.trim()) return showAlert('Invalid', 'Name cannot be empty')
+  setSaving(true)
+  const { error } = await supabase.auth.updateUser({
+    data: { display_name: editName.trim(), phone_number: editPhone.trim() }
+  })
+  if (error) showAlert('Error', error.message)
+  else {
+    setDisplayName(editName.trim())
+    setPhone(editPhone.trim())
+    setProfileModalVisible(false)
+    clearUserCache()
+    // Clear dashboard cache so greeting updates
+    const now = new Date()
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    await clearCache(`savr_cache_dashboard_${currentMonth}`)
+    await saveCache(CACHE_KEY, {
+      user, displayName: editName.trim(), phone: editPhone.trim(), currency,
     })
-    if (error) showAlert('Error', error.message)
-    else {
-      setDisplayName(editName.trim())
-      setPhone(editPhone.trim())
-      setProfileModalVisible(false)
-      clearUserCache()
-      await saveCache(CACHE_KEY, {
-        user, displayName: editName.trim(), phone: editPhone.trim(), currency,
-      })
-    }
-    setSaving(false)
   }
+  setSaving(false)
+}
 
   async function handleChangePassword() {
     if (!currentPassword || !newPassword || !confirmPassword) {

@@ -24,6 +24,7 @@ export default function Budgets() {
   const [refreshing, setRefreshing] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
   const [loading, setLoading] = useState(true)
+  const [savingBudget, setSavingBudget] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
   const { alertConfig, showAlert, hideAlert } = useAlert()
 
@@ -33,12 +34,12 @@ export default function Budgets() {
   const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
 
   useEffect(() => {
-  const unsub = NetInfo.addEventListener(state => {
-    const online = state.isConnected && state.isInternetReachable !== false
-    setIsOnline(!!online)
-  })
-  return () => unsub()
-}, [])
+    const unsub = NetInfo.addEventListener(state => {
+      const online = state.isConnected && state.isInternetReachable !== false
+      setIsOnline(!!online)
+    })
+    return () => unsub()
+  }, [])
 
   async function fetchData(forceRefresh = false) {
     const symbol = await getCurrencySymbol()
@@ -90,6 +91,7 @@ export default function Budgets() {
       return showAlert('Invalid', 'Please enter a valid amount')
     }
 
+    setSavingBudget(true)
     const limit = parseFloat(inputValue)
     const existing = budgets.find(b => b.category === category)
 
@@ -113,6 +115,7 @@ export default function Budgets() {
 
     setEditing(null)
     setInputValue('')
+    setSavingBudget(false)
 
     if (!isOnline) {
       await addToQueue({
@@ -143,6 +146,16 @@ export default function Budgets() {
   async function deleteBudget(category) {
     const existing = budgets.find(b => b.category === category)
     if (!existing) return
+
+    // If offline budget never synced, just remove from cache
+    if (existing.id?.toString().startsWith('offline_')) {
+      const updatedBudgets = budgets.filter(b => b.category !== category)
+      setBudgets(updatedBudgets)
+      await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses })
+      setEditing(null)
+      setInputValue('')
+      return
+    }
 
     // Update cache immediately
     const updatedBudgets = budgets.filter(b => b.category !== category)
@@ -247,8 +260,12 @@ export default function Budgets() {
                   keyboardType="numeric"
                   autoFocus
                 />
-                <TouchableOpacity style={styles.saveBtn} onPress={() => saveBudget(cat.label)}>
-                  <Text style={styles.saveBtnText}>Save</Text>
+                <TouchableOpacity
+                  style={[styles.saveBtn, savingBudget && { opacity: 0.6 }]}
+                  onPress={() => saveBudget(cat.label)}
+                  disabled={savingBudget}
+                >
+                  <Text style={styles.saveBtnText}>{savingBudget ? '...' : 'Save'}</Text>
                 </TouchableOpacity>
                 {limit && (
                   <TouchableOpacity style={styles.deleteBtn} onPress={() => deleteBudget(cat.label)}>

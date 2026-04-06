@@ -90,6 +90,8 @@ export default function AddExpense() {
 
     setSubmitting(true)
 
+    const expenseDate = new Date(date)
+    const expenseMonth = `${expenseDate.getFullYear()}-${String(expenseDate.getMonth() + 1).padStart(2, '0')}`
     const now = new Date()
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 
@@ -113,7 +115,6 @@ export default function AddExpense() {
       } else {
         await addToQueue({ type: 'add_expense', ...expenseData })
 
-        // Add to local caches immediately so UI updates offline
         const tempExpense = {
           ...expenseData,
           id: `offline_${Date.now()}`,
@@ -126,12 +127,14 @@ export default function AddExpense() {
         const updatedHistory = [tempExpense, ...historyCached]
         await saveCache('savr_cache_history', updatedHistory)
 
-        // Update dashboard cache
-        const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
-        const dashCached = await loadCache(dashCacheKey)
-        if (dashCached) {
-          const updatedExpenses = [tempExpense, ...dashCached.expenses]
-          await saveCache(dashCacheKey, { ...dashCached, expenses: updatedExpenses })
+        // Update dashboard cache — only if expense is in current month
+        if (expenseMonth === currentMonth) {
+          const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
+          const dashCached = await loadCache(dashCacheKey)
+          if (dashCached) {
+            const updatedExpenses = [tempExpense, ...dashCached.expenses]
+            await saveCache(dashCacheKey, { ...dashCached, expenses: updatedExpenses })
+          }
         }
       }
 
@@ -156,23 +159,27 @@ export default function AddExpense() {
       })
     } else {
       await supabase.from('expenses').insert({
-        user_id: user.id,
-        ...expenseData,
-      }).then(async () => {
-        await clearCache(`savr_cache_dashboard_${currentMonth}`)
-        await clearCache('savr_cache_history')
-        await clearCache(`savr_cache_budgets_${currentMonth}`)
-        await clearCache(`savr_cache_reports_${currentMonth}`)
+  user_id: user.id,
+  ...expenseData,
+}).then(async ({ error }) => {
+  if (error) {
+    // Fallback to offline queue if insert fails
+    await addToQueue({ type: 'add_expense', ...expenseData })
+    return
+  }
+  await clearCache(`savr_cache_dashboard_${expenseMonth}`)
+  await clearCache('savr_cache_history')
+  await clearCache(`savr_cache_budgets_${expenseMonth}`)
+  await clearCache(`savr_cache_reports_${expenseMonth}`)
 
-        const [{ data: allExpenses }, { data: budgets }] = await Promise.all([
-          supabase.from('expenses').select('*').eq('user_id', user.id),
-          supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', currentMonth)
-        ])
-        if (allExpenses && budgets && budgets.length > 0) {
-          checkBudgetAlerts(allExpenses, budgets, currentMonth)
-        }
-      })
-    }
+  const [{ data: allExpenses }, { data: budgets }] = await Promise.all([
+    supabase.from('expenses').select('*').eq('user_id', user.id),
+    supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', expenseMonth)
+  ])
+  if (allExpenses && budgets && budgets.length > 0) {
+    checkBudgetAlerts(allExpenses, budgets, expenseMonth)
+  }
+})
 
     setSubmitting(false)
   }

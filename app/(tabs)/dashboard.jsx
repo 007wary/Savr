@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -40,6 +40,7 @@ export default function Dashboard() {
   const [userName, setUserName] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [monthLoading, setMonthLoading] = useState(false)
   const [monthOffset, setMonthOffset] = useState(0)
   const [lastMonthTotal, setLastMonthTotal] = useState(0)
   const [daysInMonth, setDaysInMonth] = useState(1)
@@ -67,6 +68,7 @@ export default function Dashboard() {
 
   async function fetchData(forceRefresh = false) {
     const cacheKey = `savr_cache_dashboard_${currentMonth}`
+    setMonthLoading(true)
 
     if (!forceRefresh) {
       const cached = await loadCache(cacheKey)
@@ -77,6 +79,7 @@ export default function Dashboard() {
         setDaysInMonth(cached.daysInMonth)
         setCurrencySymbol(cached.currencySymbol)
         setLoading(false)
+        setMonthLoading(false)
         syncFromSupabase(cacheKey)
         return
       }
@@ -88,7 +91,8 @@ export default function Dashboard() {
   async function syncFromSupabase(cacheKey) {
     try {
       const user = await getUser()
-      const meta = user.user_metadata?.display_name
+      const meta = user.user_metadata?.display_name ||
+                   user.user_metadata?.full_name
       const emailName = user.email.split('@')[0]
       const firstName = meta ? meta.split(' ')[0] : emailName
 
@@ -128,6 +132,7 @@ export default function Dashboard() {
     } finally {
       setLoading(false)
       setRefreshing(false)
+      setMonthLoading(false)
     }
   }
 
@@ -187,20 +192,26 @@ export default function Dashboard() {
 
         {/* Month Navigator */}
         <View style={styles.monthNav}>
-          <TouchableOpacity style={styles.monthNavBtn} onPress={() => { setLoading(true); setMonthOffset(o => o - 1) }}>
+          <TouchableOpacity
+            style={styles.monthNavBtn}
+            onPress={() => setMonthOffset(o => o - 1)}
+          >
             <Ionicons name="chevron-back" size={20} color={COLORS.text} />
           </TouchableOpacity>
           <View style={styles.monthNavCenter}>
-            <Text style={styles.monthNavText}>{monthName}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={styles.monthNavText}>{monthName}</Text>
+              {monthLoading && <ActivityIndicator size="small" color={COLORS.accent} />}
+            </View>
             {!isCurrentMonth && (
-              <TouchableOpacity onPress={() => { setLoading(true); setMonthOffset(0) }}>
+              <TouchableOpacity onPress={() => setMonthOffset(0)}>
                 <Text style={styles.monthNavBack}>Back to today</Text>
               </TouchableOpacity>
             )}
           </View>
           <TouchableOpacity
             style={[styles.monthNavBtn, isCurrentMonth && styles.monthNavBtnDisabled]}
-            onPress={() => { if (!isCurrentMonth) { setLoading(true); setMonthOffset(o => o + 1) } }}
+            onPress={() => { if (!isCurrentMonth) setMonthOffset(o => o + 1) }}
             disabled={isCurrentMonth}
           >
             <Ionicons name="chevron-forward" size={20} color={isCurrentMonth ? COLORS.border : COLORS.text} />

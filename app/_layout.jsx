@@ -6,6 +6,7 @@ import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import * as Linking from 'expo-linking'
 import { requestNotificationPermission } from '../src/lib/notifications'
+import { clearAllCache } from '../src/lib/cache'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -15,7 +16,6 @@ export default function RootLayout() {
   const segments = useSegments()
 
   useEffect(() => {
-    // Timeout fallback — if session check takes too long, default to logged out
     const timeout = setTimeout(() => {
       if (session === undefined) {
         setSession(null)
@@ -36,13 +36,14 @@ export default function RootLayout() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session ?? null)
       if (event === 'SIGNED_IN') {
-        // Request notification permission for new users
         await requestNotificationPermission()
         router.replace('/(tabs)/dashboard')
       }
+      if (event === 'SIGNED_OUT') {
+        await clearAllCache()
+      }
     })
 
-    // Handle deep link when app opens from email confirmation
     const handleDeepLink = async (url) => {
       if (!url) return
       if (url.includes('access_token') || url.includes('confirmation')) {
