@@ -38,7 +38,6 @@ export default function AddExpense() {
 
   useEffect(() => {
     let syncTimeout = null
-
     const unsub = NetInfo.addEventListener(async state => {
       const online = state.isConnected && state.isInternetReachable !== false
       setIsOnline(!!online)
@@ -55,7 +54,6 @@ export default function AddExpense() {
         }, 1000)
       }
     })
-
     return () => {
       unsub()
       if (syncTimeout) clearTimeout(syncTimeout)
@@ -89,7 +87,6 @@ export default function AddExpense() {
     }
 
     setSubmitting(true)
-
     const expenseDate = new Date(date)
     const expenseMonth = `${expenseDate.getFullYear()}-${String(expenseDate.getMonth() + 1).padStart(2, '0')}`
     const now = new Date()
@@ -114,20 +111,16 @@ export default function AddExpense() {
         })
       } else {
         await addToQueue({ type: 'add_expense', ...expenseData })
-
         const tempExpense = {
           ...expenseData,
           id: `offline_${Date.now()}`,
           user_id: 'offline',
           created_at: new Date().toISOString(),
         }
-
-        // Update history cache
         const historyCached = await loadCache('savr_cache_history') || []
         const updatedHistory = [tempExpense, ...historyCached]
         await saveCache('savr_cache_history', updatedHistory)
 
-        // Update dashboard cache — only if expense is in current month
         if (expenseMonth === currentMonth) {
           const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
           const dashCached = await loadCache(dashCacheKey)
@@ -137,14 +130,12 @@ export default function AddExpense() {
           }
         }
       }
-
       router.replace('/(tabs)/dashboard')
       setSubmitting(false)
       return
     }
 
     router.replace('/(tabs)/dashboard')
-
     const user = await getUser()
 
     if (isRecurring) {
@@ -158,29 +149,28 @@ export default function AddExpense() {
         is_active: true,
       })
     } else {
-      await supabase.from('expenses').insert({
-  user_id: user.id,
-  ...expenseData,
-}).then(async ({ error }) => {
-  if (error) {
-    // Fallback to offline queue if insert fails
-    await addToQueue({ type: 'add_expense', ...expenseData })
-    return
-  }
-  await clearCache(`savr_cache_dashboard_${expenseMonth}`)
-  await clearCache('savr_cache_history')
-  await clearCache(`savr_cache_budgets_${expenseMonth}`)
-  await clearCache(`savr_cache_reports_${expenseMonth}`)
+      const { error } = await supabase.from('expenses').insert({
+        user_id: user.id,
+        ...expenseData,
+      })
 
-  const [{ data: allExpenses }, { data: budgets }] = await Promise.all([
-    supabase.from('expenses').select('*').eq('user_id', user.id),
-    supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', expenseMonth)
-  ])
-  if (allExpenses && budgets && budgets.length > 0) {
-    checkBudgetAlerts(allExpenses, budgets, expenseMonth)
-  }
-})
+      if (error) {
+        await addToQueue({ type: 'add_expense', ...expenseData })
+      } else {
+        await clearCache(`savr_cache_dashboard_${expenseMonth}`)
+        await clearCache('savr_cache_history')
+        await clearCache(`savr_cache_budgets_${expenseMonth}`)
+        await clearCache(`savr_cache_reports_${expenseMonth}`)
 
+        const [{ data: allExpenses }, { data: budgets }] = await Promise.all([
+          supabase.from('expenses').select('*').eq('user_id', user.id),
+          supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', expenseMonth)
+        ])
+        if (allExpenses && budgets && budgets.length > 0) {
+          checkBudgetAlerts(allExpenses, budgets, expenseMonth)
+        }
+      }
+    }
     setSubmitting(false)
   }
 
