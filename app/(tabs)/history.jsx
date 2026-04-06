@@ -41,11 +41,12 @@ export default function History() {
   const CACHE_KEY = 'savr_cache_history'
 
   useEffect(() => {
-    const unsub = NetInfo.addEventListener(state => {
-      setIsOnline(!!(state.isConnected && state.isInternetReachable))
-    })
-    return () => unsub()
-  }, [])
+  const unsub = NetInfo.addEventListener(state => {
+    const online = state.isConnected && state.isInternetReachable !== false
+    setIsOnline(!!online)
+  })
+  return () => unsub()
+}, [])
 
   function sortExpenses(data) {
     return [...data].sort((a, b) => {
@@ -129,40 +130,57 @@ export default function History() {
   }
 
   async function handleDelete(id) {
+  if (id?.toString().startsWith('offline_')) {
     showAlert('Delete Expense', 'Are you sure you want to delete this expense?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-          // Update cache immediately
           const updated = (expenses || []).filter(e => e.id !== id)
           setExpenses(updated)
           await saveCache(CACHE_KEY, updated)
-
-          const now = new Date()
-          const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-          await clearCache(`savr_cache_dashboard_${currentMonth}`)
-          await clearCache(`savr_cache_budgets_${currentMonth}`)
-          await clearCache(`savr_cache_reports_${currentMonth}`)
-
-          if (!isOnline) {
-            await addToQueue({ type: 'delete_expense', id })
-          } else {
-            await supabase.from('expenses').delete().eq('id', id)
-          }
         }
       }
     ])
+    return
   }
 
+  showAlert('Delete Expense', 'Are you sure you want to delete this expense?', [
+    { text: 'Cancel', style: 'cancel' },
+    {
+      text: 'Delete', style: 'destructive',
+      onPress: async () => {
+        const updated = (expenses || []).filter(e => e.id !== id)
+        setExpenses(updated)
+        await saveCache(CACHE_KEY, updated)
+
+        const now = new Date()
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+        await clearCache(`savr_cache_dashboard_${currentMonth}`)
+        await clearCache(`savr_cache_budgets_${currentMonth}`)
+        await clearCache(`savr_cache_reports_${currentMonth}`)
+
+        if (!isOnline) {
+          await addToQueue({ type: 'delete_expense', id })
+        } else {
+          await supabase.from('expenses').delete().eq('id', id)
+        }
+      }
+    }
+  ])
+}
+
   function openEdit(expense) {
-    setEditingExpense(expense)
-    setEditAmount(String(expense.amount))
-    setEditCategory(expense.category)
-    setEditNote(expense.note || '')
-    setEditDate(expense.date)
-    setShowEditDatePicker(false)
+  if (expense.id?.toString().startsWith('offline_')) {
+    return showAlert('Pending Sync', 'This expense is waiting to sync. Edit it once you are back online.')
   }
+  setEditingExpense(expense)
+  setEditAmount(String(expense.amount))
+  setEditCategory(expense.category)
+  setEditNote(expense.note || '')
+  setEditDate(expense.date)
+  setShowEditDatePicker(false)
+}
 
   async function handleSaveEdit() {
     if (!editAmount || isNaN(parseFloat(editAmount))) {

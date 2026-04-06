@@ -33,11 +33,12 @@ export default function Budgets() {
   const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
 
   useEffect(() => {
-    const unsub = NetInfo.addEventListener(state => {
-      setIsOnline(!!(state.isConnected && state.isInternetReachable))
-    })
-    return () => unsub()
-  }, [])
+  const unsub = NetInfo.addEventListener(state => {
+    const online = state.isConnected && state.isInternetReachable !== false
+    setIsOnline(!!online)
+  })
+  return () => unsub()
+}, [])
 
   async function fetchData(forceRefresh = false) {
     const symbol = await getCurrencySymbol()

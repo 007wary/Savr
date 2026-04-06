@@ -16,7 +16,7 @@ import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import * as Notifications from 'expo-notifications'
 import { saveCache, loadCache } from '../../src/lib/cache'
-import { getUser } from '../../src/lib/auth'
+import { getUser, clearUserCache } from '../../src/lib/auth'
 
 const APP_VERSION = '1.0.0'
 const CACHE_KEY = 'savr_cache_settings'
@@ -107,6 +107,7 @@ export default function Settings() {
       setDisplayName(editName.trim())
       setPhone(editPhone.trim())
       setProfileModalVisible(false)
+      clearUserCache()
       await saveCache(CACHE_KEY, {
         user, displayName: editName.trim(), phone: editPhone.trim(), currency,
       })

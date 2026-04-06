@@ -40,10 +40,9 @@ export default function AddExpense() {
     let syncTimeout = null
 
     const unsub = NetInfo.addEventListener(async state => {
-      const online = state.isConnected && state.isInternetReachable
+      const online = state.isConnected && state.isInternetReachable !== false
       setIsOnline(!!online)
       if (online) {
-        // Debounce to prevent multiple fires
         if (syncTimeout) clearTimeout(syncTimeout)
         syncTimeout = setTimeout(async () => {
           await syncQueue()
@@ -106,13 +105,13 @@ export default function AddExpense() {
     if (!isOnline) {
       if (isRecurring) {
         await addToQueue({
+          type: 'add_recurring',
           ...expenseData,
-          isRecurring: true,
           frequency,
           next_due: formatDate(date),
         })
       } else {
-        await addToQueue(expenseData)
+        await addToQueue({ type: 'add_expense', ...expenseData })
 
         // Add to local caches immediately so UI updates offline
         const tempExpense = {
