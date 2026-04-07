@@ -18,7 +18,7 @@ import * as Notifications from 'expo-notifications'
 import { getUser, clearUserCache } from '../../src/lib/auth'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 
-const APP_VERSION = '1.0.0'
+const APP_VERSION = '1.0'
 const CACHE_KEY = 'savr_cache_settings'
 
 export default function Settings() {

@@ -246,7 +246,7 @@ export default function History() {
       `${e.date},${e.category},${e.amount},"${e.note || ''}"`
     ).join('\n')
     const csvContent = headers + rows
-    const fileUri = FileSystem.documentDirectory + 'expenses.csv'
+    const fileUri = FileSystem.cacheDirectory + 'expenses.csv'
     await FileSystem.writeAsStringAsync(fileUri, csvContent, { encoding: 'utf8' })
     const isAvailable = await Sharing.isAvailableAsync()
     if (isAvailable) {
