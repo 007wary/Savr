@@ -72,10 +72,10 @@ export default function ForgotPassword() {
               autoFocus
             />
             <TouchableOpacity
-              style={styles.btn}
-              onPress={handleReset}
-              disabled={loading}
-            >
+  style={[styles.btn, loading && { opacity: 0.6 }]}
+  onPress={handleReset}
+  disabled={loading}
+>
               <Text style={styles.btnText}>
                 {loading ? 'Sending...' : 'Send Reset Link'}
               </Text>

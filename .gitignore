@@ -9,9 +9,12 @@ npm-debug.*
 *.mobileprovision
 *.orig.*
 web-build/
+
+# Environment
 .env
 .env.local
+.env*.local
+
 # Keystore
 savr.keystore
 *.keystore
-*.jks

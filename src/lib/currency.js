@@ -7,8 +7,8 @@ export async function saveCurrency(currencyCode) {
   try {
     await AsyncStorage.setItem(CURRENCY_KEY, currencyCode)
   } catch {
-    console.log('Error saving currency')
-  }
+  // Silently fail
+}
 }
 
 export async function loadCurrency() {

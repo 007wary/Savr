@@ -110,7 +110,7 @@ export default function Login() {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.btn} onPress={handleLogin} disabled={loading}>
+        <TouchableOpacity style={[styles.btn, loading && { opacity: 0.6 }]} onPress={handleLogin} disabled={loading}>
           <Text style={styles.btnText}>{loading ? 'Signing in...' : 'Sign In'}</Text>
         </TouchableOpacity>
 
@@ -121,10 +121,10 @@ export default function Login() {
         </View>
 
         <TouchableOpacity
-          style={styles.googleBtn}
-          onPress={handleGoogleLogin}
-          disabled={googleLoading}
-        >
+  style={[styles.googleBtn, googleLoading && { opacity: 0.6 }]}
+  onPress={handleGoogleLogin}
+  disabled={googleLoading}
+>
           <Ionicons name="logo-google" size={18} color={COLORS.text} style={{ marginRight: 10 }} />
           <Text style={styles.googleBtnText}>
             {googleLoading ? 'Signing in...' : 'Continue with Google'}

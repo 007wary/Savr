@@ -1,5 +1,6 @@
 import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
+import { getCurrencySymbol } from './currency'
 
 // How notifications appear when app is open
 if (Platform.OS !== 'web') {
@@ -12,7 +13,6 @@ if (Platform.OS !== 'web') {
   })
 }
 
-// Ask user for permission
 export async function requestNotificationPermission() {
   try {
     const { status: existing } = await Notifications.getPermissionsAsync()
@@ -24,24 +24,22 @@ export async function requestNotificationPermission() {
   }
 }
 
-// Send an instant local notification
 export async function sendNotification(title, body) {
   try {
     const granted = await requestNotificationPermission()
     if (!granted) return
-
     await Notifications.scheduleNotificationAsync({
       content: { title, body, sound: true },
       trigger: null,
     })
   } catch {
-    // Silently fail if notifications not supported
+    // Silently fail
   }
 }
 
-// Check budgets and alert if overspending
 export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
   try {
+    const symbol = await getCurrencySymbol()
     for (const budget of budgets) {
       const spent = expenses
         .filter(e => e.category === budget.category && e.date.startsWith(currentMonth))
@@ -53,12 +51,12 @@ export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
       if (percentage >= 100) {
         await sendNotification(
           `🚨 Budget Exceeded — ${budget.category}`,
-          `You've spent ₹${spent.toFixed(0)} of your ₹${limit.toFixed(0)} budget`
+          `You've spent ${symbol}${spent.toFixed(0)} of your ${symbol}${limit.toFixed(0)} budget`
         )
       } else if (percentage >= 80) {
         await sendNotification(
           `⚠️ Budget Warning — ${budget.category}`,
-          `You've used ${percentage.toFixed(0)}% of your ₹${limit.toFixed(0)} budget`
+          `You've used ${percentage.toFixed(0)}% of your ${symbol}${limit.toFixed(0)} budget`
         )
       }
     }

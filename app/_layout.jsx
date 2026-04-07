@@ -7,6 +7,7 @@ import * as SplashScreen from 'expo-splash-screen'
 import * as Linking from 'expo-linking'
 import { requestNotificationPermission } from '../src/lib/notifications'
 import { clearAllCache } from '../src/lib/cache'
+import { processDueRecurring } from '../src/lib/recurring'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -23,10 +24,14 @@ export default function RootLayout() {
       }
     }, 5000)
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       clearTimeout(timeout)
       setSession(session ?? null)
       SplashScreen.hideAsync()
+      // Process recurring expenses on app open
+      if (session?.user) {
+        processDueRecurring(session.user.id)
+      }
     }).catch(() => {
       clearTimeout(timeout)
       setSession(null)
@@ -37,6 +42,10 @@ export default function RootLayout() {
       setSession(session ?? null)
       if (event === 'SIGNED_IN') {
         await requestNotificationPermission()
+        // Process recurring expenses on sign in
+        if (session?.user) {
+          processDueRecurring(session.user.id)
+        }
         router.replace('/(tabs)/dashboard')
       }
       if (event === 'SIGNED_OUT') {

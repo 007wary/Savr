@@ -17,7 +17,14 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.saver.savr",
-      "backgroundColor": "#0F0F0F"
+      "backgroundColor": "#0F0F0F",
+      "versionCode": 1,
+      "permissions": [
+        "INTERNET",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "POST_NOTIFICATIONS"
+      ]
     },
     "plugins": [
       "expo-router",

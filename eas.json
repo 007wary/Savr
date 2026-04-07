@@ -20,6 +20,10 @@
     "production": {
       "android": {
         "buildType": "app-bundle"
+      },
+      "node": "20.0.0",
+      "env": {
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
     }
   },

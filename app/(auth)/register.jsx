@@ -133,10 +133,10 @@ export default function Register() {
         </View>
 
         <TouchableOpacity
-          style={[styles.btn, !agreed && styles.btnDisabled]}
-          onPress={handleRegister}
-          disabled={loading}
-        >
+  style={[styles.btn, !agreed && styles.btnDisabled, loading && { opacity: 0.6 }]}
+  onPress={handleRegister}
+  disabled={loading}
+>
           <Text style={styles.btnText}>{loading ? 'Creating account...' : 'Sign Up'}</Text>
         </TouchableOpacity>
 
@@ -147,10 +147,10 @@ export default function Register() {
         </View>
 
         <TouchableOpacity
-          style={styles.googleBtn}
-          onPress={handleGoogleLogin}
-          disabled={googleLoading}
-        >
+  style={[styles.googleBtn, googleLoading && { opacity: 0.6 }]}
+  onPress={handleGoogleLogin}
+  disabled={googleLoading}
+>
           <Ionicons name="logo-google" size={18} color={COLORS.text} style={{ marginRight: 10 }} />
           <Text style={styles.googleBtnText}>
             {googleLoading ? 'Signing in...' : 'Continue with Google'}

@@ -5,8 +5,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import Constants from 'expo-constants'
 
-const supabaseUrl = 'https://fsrbsqhlgfdqugixqtxc.supabase.co'
-const supabaseAnonKey = 'sb_publishable_fTC_70PzCNPOs0_sNh1nEQ_Boj4EjqC'
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
 
 // Use SecureStore in real APK, AsyncStorage in Expo Go
 const isExpoGo = Constants.appOwnership === 'expo'
