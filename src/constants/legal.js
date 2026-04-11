@@ -1,16 +1,16 @@
 export const PRIVACY_POLICY_HTML = `<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{background:#0F0F0F;color:#fff;font-family:-apple-system,sans-serif;padding:24px;line-height:1.7;font-size:15px}h1{color:#6C63FF;font-size:26px;margin-bottom:4px}h2{color:#6C63FF;font-size:17px;margin-top:28px;margin-bottom:8px}p,li{color:#cccccc;margin-bottom:10px}ul{padding-left:20px}.sub{color:#888;font-size:13px;margin-bottom:24px}hr{border:none;border-top:1px solid #2A2A2A;margin:24px 0}.footer{text-align:center;color:#888;font-size:12px;font-style:italic;margin-top:32px}strong{color:#fff}</style></head><body>
 <h1>Savr</h1><p class="sub">Privacy Policy · Effective Date: April 2026</p><hr/>
-<p>At Saver, we are committed to protecting your personal information. This Privacy Policy explains how we collect, use, and safeguard your information when you use Savr.</p>
+<p>At Savr, we are committed to protecting your personal information. This Privacy Policy explains how we collect, use, and safeguard your information when you use Savr.</p>
 <h2>1. Information We Collect</h2><ul><li>Email address and password when you register.</li><li>Display name and phone number if you provide them.</li><li>Expense amounts, categories, notes, dates, and budget limits you enter.</li><li>Recurring expense data and settings.</li><li>Device type and OS version for support purposes.</li></ul>
 <h2>2. How We Use Your Information</h2><ul><li>Provide and maintain the App and its features.</li><li>Sync your data securely using Supabase cloud infrastructure.</li><li>Send local notifications such as budget alerts and reminders.</li><li>Analyze usage patterns to improve the App.</li><li>Display advertisements within the App.</li><li>Comply with legal obligations.</li></ul>
-<h2>3. Advertising</h2><p>Savr displays advertisements to keep the App free. Third-party advertisers may use device identifiers to show relevant ads.</p><p><strong>We will never sell your personal data</strong> to advertisers or any third party. Your financial data is never shared with advertisers. Advertisers only receive aggregated, non-identifiable statistics. You may opt out of personalized ads through your device settings.</p>
+<h2>3. Advertising</h2><p>Savr displays advertisements to keep the App free. Third-party advertisers may use device identifiers to show relevant ads.</p><p><strong>We will never sell your personal data</strong> to advertisers or any third party. Your financial data is never shared with advertisers. You may opt out of personalized ads through your device settings.</p>
 <h2>4. Data Sharing</h2><p>We do not sell your personal data. We may share information only with:</p><ul><li>Supabase — stores and manages your data securely on our behalf.</li><li>Legal authorities — if required by law or court order.</li><li>Business successors — in case of merger or acquisition, with prior notice.</li></ul>
 <h2>5. Data Security</h2><p>Your data is protected with encrypted HTTPS transmission, row-level security (only you can access your data), and secure Supabase authentication.</p>
-<h2>6. Data Retention</h2><p>We retain your data as long as your account is active. To delete your account or data contact us at privacy@savr.app within 30 days.</p>
+<h2>6. Data Retention</h2><p>We retain your data as long as your account is active. To delete your account or data contact us at <a href="mailto:007mwnswrangwary@gmail.com" style="color:#6C63FF">007mwnswrangwary@gmail.com</a> within 30 days.</p>
 <h2>7. Children's Privacy</h2><p>Savr is not intended for users under 13. We do not knowingly collect data from children under 13.</p>
 <h2>8. Your Rights</h2><ul><li>Access and download your data (use CSV export in-app).</li><li>Request correction of inaccurate data.</li><li>Request deletion of your account and data.</li></ul>
 <h2>9. Changes</h2><p>We may update this policy and will notify you of material changes through the App.</p>
-<h2>10. Contact</h2><p>Company: Saver · Owner: Mwnswrang Wary · Email: privacy@savr.app</p>
+<h2>10. Contact</h2><p>App: Savr · Developer: Mwnswrang Wary · Email: <a href="mailto:007mwnswrangwary@gmail.com" style="color:#6C63FF">007mwnswrangwary@gmail.com</a></p>
 <hr/><p class="footer">Savr — Track every rupee, every day.</p>
 </body></html>`;
 
@@ -22,14 +22,14 @@ export const TERMS_HTML = `<!DOCTYPE html><html><head><meta name="viewport" cont
 <h2>3. User Accounts</h2><p>You agree to provide accurate registration information, keep your password secure, and take responsibility for all activity under your account. We may suspend accounts that violate these Terms.</p>
 <h2>4. User Content</h2><p>You own all financial data you enter. We only process it to provide the service. Savr does not provide financial, investment, tax, or legal advice.</p>
 <h2>5. Acceptable Use</h2><p>You agree not to:</p><ul><li>Violate any applicable laws or regulations.</li><li>Attempt unauthorized access to our systems.</li><li>Reverse engineer or decompile any part of the App.</li><li>Upload malicious code or viruses.</li><li>Use the App for commercial purposes without written consent.</li></ul>
-<h2>6. Advertising</h2><p>Savr displays third-party advertisements to keep the App free. <strong>We will never sell your personal or financial data to advertisers.</strong> We may introduce a paid subscription to remove ads with reasonable advance notice.</p>
-<h2>7. Intellectual Property</h2><p>All content, design, and software in Savr is owned by Saver. You may not copy, modify, or distribute any part of the App without written permission.</p>
+<h2>6. Advertising</h2><p>Savr displays third-party advertisements to keep the App free. <strong>We will never sell your personal or financial data to advertisers.</strong> We may introduce a paid option to remove ads with reasonable advance notice.</p>
+<h2>7. Intellectual Property</h2><p>All content, design, and software in Savr is owned by Mwnswrang Wary. You may not copy, modify, or distribute any part of the App without written permission.</p>
 <h2>8. Disclaimer of Warranties</h2><p>The App is provided "as is" without warranties of any kind. We do not warrant that the App will be uninterrupted or error-free.</p>
-<h2>9. Limitation of Liability</h2><p>Saver shall not be liable for any indirect, incidental, or consequential damages arising from your use of the App. Our total liability shall not exceed INR 500.</p>
+<h2>9. Limitation of Liability</h2><p>Savr shall not be liable for any indirect, incidental, or consequential damages arising from your use of the App. Our total liability shall not exceed INR 500.</p>
 <h2>10. Data Loss</h2><p>We are not responsible for data loss due to technical failures. We recommend using the CSV export feature regularly as a backup.</p>
 <h2>11. Termination</h2><p>You may stop using the App at any time. We may suspend your access for violations of these Terms without notice.</p>
 <h2>12. Changes to Terms</h2><p>We may update these Terms and will notify you of material changes through the App.</p>
 <h2>13. Governing Law</h2><p>These Terms are governed by the laws of India. Disputes are subject to the exclusive jurisdiction of Indian courts.</p>
-<h2>14. Contact</h2><p>Company: Saver · Owner: Mwnswrang Wary · Email: legal@savr.app</p>
+<h2>14. Contact</h2><p>App: Savr · Developer: Mwnswrang Wary · Email: <a href="mailto:007mwnswrangwary@gmail.com" style="color:#6C63FF">007mwnswrangwary@gmail.com</a></p>
 <hr/><p class="footer">Savr — Track every rupee, every day.</p>
 </body></html>`;
