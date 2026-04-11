@@ -78,7 +78,7 @@ export default function Login() {
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         <Text style={styles.logoText}>Savr</Text>
         <Text style={styles.title}>Welcome back</Text>
-        <Text style={styles.subtitle}>Track every rupee, every day</Text>
+        <Text style={styles.subtitle}>Spend smart, save more.</Text>
 
         <Text style={styles.label}>Email</Text>
         <TextInput

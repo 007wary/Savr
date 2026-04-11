@@ -78,7 +78,7 @@ export default function Register() {
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
         <Text style={styles.logoText}>Savr</Text>
         <Text style={styles.title}>Create account</Text>
-        <Text style={styles.subtitle}>Start tracking your expenses today</Text>
+        <Text style={styles.subtitle}>Spend smart, save more</Text>
 
         <Text style={styles.label}>Email</Text>
         <TextInput
