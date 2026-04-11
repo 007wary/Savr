@@ -16,13 +16,12 @@ export default function RootLayout() {
   const router = useRouter()
   const segments = useSegments()
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (session === undefined) {
-        setSession(null)
-        SplashScreen.hideAsync()
-      }
-    }, 5000)
+  const timeout = setTimeout(() => {
+  if (session === undefined) {
+    setSession(null)
+    SplashScreen.hideAsync()
+  }
+}, 2000)
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       clearTimeout(timeout)

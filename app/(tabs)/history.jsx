@@ -238,6 +238,7 @@ export default function History() {
   }
 
   async function handleExport() {
+  try {
     if (!expenses || expenses.length === 0) {
       return showAlert('No data', 'No expenses to export')
     }
@@ -247,12 +248,17 @@ export default function History() {
     ).join('\n')
     const csvContent = headers + rows
     const fileUri = FileSystem.cacheDirectory + 'expenses.csv'
-    await FileSystem.writeAsStringAsync(fileUri, csvContent, { encoding: 'utf8' })
+    await FileSystem.writeAsStringAsync(fileUri, csvContent, { encoding: FileSystem.EncodingType.UTF8 })
     const isAvailable = await Sharing.isAvailableAsync()
     if (isAvailable) {
       await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'Export Expenses' })
+    } else {
+      showAlert('Not Available', 'Sharing is not available on this device')
     }
+  } catch (error) {
+    showAlert('Export Failed', error.message)
   }
+}
 
   function getCategoryInfo(label) {
     return CATEGORIES.find(c => c.label === label) || { icon: '📦', color: '#888' }
