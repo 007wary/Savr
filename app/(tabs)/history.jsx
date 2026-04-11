@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
+  View, Text, StyleSheet, SectionList, TouchableOpacity,
   RefreshControl, TextInput, ScrollView, Platform
 } from 'react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
@@ -41,12 +41,12 @@ export default function History() {
   const CACHE_KEY = 'savr_cache_history'
 
   useEffect(() => {
-  const unsub = NetInfo.addEventListener(state => {
-    const online = state.isConnected && state.isInternetReachable !== false
-    setIsOnline(!!online)
-  })
-  return () => unsub()
-}, [])
+    const unsub = NetInfo.addEventListener(state => {
+      const online = state.isConnected && state.isInternetReachable !== false
+      setIsOnline(!!online)
+    })
+    return () => unsub()
+  }, [])
 
   function sortExpenses(data) {
     return [...data].sort((a, b) => {
@@ -108,7 +108,7 @@ export default function History() {
     const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
     if (dateStr === todayStr) return 'Today'
     if (dateStr === yesterdayStr) return 'Yesterday'
-    return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
   const filtered = (expenses || []).filter(e => {
@@ -121,6 +121,23 @@ export default function History() {
     return matchSearch && matchCategory && matchMonth
   })
 
+  // Group expenses by date for SectionList
+  function groupByDate(data) {
+    const groups = {}
+    data.forEach(e => {
+      if (!groups[e.date]) groups[e.date] = []
+      groups[e.date].push(e)
+    })
+    return Object.keys(groups)
+      .sort((a, b) => b.localeCompare(a))
+      .map(date => ({
+        title: date,
+        data: groups[date],
+        total: groups[date].reduce((sum, e) => sum + parseFloat(e.amount), 0)
+      }))
+  }
+
+  const sections = groupByDate(filtered)
   const activeFilters = (selectedCategory !== 'All' ? 1 : 0) + (selectedMonth !== 'All' ? 1 : 0)
 
   function clearFilters() {
@@ -130,7 +147,21 @@ export default function History() {
   }
 
   async function handleDelete(id) {
-  if (id?.toString().startsWith('offline_')) {
+    if (id?.toString().startsWith('offline_')) {
+      showAlert('Delete Expense', 'Are you sure you want to delete this expense?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive',
+          onPress: async () => {
+            const updated = (expenses || []).filter(e => e.id !== id)
+            setExpenses(updated)
+            await saveCache(CACHE_KEY, updated)
+          }
+        }
+      ])
+      return
+    }
+
     showAlert('Delete Expense', 'Are you sure you want to delete this expense?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -139,48 +170,34 @@ export default function History() {
           const updated = (expenses || []).filter(e => e.id !== id)
           setExpenses(updated)
           await saveCache(CACHE_KEY, updated)
+
+          const now = new Date()
+          const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+          await clearCache(`savr_cache_dashboard_${currentMonth}`)
+          await clearCache(`savr_cache_budgets_${currentMonth}`)
+          await clearCache(`savr_cache_reports_${currentMonth}`)
+
+          if (!isOnline) {
+            await addToQueue({ type: 'delete_expense', id })
+          } else {
+            await supabase.from('expenses').delete().eq('id', id)
+          }
         }
       }
     ])
-    return
   }
-
-  showAlert('Delete Expense', 'Are you sure you want to delete this expense?', [
-    { text: 'Cancel', style: 'cancel' },
-    {
-      text: 'Delete', style: 'destructive',
-      onPress: async () => {
-        const updated = (expenses || []).filter(e => e.id !== id)
-        setExpenses(updated)
-        await saveCache(CACHE_KEY, updated)
-
-        const now = new Date()
-        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-        await clearCache(`savr_cache_dashboard_${currentMonth}`)
-        await clearCache(`savr_cache_budgets_${currentMonth}`)
-        await clearCache(`savr_cache_reports_${currentMonth}`)
-
-        if (!isOnline) {
-          await addToQueue({ type: 'delete_expense', id })
-        } else {
-          await supabase.from('expenses').delete().eq('id', id)
-        }
-      }
-    }
-  ])
-}
 
   function openEdit(expense) {
-  if (expense.id?.toString().startsWith('offline_')) {
-    return showAlert('Pending Sync', 'This expense is waiting to sync. Edit it once you are back online.')
+    if (expense.id?.toString().startsWith('offline_')) {
+      return showAlert('Pending Sync', 'This expense is waiting to sync. Edit it once you are back online.')
+    }
+    setEditingExpense(expense)
+    setEditAmount(String(expense.amount))
+    setEditCategory(expense.category)
+    setEditNote(expense.note || '')
+    setEditDate(expense.date)
+    setShowEditDatePicker(false)
   }
-  setEditingExpense(expense)
-  setEditAmount(String(expense.amount))
-  setEditCategory(expense.category)
-  setEditNote(expense.note || '')
-  setEditDate(expense.date)
-  setShowEditDatePicker(false)
-}
 
   async function handleSaveEdit() {
     if (!editAmount || isNaN(parseFloat(editAmount))) {
@@ -196,7 +213,6 @@ export default function History() {
       date: editDate,
     }
 
-    // Update cache immediately
     const updated = (expenses || []).map(e =>
       e.id === editingExpense.id ? updatedExpense : e
     )
@@ -238,30 +254,39 @@ export default function History() {
   }
 
   async function handleExport() {
-  try {
-    if (!expenses || expenses.length === 0) {
-      return showAlert('No data', 'No expenses to export')
+    try {
+      if (!expenses || expenses.length === 0) {
+        return showAlert('No data', 'No expenses to export')
+      }
+      const headers = 'Date,Category,Amount,Note\n'
+      const rows = expenses.map(e =>
+        `${e.date},${e.category},${e.amount},"${e.note || ''}"`
+      ).join('\n')
+      const csvContent = headers + rows
+      const fileUri = FileSystem.cacheDirectory + 'expenses.csv'
+      await FileSystem.writeAsStringAsync(fileUri, csvContent, { encoding: 'utf8' })
+      const isAvailable = await Sharing.isAvailableAsync()
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'Export Expenses' })
+      } else {
+        showAlert('Not Available', 'Sharing is not available on this device')
+      }
+    } catch (error) {
+      showAlert('Export Failed', error.message)
     }
-    const headers = 'Date,Category,Amount,Note\n'
-    const rows = expenses.map(e =>
-      `${e.date},${e.category},${e.amount},"${e.note || ''}"`
-    ).join('\n')
-    const csvContent = headers + rows
-    const fileUri = FileSystem.cacheDirectory + 'expenses.csv'
-    await FileSystem.writeAsStringAsync(fileUri, csvContent, { encoding: 'utf8' })
-    const isAvailable = await Sharing.isAvailableAsync()
-    if (isAvailable) {
-      await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'Export Expenses' })
-    } else {
-      showAlert('Not Available', 'Sharing is not available on this device')
-    }
-  } catch (error) {
-    showAlert('Export Failed', error.message)
   }
-}
 
   function getCategoryInfo(label) {
     return CATEGORIES.find(c => c.label === label) || { icon: '📦', color: '#888' }
+  }
+
+  function renderSectionHeader({ section }) {
+    return (
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionHeaderDate}>{formatDate(section.title)}</Text>
+        <Text style={styles.sectionHeaderTotal}>{currencySymbol}{section.total.toFixed(2)}</Text>
+      </View>
+    )
   }
 
   function renderItem({ item }) {
@@ -277,7 +302,6 @@ export default function History() {
         </View>
         <View style={styles.right}>
           <Text style={styles.amount}>{currencySymbol}{parseFloat(item.amount).toFixed(2)}</Text>
-          <Text style={styles.date}>{formatDate(item.date)}</Text>
         </View>
         <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}>
           <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
@@ -354,11 +378,13 @@ export default function History() {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
-          data={filtered}
+        <SectionList
+          sections={sections}
           keyExtractor={item => item.id}
           renderItem={renderItem}
+          renderSectionHeader={renderSectionHeader}
           contentContainerStyle={{ paddingBottom: 40 }}
+          stickySectionHeadersEnabled={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -472,12 +498,12 @@ export default function History() {
           >
             <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} style={{ marginRight: 10 }} />
             <Text style={styles.datePickerText}>
-              {editDate ? new Date(editDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+              {editDate ? new Date(editDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
             </Text>
           </TouchableOpacity>
           {showEditDatePicker && (
             <DateTimePicker
-              value={new Date(editDate)}
+              value={new Date(editDate + 'T00:00:00')}
               mode="date"
               display={Platform.OS === 'ios' ? 'spinner' : 'default'}
               onChange={(event, selectedDate) => {
@@ -540,10 +566,18 @@ const styles = StyleSheet.create({
   chipText: { color: COLORS.accent, fontSize: 12, fontWeight: '600' },
   clearText: { color: COLORS.accentRed, fontSize: 12, fontWeight: '600' },
   resultsText: { fontSize: 12, color: COLORS.textMuted, marginBottom: 10 },
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 10, paddingHorizontal: 4, marginTop: 8,
+    borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    marginBottom: 8,
+  },
+  sectionHeaderDate: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5 },
+  sectionHeaderTotal: { fontSize: 13, fontWeight: '800', color: COLORS.text },
   card: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: COLORS.card, borderRadius: 14,
-    padding: 14, marginBottom: 10,
+    padding: 14, marginBottom: 8,
     borderWidth: 1, borderColor: COLORS.border,
   },
   iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
@@ -553,7 +587,6 @@ const styles = StyleSheet.create({
   note: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   right: { alignItems: 'flex-end', marginRight: 10 },
   amount: { fontSize: 15, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5 },
-  date: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
   deleteBtn: { padding: 6 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },

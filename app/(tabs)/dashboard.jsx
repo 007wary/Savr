@@ -142,6 +142,11 @@ export default function Dashboard() {
 
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
 
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const todayExpenses = expenses.filter(e => e.date === todayStr)
+  const todayTotal = todayExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+
   const byCategory = CATEGORIES.map(cat => {
     const catExpenses = expenses.filter(e => e.category === cat.label)
     const catTotal = catExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
@@ -227,12 +232,22 @@ export default function Dashboard() {
           end={{ x: 1, y: 1 }}
           style={styles.totalCard}
         >
-          <Text style={styles.totalLabel}>Total Spent</Text>
-          <CountUp value={total} style={styles.totalAmount} symbol={currencySymbol} />
-          <Text style={styles.totalSub}>{expenses.length} transactions</Text>
+          <View style={styles.totalRow}>
+            <View style={styles.totalLeft}>
+              <Text style={styles.totalLabel}>TOTAL SPENT</Text>
+              <CountUp value={total} style={styles.totalAmount} symbol={currencySymbol} />
+              <Text style={styles.totalSub}>{expenses.length} transactions</Text>
+            </View>
+            <View style={styles.totalDivider} />
+            <View style={styles.totalRight}>
+              <Text style={styles.totalLabel}>TODAY</Text>
+              <CountUp value={todayTotal} style={styles.totalAmount} symbol={currencySymbol} />
+              <Text style={styles.totalSub}>{todayExpenses.length} today</Text>
+            </View>
+          </View>
         </LinearGradient>
 
-        {/* Banner Ad — inline below total card */}
+        {/* Banner Ad */}
         <View style={styles.bannerContainer}>
           <BannerAd
             unitId={BANNER_AD_UNIT_ID}
@@ -369,9 +384,17 @@ const styles = StyleSheet.create({
   monthNavCenter: { alignItems: 'center' },
   monthNavText: { fontSize: 16, fontWeight: '700', color: COLORS.text, letterSpacing: -0.3 },
   monthNavBack: { fontSize: 12, color: COLORS.accent, marginTop: 4 },
-  totalCard: { borderRadius: 24, padding: 28, marginBottom: 16, alignItems: 'center' },
+  totalCard: { borderRadius: 24, padding: 28, marginBottom: 16 },
+  totalRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
+  totalLeft: { flex: 1, alignItems: 'center' },
+  totalRight: { flex: 1, alignItems: 'center' },
+  totalDivider: {
+    width: 1, height: 80,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    marginHorizontal: 8,
+  },
   totalLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 8, letterSpacing: 1.5, textTransform: 'uppercase' },
-  totalAmount: { fontSize: 52, fontWeight: '900', color: '#fff', letterSpacing: -3 },
+  totalAmount: { fontSize: 28, fontWeight: '900', color: '#fff', letterSpacing: -1 },
   totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
   bannerContainer: {
     alignItems: 'center', marginBottom: 16,
