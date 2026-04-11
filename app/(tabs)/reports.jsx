@@ -49,13 +49,28 @@ export default function Reports() {
   const CACHE_KEY = `savr_cache_reports_${currentMonth}`
 
   useEffect(() => {
-  const interstitial = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID)
-  const unsubLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-    interstitial.show()
-  })
-  interstitial.load()
+  let interstitial = null
+  let unsubLoaded = null
+  let unsubError = null
+
+  try {
+    interstitial = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID)
+    unsubLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+      try {
+        interstitial.show()
+      } catch {}
+    })
+    unsubError = interstitial.addAdEventListener(AdEventType.ERROR, () => {
+      // Silently fail if ad fails to load
+    })
+    interstitial.load()
+  } catch {}
+
   return () => {
-    unsubLoaded()
+    try {
+      if (unsubLoaded) unsubLoaded()
+      if (unsubError) unsubError()
+    } catch {}
   }
 }, [])
 
