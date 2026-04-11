@@ -14,7 +14,6 @@ import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
 import { InterstitialAd, AdEventType } from 'react-native-google-mobile-ads'
 import { INTERSTITIAL_AD_UNIT_ID } from '../../src/lib/ads'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 
 function AnimatedBar({ percentage, color, delay = 0 }) {
   const anim = useRef(new Animated.Value(0)).current
@@ -43,7 +42,6 @@ export default function Reports() {
   const [currencySymbol, setCurrencySymbol] = useState('₹')
   const [loading, setLoading] = useState(true)
   const [expandedCategory, setExpandedCategory] = useState(null)
-  const [adsRemoved, setAdsRemoved] = useState(false)
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -51,22 +49,15 @@ export default function Reports() {
   const CACHE_KEY = `savr_cache_reports_${currentMonth}`
 
   useEffect(() => {
-    AsyncStorage.getItem('savr_ads_removed').then(val => {
-      if (val === 'true') {
-        setAdsRemoved(true)
-        return
-      }
-      // Load and show interstitial ad once per session
-      const interstitial = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID)
-      const unsubLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-        interstitial.show()
-      })
-      interstitial.load()
-      return () => {
-        unsubLoaded()
-      }
-    })
-  }, [])
+  const interstitial = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID)
+  const unsubLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+    interstitial.show()
+  })
+  interstitial.load()
+  return () => {
+    unsubLoaded()
+  }
+}, [])
 
   async function fetchData(forceRefresh = false) {
     const symbol = await getCurrencySymbol()

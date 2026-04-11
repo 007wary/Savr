@@ -11,7 +11,6 @@ import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads'
 import { BANNER_AD_UNIT_ID } from '../../src/lib/ads'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 
 function CountUp({ value, style, symbol }) {
   const [display, setDisplay] = useState(0)
@@ -48,14 +47,7 @@ export default function Dashboard() {
   const [lastMonthTotal, setLastMonthTotal] = useState(0)
   const [daysInMonth, setDaysInMonth] = useState(1)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
-  const [adsRemoved, setAdsRemoved] = useState(false)
   const router = useRouter()
-
-  useEffect(() => {
-    AsyncStorage.getItem('savr_ads_removed').then(val => {
-      if (val === 'true') setAdsRemoved(true)
-    })
-  }, [])
 
   function getMonthInfo(offset) {
     const d = new Date()
@@ -341,20 +333,17 @@ export default function Dashboard() {
         )}
       </ScrollView>
 
-      {/* Banner Ad */}
-      {!adsRemoved && (
-        <View style={styles.bannerContainer}>
-          <BannerAd
-            unitId={BANNER_AD_UNIT_ID}
-            size={BannerAdSize.BANNER}
-            requestOptions={{ requestNonPersonalizedAdsOnly: false }}
-          />
-        </View>
-      )}
+      <View style={styles.bannerContainer}>
+  <BannerAd
+    unitId={BANNER_AD_UNIT_ID}
+    size={BannerAdSize.BANNER}
+    requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+  />
+</View>
 
-      {isCurrentMonth && (
-        <TouchableOpacity
-          style={[styles.fab, !adsRemoved && styles.fabWithAd]}
+{isCurrentMonth && (
+  <TouchableOpacity
+    style={[styles.fab, styles.fabWithAd]}
           onPress={() => router.push('/(tabs)/add')}
           activeOpacity={0.85}
         >

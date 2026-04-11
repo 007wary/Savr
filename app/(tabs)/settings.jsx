@@ -17,7 +17,6 @@ import useAlert from '../../src/hooks/useAlert'
 import * as Notifications from 'expo-notifications'
 import { getUser, clearUserCache } from '../../src/lib/auth'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const APP_VERSION = '1.0'
 const CACHE_KEY = 'savr_cache_settings'
@@ -41,7 +40,6 @@ export default function Settings() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [changingPassword, setChangingPassword] = useState(false)
-  const [adsRemoved, setAdsRemoved] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
@@ -53,9 +51,6 @@ export default function Settings() {
     const { status } = await Notifications.getPermissionsAsync()
     setNotificationsEnabled(status === 'granted')
     setBudgetAlerts(status === 'granted')
-
-    const adStatus = await AsyncStorage.getItem('savr_ads_removed')
-    setAdsRemoved(adStatus === 'true')
 
     if (!forceRefresh) {
       const cached = await loadCache(CACHE_KEY)
@@ -183,25 +178,6 @@ export default function Settings() {
     ])
   }
 
-  async function handleRemoveAds() {
-    showAlert(
-      'Remove Ads',
-      'Remove all ads from Savr for a one-time payment of ₹99. This will be processed through Google Play.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove Ads — ₹99',
-          onPress: async () => {
-            // TODO: Implement Google Play Billing
-            await AsyncStorage.setItem('savr_ads_removed', 'true')
-            setAdsRemoved(true)
-            showAlert('Thank you! 🎉', 'Ads have been removed. Enjoy Savr ad-free!')
-          }
-        }
-      ]
-    )
-  }
-
   function getInitials() {
     if (!displayName) return '?'
     const parts = displayName.trim().split(' ')
@@ -298,40 +274,6 @@ export default function Settings() {
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
         </TouchableOpacity>
-      </View>
-
-      {/* Upgrade */}
-      <Text style={styles.sectionLabel}>UPGRADE</Text>
-      <View style={styles.card}>
-        {!adsRemoved ? (
-          <TouchableOpacity style={styles.row} onPress={handleRemoveAds}>
-            <View style={styles.rowLeft}>
-              <View style={[styles.rowIcon, { backgroundColor: '#FFB80022' }]}>
-                <Ionicons name="star-outline" size={18} color={COLORS.accentYellow} />
-              </View>
-              <View>
-                <Text style={styles.rowTitle}>Remove Ads</Text>
-                <Text style={styles.rowSubtitle}>One-time payment of ₹99</Text>
-              </View>
-            </View>
-            <View style={styles.priceTag}>
-              <Text style={styles.priceTagText}>₹99</Text>
-            </View>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.row}>
-            <View style={styles.rowLeft}>
-              <View style={[styles.rowIcon, { backgroundColor: '#00D9A522' }]}>
-                <Ionicons name="star" size={18} color={COLORS.accentGreen} />
-              </View>
-              <View>
-                <Text style={styles.rowTitle}>Ad Free</Text>
-                <Text style={styles.rowSubtitle}>You're enjoying Savr ad-free!</Text>
-              </View>
-            </View>
-            <Ionicons name="checkmark-circle" size={22} color={COLORS.accentGreen} />
-          </View>
-        )}
       </View>
 
       {/* About */}
@@ -660,12 +602,6 @@ const styles = StyleSheet.create({
   versionText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
   footer: { textAlign: 'center', color: COLORS.textMuted, fontSize: 13, marginTop: 8, marginBottom: 32 },
   footerBold: { fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
-  priceTag: {
-    backgroundColor: COLORS.accentYellow + '22',
-    borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10,
-    borderWidth: 1, borderColor: COLORS.accentYellow + '44',
-  },
-  priceTagText: { color: COLORS.accentYellow, fontWeight: '700', fontSize: 14 },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
   currencySearch: {
