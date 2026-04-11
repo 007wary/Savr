@@ -1,4 +1,4 @@
-name: Build AAB
+name: Build APK and AAB
 
 on:
   push:
@@ -44,14 +44,29 @@ jobs:
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/savr.keystore
 
-      - name: Build signed AAB
+      - name: Build signed APK
         run: |
           chmod +x android/gradlew
+          cd android && ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$(pwd)/app/savr.keystore \
+            -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
+      - name: Build signed AAB
+        run: |
           cd android && ./gradlew bundleRelease \
             -Pandroid.injected.signing.store.file=$(pwd)/app/savr.keystore \
             -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: savr-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
+          retention-days: 7
 
       - name: Upload AAB
         uses: actions/upload-artifact@v4
