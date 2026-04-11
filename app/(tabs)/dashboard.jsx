@@ -9,6 +9,9 @@ import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol } from '../../src/lib/currency'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
+import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads'
+import { BANNER_AD_UNIT_ID } from '../../src/lib/ads'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 function CountUp({ value, style, symbol }) {
   const [display, setDisplay] = useState(0)
@@ -45,7 +48,14 @@ export default function Dashboard() {
   const [lastMonthTotal, setLastMonthTotal] = useState(0)
   const [daysInMonth, setDaysInMonth] = useState(1)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [adsRemoved, setAdsRemoved] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    AsyncStorage.getItem('savr_ads_removed').then(val => {
+      if (val === 'true') setAdsRemoved(true)
+    })
+  }, [])
 
   function getMonthInfo(offset) {
     const d = new Date()
@@ -177,7 +187,7 @@ export default function Dashboard() {
     <View style={{ flex: 1 }}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: adsRemoved ? 100 : 160 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -331,8 +341,23 @@ export default function Dashboard() {
         )}
       </ScrollView>
 
+      {/* Banner Ad */}
+      {!adsRemoved && (
+        <View style={styles.bannerContainer}>
+          <BannerAd
+            unitId={BANNER_AD_UNIT_ID}
+            size={BannerAdSize.BANNER}
+            requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+          />
+        </View>
+      )}
+
       {isCurrentMonth && (
-        <TouchableOpacity style={styles.fab} onPress={() => router.push('/(tabs)/add')} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={[styles.fab, !adsRemoved && styles.fabWithAd]}
+          onPress={() => router.push('/(tabs)/add')}
+          activeOpacity={0.85}
+        >
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
       )}
@@ -392,6 +417,11 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', marginTop: 60 },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },
+  bannerContainer: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    alignItems: 'center', backgroundColor: COLORS.bg,
+    borderTopWidth: 1, borderTopColor: COLORS.border,
+  },
   fab: {
     position: 'absolute', bottom: 24, right: 24,
     width: 58, height: 58, borderRadius: 29,
@@ -399,4 +429,5 @@ const styles = StyleSheet.create({
     shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4, shadowRadius: 8, elevation: 8,
   },
+  fabWithAd: { bottom: 74 },
 })

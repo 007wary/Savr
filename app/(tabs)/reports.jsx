@@ -12,6 +12,9 @@ import { getCurrencySymbol } from '../../src/lib/currency'
 import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
+import { InterstitialAd, AdEventType } from 'react-native-google-mobile-ads'
+import { INTERSTITIAL_AD_UNIT_ID } from '../../src/lib/ads'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 function AnimatedBar({ percentage, color, delay = 0 }) {
   const anim = useRef(new Animated.Value(0)).current
@@ -40,12 +43,30 @@ export default function Reports() {
   const [currencySymbol, setCurrencySymbol] = useState('₹')
   const [loading, setLoading] = useState(true)
   const [expandedCategory, setExpandedCategory] = useState(null)
+  const [adsRemoved, setAdsRemoved] = useState(false)
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
-
   const CACHE_KEY = `savr_cache_reports_${currentMonth}`
+
+  useEffect(() => {
+    AsyncStorage.getItem('savr_ads_removed').then(val => {
+      if (val === 'true') {
+        setAdsRemoved(true)
+        return
+      }
+      // Load and show interstitial ad once per session
+      const interstitial = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID)
+      const unsubLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+        interstitial.show()
+      })
+      interstitial.load()
+      return () => {
+        unsubLoaded()
+      }
+    })
+  }, [])
 
   async function fetchData(forceRefresh = false) {
     const symbol = await getCurrencySymbol()
@@ -67,23 +88,21 @@ export default function Reports() {
   }
 
   async function syncFromSupabase() {
-  try {
-    // Try to use history cache first to avoid duplicate fetch
-    const historyCached = await loadCache('savr_cache_history')
-    let data = historyCached
+    try {
+      const historyCached = await loadCache('savr_cache_history')
+      let data = historyCached
 
-    if (!data) {
-      const user = await getUser()
-      const { data: fetchedData } = await supabase
-        .from('expenses')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: true })
-      data = fetchedData
-    } else {
-      // Sort ascending for reports
-      data = [...data].sort((a, b) => a.date.localeCompare(b.date))
-    }
+      if (!data) {
+        const user = await getUser()
+        const { data: fetchedData } = await supabase
+          .from('expenses')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('date', { ascending: true })
+        data = fetchedData
+      } else {
+        data = [...data].sort((a, b) => a.date.localeCompare(b.date))
+      }
 
       if (data) {
         const filtered = data.filter(e => e.date.startsWith(currentMonth))
