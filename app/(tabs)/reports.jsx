@@ -42,37 +42,40 @@ export default function Reports() {
   const [currencySymbol, setCurrencySymbol] = useState('₹')
   const [loading, setLoading] = useState(true)
   const [expandedCategory, setExpandedCategory] = useState(null)
+  const adShownRef = useRef(false)
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
   const CACHE_KEY = `savr_cache_reports_${currentMonth}`
 
-  useEffect(() => {
-  let interstitial = null
-  let unsubLoaded = null
-  let unsubError = null
+  useFocusEffect(useCallback(() => {
+    fetchData()
 
-  try {
-    interstitial = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID)
-    unsubLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-      try {
-        interstitial.show()
-      } catch {}
-    })
-    unsubError = interstitial.addAdEventListener(AdEventType.ERROR, () => {
-      // Silently fail if ad fails to load
-    })
-    interstitial.load()
-  } catch {}
+    // Only show interstitial once per session
+    if (adShownRef.current) return
+    adShownRef.current = true
 
-  return () => {
+    let interstitial = null
+    let unsubLoaded = null
+    let unsubError = null
+
     try {
-      if (unsubLoaded) unsubLoaded()
-      if (unsubError) unsubError()
+      interstitial = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID)
+      unsubLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
+        try { interstitial.show() } catch {}
+      })
+      unsubError = interstitial.addAdEventListener(AdEventType.ERROR, () => {})
+      interstitial.load()
     } catch {}
-  }
-}, [])
+
+    return () => {
+      try {
+        if (unsubLoaded) unsubLoaded()
+        if (unsubError) unsubError()
+      } catch {}
+    }
+  }, []))
 
   async function fetchData(forceRefresh = false) {
     const symbol = await getCurrencySymbol()
@@ -133,8 +136,6 @@ export default function Reports() {
       setRefreshing(false)
     }
   }
-
-  useFocusEffect(useCallback(() => { fetchData() }, []))
 
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
   const lastTotal = lastMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)

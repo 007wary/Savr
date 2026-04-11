@@ -47,6 +47,7 @@ export default function Dashboard() {
   const [lastMonthTotal, setLastMonthTotal] = useState(0)
   const [daysInMonth, setDaysInMonth] = useState(1)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [adReady, setAdReady] = useState(false)
   const router = useRouter()
 
   function getMonthInfo(offset) {
@@ -179,7 +180,7 @@ export default function Dashboard() {
     <View style={{ flex: 1 }}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: adsRemoved ? 100 : 160 }}
+        contentContainerStyle={{ paddingBottom: adReady ? 160 : 100 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -333,17 +334,20 @@ export default function Dashboard() {
         )}
       </ScrollView>
 
+      {/* Banner Ad — only shows when ready */}
       <View style={styles.bannerContainer}>
-  <BannerAd
-    unitId={BANNER_AD_UNIT_ID}
-    size={BannerAdSize.BANNER}
-    requestOptions={{ requestNonPersonalizedAdsOnly: false }}
-  />
-</View>
+        <BannerAd
+          unitId={BANNER_AD_UNIT_ID}
+          size={BannerAdSize.BANNER}
+          requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+          onAdLoaded={() => setAdReady(true)}
+          onAdFailedToLoad={() => setAdReady(false)}
+        />
+      </View>
 
-{isCurrentMonth && (
-  <TouchableOpacity
-    style={[styles.fab, styles.fabWithAd]}
+      {isCurrentMonth && (
+        <TouchableOpacity
+          style={[styles.fab, adReady && styles.fabWithAd]}
           onPress={() => router.push('/(tabs)/add')}
           activeOpacity={0.85}
         >

@@ -18,7 +18,6 @@ export default function RootLayout() {
 
   useEffect(() => {
     async function init() {
-      // Reduce timeout to 2 seconds
       const timeout = setTimeout(() => {
         if (session === undefined) {
           setSession(null)
@@ -27,13 +26,15 @@ export default function RootLayout() {
       }, 2000)
 
       try {
-        // Check cached session instantly — no network needed
         const { data: { session: cachedSession } } = await supabase.auth.getSession()
         if (cachedSession) {
           clearTimeout(timeout)
           setSession(cachedSession)
           SplashScreen.hideAsync()
           processDueRecurring(cachedSession.user.id)
+          // Initialize ads after session is confirmed
+          const { initializeAds } = await import('../src/lib/ads')
+          initializeAds()
         } else {
           clearTimeout(timeout)
           setSession(null)
@@ -55,6 +56,9 @@ export default function RootLayout() {
         if (session?.user) {
           processDueRecurring(session.user.id)
         }
+        // Initialize ads after sign in
+        const { initializeAds } = await import('../src/lib/ads')
+        initializeAds()
         router.replace('/(tabs)/dashboard')
       }
       if (event === 'SIGNED_OUT') {
