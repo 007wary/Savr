@@ -16,32 +16,42 @@ export default function RootLayout() {
   const router = useRouter()
   const segments = useSegments()
 
-  const timeout = setTimeout(() => {
-  if (session === undefined) {
-    setSession(null)
-    SplashScreen.hideAsync()
-  }
-}, 2000)
+  useEffect(() => {
+    async function init() {
+      // Reduce timeout to 2 seconds
+      const timeout = setTimeout(() => {
+        if (session === undefined) {
+          setSession(null)
+          SplashScreen.hideAsync()
+        }
+      }, 2000)
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      clearTimeout(timeout)
-      setSession(session ?? null)
-      SplashScreen.hideAsync()
-      // Process recurring expenses on app open
-      if (session?.user) {
-        processDueRecurring(session.user.id)
+      try {
+        // Check cached session instantly — no network needed
+        const { data: { session: cachedSession } } = await supabase.auth.getSession()
+        if (cachedSession) {
+          clearTimeout(timeout)
+          setSession(cachedSession)
+          SplashScreen.hideAsync()
+          processDueRecurring(cachedSession.user.id)
+        } else {
+          clearTimeout(timeout)
+          setSession(null)
+          SplashScreen.hideAsync()
+        }
+      } catch {
+        clearTimeout(timeout)
+        setSession(null)
+        SplashScreen.hideAsync()
       }
-    }).catch(() => {
-      clearTimeout(timeout)
-      setSession(null)
-      SplashScreen.hideAsync()
-    })
+    }
+
+    init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session ?? null)
       if (event === 'SIGNED_IN') {
         await requestNotificationPermission()
-        // Process recurring expenses on sign in
         if (session?.user) {
           processDueRecurring(session.user.id)
         }
@@ -71,7 +81,6 @@ export default function RootLayout() {
     })
 
     return () => {
-      clearTimeout(timeout)
       subscription.unsubscribe()
       linkSub.remove()
     }
