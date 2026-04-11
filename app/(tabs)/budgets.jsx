@@ -15,10 +15,12 @@ import NetInfo from '@react-native-community/netinfo'
 import { addToQueue } from '../../src/lib/offlineQueue'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
+import { generateBudgetRecommendations } from '../../src/lib/budgetRecommendations'
 
 export default function Budgets() {
   const [budgets, setBudgets] = useState([])
   const [expenses, setExpenses] = useState([])
+  const [allExpenses, setAllExpenses] = useState([])
   const [editing, setEditing] = useState(null)
   const [inputValue, setInputValue] = useState('')
   const [refreshing, setRefreshing] = useState(false)
@@ -27,6 +29,8 @@ export default function Budgets() {
   const [loading, setLoading] = useState(true)
   const [savingBudget, setSavingBudget] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
+  const [recommendations, setRecommendations] = useState({})
+  const [showRecommendations, setShowRecommendations] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
 
   const now = new Date()
@@ -53,6 +57,11 @@ export default function Budgets() {
       if (cached) {
         setBudgets(cached.budgets)
         setExpenses(cached.expenses)
+        if (cached.allExpenses) {
+          setAllExpenses(cached.allExpenses)
+          const recs = generateBudgetRecommendations(cached.allExpenses, CATEGORIES)
+          setRecommendations(recs)
+        }
         setLoading(false)
         syncFromSupabase()
         return
@@ -74,9 +83,16 @@ export default function Budgets() {
       if (expenseData) {
         const filtered = expenseData.filter(e => e.date.startsWith(currentMonth))
         setExpenses(filtered)
+        setAllExpenses(expenseData)
+
+        // Generate recommendations from all expenses
+        const recs = generateBudgetRecommendations(expenseData, CATEGORIES)
+        setRecommendations(recs)
+
         await saveCache(CACHE_KEY, {
           budgets: budgetData || [],
           expenses: filtered,
+          allExpenses: expenseData,
         })
       }
     } catch {
@@ -89,13 +105,14 @@ export default function Budgets() {
 
   useFocusEffect(useCallback(() => { fetchData() }, []))
 
-  async function saveBudget(category) {
-    if (!inputValue || isNaN(parseFloat(inputValue))) {
+  async function saveBudget(category, customLimit = null) {
+    const limitValue = customLimit !== null ? String(customLimit) : inputValue
+    if (!limitValue || isNaN(parseFloat(limitValue))) {
       return showAlert('Invalid', 'Please enter a valid amount')
     }
 
     setSavingBudget(true)
-    const limit = parseFloat(inputValue)
+    const limit = parseFloat(limitValue)
     const existing = budgets.find(b => b.category === category)
 
     let updatedBudgets
@@ -113,7 +130,7 @@ export default function Budgets() {
       }]
     }
     setBudgets(updatedBudgets)
-    await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses })
+    await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses, allExpenses })
 
     setEditing(null)
     setInputValue('')
@@ -145,6 +162,76 @@ export default function Budgets() {
     }
   }
 
+  async function applyAllRecommendations() {
+    showAlert(
+      'Apply All Recommendations?',
+      'This will set budgets for all categories based on your last 3 months spending.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Apply All',
+          onPress: async () => {
+            for (const [category, rec] of Object.entries(recommendations)) {
+              const existing = budgets.find(b => b.category === category)
+              const limit = rec.recommended
+              let updatedBudgets
+              if (existing) {
+                updatedBudgets = budgets.map(b =>
+                  b.category === category ? { ...b, limit_amount: limit } : b
+                )
+              } else {
+                updatedBudgets = [...budgets, {
+                  id: `offline_${Date.now()}_${category}`,
+                  category,
+                  limit_amount: limit,
+                  month: currentMonth,
+                  user_id: 'offline',
+                }]
+              }
+              setBudgets(prev => {
+                const exists = prev.find(b => b.category === category)
+                if (exists) {
+                  return prev.map(b => b.category === category ? { ...b, limit_amount: limit } : b)
+                }
+                return [...prev, {
+                  id: `offline_${Date.now()}_${category}`,
+                  category,
+                  limit_amount: limit,
+                  month: currentMonth,
+                  user_id: 'offline',
+                }]
+              })
+
+              if (isOnline) {
+                const user = await getUser()
+                if (existing) {
+                  await supabase.from('budgets').update({ limit_amount: limit }).eq('id', existing.id)
+                } else {
+                  await supabase.from('budgets').insert({
+                    user_id: user.id,
+                    category,
+                    limit_amount: limit,
+                    month: currentMonth,
+                  })
+                }
+              } else {
+                await addToQueue({
+                  type: 'save_budget',
+                  category,
+                  limit_amount: limit,
+                  month: currentMonth,
+                  existing_id: existing?.id,
+                })
+              }
+            }
+            setShowRecommendations(false)
+            if (isOnline) fetchData(true)
+          }
+        }
+      ]
+    )
+  }
+
   async function deleteBudget(category) {
     const existing = budgets.find(b => b.category === category)
     if (!existing) return
@@ -152,7 +239,7 @@ export default function Budgets() {
     if (existing.id?.toString().startsWith('offline_')) {
       const updatedBudgets = budgets.filter(b => b.category !== category)
       setBudgets(updatedBudgets)
-      await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses })
+      await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses, allExpenses })
       setEditing(null)
       setInputValue('')
       return
@@ -160,7 +247,7 @@ export default function Budgets() {
 
     const updatedBudgets = budgets.filter(b => b.category !== category)
     setBudgets(updatedBudgets)
-    await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses })
+    await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses, allExpenses })
 
     setEditing(null)
     setInputValue('')
@@ -182,6 +269,8 @@ export default function Budgets() {
     return b ? parseFloat(b.limit_amount) : null
   }
 
+  const hasRecommendations = Object.keys(recommendations).length > 0
+
   if (loading) return <BudgetsSkeleton />
 
   return (
@@ -199,12 +288,81 @@ export default function Budgets() {
       <Text style={styles.heading}>Budgets</Text>
       <Text style={styles.subheading}>{monthName}</Text>
 
+      {/* AI Recommendations Card */}
+      {hasRecommendations && (
+        <TouchableOpacity
+          style={styles.recommendCard}
+          onPress={() => setShowRecommendations(!showRecommendations)}
+          activeOpacity={0.8}
+        >
+          <View style={styles.recommendHeader}>
+            <View style={styles.recommendLeft}>
+              <Text style={styles.recommendEmoji}>🤖</Text>
+              <View>
+                <Text style={styles.recommendTitle}>Smart Budget Recommendations</Text>
+                <Text style={styles.recommendSub}>
+                  Based on your last 3 months spending
+                </Text>
+              </View>
+            </View>
+            <Ionicons
+              name={showRecommendations ? 'chevron-up' : 'chevron-down'}
+              size={18} color={COLORS.accent}
+            />
+          </View>
+
+          {showRecommendations && (
+            <View style={styles.recommendList}>
+              <View style={styles.recommendDivider} />
+              {Object.entries(recommendations).map(([category, rec]) => {
+                const cat = CATEGORIES.find(c => c.label === category)
+                if (!cat) return null
+                return (
+                  <View key={category} style={styles.recommendItem}>
+                    <View style={styles.recommendItemLeft}>
+                      <View style={[styles.recommendIconBox, { backgroundColor: cat.color + '22' }]}>
+                        <Text style={{ fontSize: 16 }}>{cat.icon}</Text>
+                      </View>
+                      <View>
+                        <Text style={styles.recommendCatName}>{category}</Text>
+                        <Text style={styles.recommendAvg}>
+                          3-month avg: {formatAmount(rec.avg, currencySymbol, currencyCode)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.recommendItemRight}>
+                      <Text style={styles.recommendAmount}>
+                        {formatAmount(rec.recommended, currencySymbol, currencyCode)}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.applyBtn}
+                        onPress={() => saveBudget(category, rec.recommended)}
+                      >
+                        <Text style={styles.applyBtnText}>Apply</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )
+              })}
+              <TouchableOpacity
+                style={styles.applyAllBtn}
+                onPress={applyAllRecommendations}
+              >
+                <Ionicons name="checkmark-circle" size={16} color="#fff" style={{ marginRight: 6 }} />
+                <Text style={styles.applyAllBtnText}>Apply All Recommendations</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </TouchableOpacity>
+      )}
+
       {CATEGORIES.map(cat => {
         const spent = getSpent(cat.label)
         const limit = getBudgetLimit(cat.label)
         const percentage = limit ? Math.min((spent / limit) * 100, 100) : 0
         const isOver = limit && spent > limit
         const isEditing = editing === cat.label
+        const rec = recommendations[cat.label]
 
         return (
           <View key={cat.label} style={styles.card}>
@@ -254,29 +412,56 @@ export default function Budgets() {
               </Text>
             )}
 
+            {/* Inline recommendation hint when no budget set */}
+            {!limit && rec && !isEditing && (
+              <TouchableOpacity
+                style={styles.inlineRecCard}
+                onPress={() => saveBudget(cat.label, rec.recommended)}
+              >
+                <Ionicons name="bulb-outline" size={14} color={COLORS.accentYellow} />
+                <Text style={styles.inlineRecText}>
+                  Suggested: {formatAmount(rec.recommended, currencySymbol, currencyCode)} based on {rec.months} month{rec.months > 1 ? 's' : ''} history
+                </Text>
+                <Text style={styles.inlineRecApply}>Tap to apply</Text>
+              </TouchableOpacity>
+            )}
+
             {isEditing && (
-              <View style={styles.editRow}>
-                <TextInput
-                  style={styles.editInput}
-                  placeholder={`Set budget (${currencySymbol})`}
-                  placeholderTextColor={COLORS.textMuted}
-                  value={inputValue}
-                  onChangeText={setInputValue}
-                  keyboardType="numeric"
-                  autoFocus
-                />
-                <TouchableOpacity
-                  style={[styles.saveBtn, savingBudget && { opacity: 0.6 }]}
-                  onPress={() => saveBudget(cat.label)}
-                  disabled={savingBudget}
-                >
-                  <Text style={styles.saveBtnText}>{savingBudget ? '...' : 'Save'}</Text>
-                </TouchableOpacity>
-                {limit && (
-                  <TouchableOpacity style={styles.deleteBtn} onPress={() => deleteBudget(cat.label)}>
-                    <Text style={styles.deleteBtnText}>Remove</Text>
+              <View>
+                {rec && (
+                  <TouchableOpacity
+                    style={styles.recHint}
+                    onPress={() => setInputValue(String(rec.recommended))}
+                  >
+                    <Ionicons name="bulb-outline" size={13} color={COLORS.accentYellow} />
+                    <Text style={styles.recHintText}>
+                      Suggested: {formatAmount(rec.recommended, currencySymbol, currencyCode)} — tap to use
+                    </Text>
                   </TouchableOpacity>
                 )}
+                <View style={styles.editRow}>
+                  <TextInput
+                    style={styles.editInput}
+                    placeholder={`Set budget (${currencySymbol})`}
+                    placeholderTextColor={COLORS.textMuted}
+                    value={inputValue}
+                    onChangeText={setInputValue}
+                    keyboardType="numeric"
+                    autoFocus
+                  />
+                  <TouchableOpacity
+                    style={[styles.saveBtn, savingBudget && { opacity: 0.6 }]}
+                    onPress={() => saveBudget(cat.label)}
+                    disabled={savingBudget}
+                  >
+                    <Text style={styles.saveBtnText}>{savingBudget ? '...' : 'Save'}</Text>
+                  </TouchableOpacity>
+                  {limit && (
+                    <TouchableOpacity style={styles.deleteBtn} onPress={() => deleteBudget(cat.label)}>
+                      <Text style={styles.deleteBtnText}>Remove</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             )}
           </View>
@@ -298,6 +483,40 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8, marginBottom: 4 },
   subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 24 },
+  recommendCard: {
+    backgroundColor: COLORS.card, borderRadius: 16,
+    padding: 16, marginBottom: 20,
+    borderWidth: 1, borderColor: COLORS.accent + '44',
+  },
+  recommendHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  recommendLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  recommendEmoji: { fontSize: 28 },
+  recommendTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  recommendSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  recommendDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 14 },
+  recommendList: {},
+  recommendItem: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', marginBottom: 14,
+  },
+  recommendItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  recommendIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  recommendCatName: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  recommendAvg: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  recommendItemRight: { alignItems: 'flex-end', gap: 6 },
+  recommendAmount: { fontSize: 14, fontWeight: '800', color: COLORS.accent },
+  applyBtn: {
+    backgroundColor: COLORS.accent + '22', borderRadius: 8,
+    paddingVertical: 4, paddingHorizontal: 10,
+    borderWidth: 1, borderColor: COLORS.accent + '44',
+  },
+  applyBtnText: { fontSize: 12, color: COLORS.accent, fontWeight: '700' },
+  applyAllBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.accent, borderRadius: 12,
+    padding: 14, marginTop: 8,
+  },
+  applyAllBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   card: {
     backgroundColor: COLORS.card, borderRadius: 16,
     padding: 16, marginBottom: 12,
@@ -323,7 +542,22 @@ const styles = StyleSheet.create({
   progressBg: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, marginBottom: 6 },
   progressFill: { height: 6, borderRadius: 3 },
   overText: { fontSize: 12, color: COLORS.accentRed, marginTop: 4, fontWeight: '600' },
-  editRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 8 },
+  inlineRecCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: COLORS.accentYellow + '11',
+    borderRadius: 10, padding: 10, marginTop: 8,
+    borderWidth: 1, borderColor: COLORS.accentYellow + '33',
+  },
+  inlineRecText: { flex: 1, fontSize: 12, color: COLORS.textMuted },
+  inlineRecApply: { fontSize: 11, color: COLORS.accentYellow, fontWeight: '700' },
+  recHint: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: COLORS.accentYellow + '11',
+    borderRadius: 8, padding: 8, marginTop: 10,
+    borderWidth: 1, borderColor: COLORS.accentYellow + '33',
+  },
+  recHintText: { fontSize: 12, color: COLORS.textMuted, flex: 1 },
+  editRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8 },
   editInput: {
     flex: 1, backgroundColor: COLORS.cardAlt, borderRadius: 10,
     padding: 10, color: COLORS.text, fontSize: 14,

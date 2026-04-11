@@ -16,7 +16,9 @@ import useAlert from '../../src/hooks/useAlert'
 import { addToQueue, syncQueue } from '../../src/lib/offlineQueue'
 import { clearCache, saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
-import { getCurrencySymbol } from '../../src/lib/currency'
+import { getCurrencySymbol, formatAmount } from '../../src/lib/currency'
+import { detectCategory } from '../../src/lib/categoryDetector'
+import { detectAnomaly } from '../../src/lib/anomalyDetector'
 
 const FREQUENCIES = [
   { label: 'Daily', value: 'daily', icon: '📅' },
@@ -28,6 +30,7 @@ export default function AddExpense() {
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(null)
+  const [autoDetected, setAutoDetected] = useState(false)
   const [date, setDate] = useState(new Date())
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [isRecurring, setIsRecurring] = useState(false)
@@ -35,11 +38,13 @@ export default function AddExpense() {
   const [isOnline, setIsOnline] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [currencyCode, setCurrencyCode] = useState('INR')
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
   useEffect(() => {
     getCurrencySymbol().then(setCurrencySymbol)
+    import('../../src/lib/currency').then(m => m.loadCurrency().then(setCurrencyCode))
   }, [])
 
   useEffect(() => {
@@ -66,6 +71,23 @@ export default function AddExpense() {
     }
   }, [])
 
+  function handleNoteChange(text) {
+    setNote(text)
+    const detected = detectCategory(text)
+    if (detected) {
+      setSelectedCategory(detected)
+      setAutoDetected(true)
+    } else if (autoDetected) {
+      setSelectedCategory(null)
+      setAutoDetected(false)
+    }
+  }
+
+  function handleCategorySelect(label) {
+    setSelectedCategory(label)
+    setAutoDetected(false)
+  }
+
   function formatDate(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   }
@@ -78,9 +100,82 @@ export default function AddExpense() {
     setAmount('')
     setNote('')
     setSelectedCategory(null)
+    setAutoDetected(false)
     setDate(new Date())
     setIsRecurring(false)
     setFrequency('monthly')
+  }
+
+  async function saveExpense(expenseData, expenseMonth, currentMonth) {
+    if (!isOnline) {
+      if (isRecurring) {
+        await addToQueue({
+          type: 'add_recurring',
+          ...expenseData,
+          frequency,
+          next_due: formatDate(date),
+        })
+      } else {
+        await addToQueue({ type: 'add_expense', ...expenseData })
+        const tempExpense = {
+          ...expenseData,
+          id: `offline_${Date.now()}`,
+          user_id: 'offline',
+          created_at: new Date().toISOString(),
+        }
+        const historyCached = await loadCache('savr_cache_history') || []
+        await saveCache('savr_cache_history', [tempExpense, ...historyCached])
+        if (expenseMonth === currentMonth) {
+          const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
+          const dashCached = await loadCache(dashCacheKey)
+          if (dashCached) {
+            await saveCache(dashCacheKey, {
+              ...dashCached,
+              expenses: [tempExpense, ...dashCached.expenses]
+            })
+          }
+        }
+      }
+      router.replace('/(tabs)/dashboard')
+      setSubmitting(false)
+      return
+    }
+
+    router.replace('/(tabs)/dashboard')
+    const user = await getUser()
+
+    if (isRecurring) {
+      await supabase.from('recurring_expenses').insert({
+        user_id: user.id,
+        amount: expenseData.amount,
+        category: expenseData.category,
+        note: expenseData.note,
+        frequency,
+        next_due: formatDate(date),
+        is_active: true,
+      })
+    } else {
+      const { error } = await supabase.from('expenses').insert({
+        user_id: user.id,
+        ...expenseData,
+      })
+      if (error) {
+        await addToQueue({ type: 'add_expense', ...expenseData })
+      } else {
+        await clearCache(`savr_cache_dashboard_${expenseMonth}`)
+        await clearCache('savr_cache_history')
+        await clearCache(`savr_cache_budgets_${expenseMonth}`)
+        await clearCache(`savr_cache_reports_${expenseMonth}`)
+        const [{ data: allExpenses }, { data: budgets }] = await Promise.all([
+          supabase.from('expenses').select('*').eq('user_id', user.id),
+          supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', expenseMonth)
+        ])
+        if (allExpenses && budgets && budgets.length > 0) {
+          checkBudgetAlerts(allExpenses, budgets, expenseMonth)
+        }
+      }
+    }
+    setSubmitting(false)
   }
 
   async function handleAdd() {
@@ -105,79 +200,42 @@ export default function AddExpense() {
       date: formatDate(date),
     }
 
-    resetForm()
-
-    if (!isOnline) {
-      if (isRecurring) {
-        await addToQueue({
-          type: 'add_recurring',
-          ...expenseData,
-          frequency,
-          next_due: formatDate(date),
-        })
-      } else {
-        await addToQueue({ type: 'add_expense', ...expenseData })
-        const tempExpense = {
-          ...expenseData,
-          id: `offline_${Date.now()}`,
-          user_id: 'offline',
-          created_at: new Date().toISOString(),
-        }
+    // Check for anomaly before saving
+    if (!isRecurring) {
+      try {
         const historyCached = await loadCache('savr_cache_history') || []
-        const updatedHistory = [tempExpense, ...historyCached]
-        await saveCache('savr_cache_history', updatedHistory)
+        const anomaly = detectAnomaly(expenseData.amount, selectedCategory, historyCached)
 
-        if (expenseMonth === currentMonth) {
-          const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
-          const dashCached = await loadCache(dashCacheKey)
-          if (dashCached) {
-            const updatedExpenses = [tempExpense, ...dashCached.expenses]
-            await saveCache(dashCacheKey, { ...dashCached, expenses: updatedExpenses })
-          }
+        if (anomaly) {
+          const cat = CATEGORIES.find(c => c.label === selectedCategory)
+          resetForm()
+          setSubmitting(false)
+          showAlert(
+            '⚠️ Unusual Expense Detected',
+            `This ${selectedCategory} expense of ${formatAmount(expenseData.amount, currencySymbol, currencyCode)} is ${anomaly.multiplier}x your usual spending.\n\nYour average ${selectedCategory} expense is ${formatAmount(anomaly.avg, currencySymbol, currencyCode)} based on ${anomaly.count} past transactions.\n\nWas this intentional?`,
+            [
+              {
+                text: 'Cancel',
+                style: 'cancel',
+              },
+              {
+                text: 'Yes, Add It',
+                onPress: async () => {
+                  setSubmitting(true)
+                  await saveExpense(expenseData, expenseMonth, currentMonth)
+                }
+              }
+            ]
+          )
+          return
         }
-      }
-      router.replace('/(tabs)/dashboard')
-      setSubmitting(false)
-      return
-    }
-
-    router.replace('/(tabs)/dashboard')
-    const user = await getUser()
-
-    if (isRecurring) {
-      await supabase.from('recurring_expenses').insert({
-        user_id: user.id,
-        amount: expenseData.amount,
-        category: selectedCategory,
-        note: expenseData.note,
-        frequency,
-        next_due: formatDate(date),
-        is_active: true,
-      })
-    } else {
-      const { error } = await supabase.from('expenses').insert({
-        user_id: user.id,
-        ...expenseData,
-      })
-
-      if (error) {
-        await addToQueue({ type: 'add_expense', ...expenseData })
-      } else {
-        await clearCache(`savr_cache_dashboard_${expenseMonth}`)
-        await clearCache('savr_cache_history')
-        await clearCache(`savr_cache_budgets_${expenseMonth}`)
-        await clearCache(`savr_cache_reports_${expenseMonth}`)
-
-        const [{ data: allExpenses }, { data: budgets }] = await Promise.all([
-          supabase.from('expenses').select('*').eq('user_id', user.id),
-          supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', expenseMonth)
-        ])
-        if (allExpenses && budgets && budgets.length > 0) {
-          checkBudgetAlerts(allExpenses, budgets, expenseMonth)
-        }
+      } catch {
+        // If anomaly check fails, proceed normally
       }
     }
-    setSubmitting(false)
+
+    resetForm()
+    await saveExpense(expenseData, expenseMonth, currentMonth)
   }
 
   return (
@@ -212,7 +270,34 @@ export default function AddExpense() {
           ))}
         </View>
 
-        <Text style={styles.label}>Category</Text>
+        {/* Note */}
+        <Text style={styles.label}>Note (optional)</Text>
+        <View style={styles.noteContainer}>
+          <TextInput
+            style={[styles.input, styles.noteInput]}
+            placeholder="What was this for? (e.g. Swiggy, Petrol, Amazon)"
+            placeholderTextColor={COLORS.textMuted}
+            value={note}
+            onChangeText={handleNoteChange}
+            multiline
+          />
+          {autoDetected && selectedCategory && (
+            <View style={styles.autoDetectBadge}>
+              <Ionicons name="flash" size={12} color={COLORS.accentGreen} />
+              <Text style={styles.autoDetectText}>
+                Auto-detected: {CATEGORIES.find(c => c.label === selectedCategory)?.icon} {selectedCategory}
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Category */}
+        <View style={styles.categoryHeader}>
+          <Text style={styles.label}>Category</Text>
+          {autoDetected && (
+            <Text style={styles.autoDetectHint}>✨ Auto-selected from your note</Text>
+          )}
+        </View>
         <View style={styles.categoryGrid}>
           {CATEGORIES.map((cat) => (
             <TouchableOpacity
@@ -223,9 +308,10 @@ export default function AddExpense() {
                   backgroundColor: cat.color + '22',
                   borderColor: cat.color,
                   borderWidth: 2,
-                }
+                },
+                selectedCategory === cat.label && autoDetected && styles.categoryBtnAutoDetected,
               ]}
-              onPress={() => setSelectedCategory(cat.label)}
+              onPress={() => handleCategorySelect(cat.label)}
             >
               <View style={[
                 styles.categoryIconBox,
@@ -239,6 +325,9 @@ export default function AddExpense() {
               ]}>
                 {cat.label}
               </Text>
+              {selectedCategory === cat.label && autoDetected && (
+                <View style={styles.autoDetectDot} />
+              )}
             </TouchableOpacity>
           ))}
         </View>
@@ -260,16 +349,6 @@ export default function AddExpense() {
             }}
           />
         )}
-
-        <Text style={styles.label}>Note (optional)</Text>
-        <TextInput
-          style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-          placeholder="What was this for?"
-          placeholderTextColor={COLORS.textMuted}
-          value={note}
-          onChangeText={setNote}
-          multiline
-        />
 
         <View style={styles.recurringToggleRow}>
           <View style={styles.recurringToggleLeft}>
@@ -349,6 +428,20 @@ const styles = StyleSheet.create({
     color: COLORS.text, fontSize: 15, borderWidth: 1,
     borderColor: COLORS.border, marginBottom: 20,
   },
+  noteContainer: { marginBottom: 20 },
+  noteInput: { marginBottom: 0, height: 80, textAlignVertical: 'top' },
+  autoDetectBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: COLORS.accentGreen + '15',
+    borderRadius: 8, padding: 8, marginTop: 6,
+    borderWidth: 1, borderColor: COLORS.accentGreen + '33',
+  },
+  autoDetectText: { fontSize: 12, color: COLORS.accentGreen, fontWeight: '600' },
+  categoryHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', marginBottom: 8,
+  },
+  autoDetectHint: { fontSize: 11, color: COLORS.accentGreen, fontWeight: '600' },
   quickAmounts: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20, marginTop: -12 },
   quickBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
   quickBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
@@ -361,12 +454,21 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.border,
     backgroundColor: COLORS.card, gap: 8,
   },
+  categoryBtnAutoDetected: {
+    borderColor: COLORS.accentGreen,
+    backgroundColor: COLORS.accentGreen + '11',
+  },
   categoryIconBox: {
     width: 44, height: 44, borderRadius: 12,
     justifyContent: 'center', alignItems: 'center',
   },
   categoryIcon: { fontSize: 22 },
   categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
+  autoDetectDot: {
+    width: 6, height: 6, borderRadius: 3,
+    backgroundColor: COLORS.accentGreen,
+    position: 'absolute', top: 6, right: 6,
+  },
   datePicker: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
