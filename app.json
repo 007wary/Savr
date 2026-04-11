@@ -20,6 +20,7 @@
       "backgroundColor": "#0F0F0F",
       "versionCode": 1,
       "targetSdkVersion": 35,
+      "googleMobileAdsAppId": "ca-app-pub-6010190127310138~6262367655",
       "permissions": [
         "INTERNET",
         "RECEIVE_BOOT_COMPLETED",
@@ -29,11 +30,11 @@
     },
     "plugins": [
       [
-    "react-native-google-mobile-ads",
-    {
-      "androidAppId": "ca-app-pub-6010190127310138~6262367655"
-    }
-  ],
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-6010190127310138~6262367655"
+        }
+      ],
       "expo-router",
       "expo-notifications",
       "expo-secure-store",
