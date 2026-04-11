@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ScrollView, KeyboardAvoidingView,
-  Platform, Switch
+  Platform, Switch, ActivityIndicator
 } from 'react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { Ionicons } from '@expo/vector-icons'
@@ -16,7 +16,7 @@ import useAlert from '../../src/hooks/useAlert'
 import { addToQueue, syncQueue } from '../../src/lib/offlineQueue'
 import { clearCache, saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
-import { getCurrencySymbol, formatAmount } from '../../src/lib/currency'
+import { getCurrencySymbol, loadCurrency, formatAmount, getQuickAmounts } from '../../src/lib/currency'
 import { detectCategory } from '../../src/lib/categoryDetector'
 import { detectAnomaly } from '../../src/lib/anomalyDetector'
 
@@ -39,12 +39,19 @@ export default function AddExpense() {
   const [submitting, setSubmitting] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
   const [currencyCode, setCurrencyCode] = useState('INR')
+  const [quickAmounts, setQuickAmounts] = useState(['50', '100', '200', '500', '1000', '2000'])
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
   useEffect(() => {
-    getCurrencySymbol().then(setCurrencySymbol)
-    import('../../src/lib/currency').then(m => m.loadCurrency().then(setCurrencyCode))
+    async function loadCurrencyData() {
+      const symbol = await getCurrencySymbol()
+      const code = await loadCurrency()
+      setCurrencySymbol(symbol)
+      setCurrencyCode(code)
+      setQuickAmounts(getQuickAmounts(code))
+    }
+    loadCurrencyData()
   }, [])
 
   useEffect(() => {
@@ -207,17 +214,13 @@ export default function AddExpense() {
         const anomaly = detectAnomaly(expenseData.amount, selectedCategory, historyCached)
 
         if (anomaly) {
-          const cat = CATEGORIES.find(c => c.label === selectedCategory)
           resetForm()
           setSubmitting(false)
           showAlert(
             '⚠️ Unusual Expense Detected',
             `This ${selectedCategory} expense of ${formatAmount(expenseData.amount, currencySymbol, currencyCode)} is ${anomaly.multiplier}x your usual spending.\n\nYour average ${selectedCategory} expense is ${formatAmount(anomaly.avg, currencySymbol, currencyCode)} based on ${anomaly.count} past transactions.\n\nWas this intentional?`,
             [
-              {
-                text: 'Cancel',
-                style: 'cancel',
-              },
+              { text: 'Cancel', style: 'cancel' },
               {
                 text: 'Yes, Add It',
                 onPress: async () => {
@@ -256,8 +259,9 @@ export default function AddExpense() {
           keyboardType="numeric"
         />
 
+        {/* Currency-aware quick amounts */}
         <View style={styles.quickAmounts}>
-          {['50', '100', '200', '500', '1000', '2000'].map(q => (
+          {quickAmounts.map(q => (
             <TouchableOpacity
               key={q}
               style={[styles.quickBtn, amount === q && styles.quickBtnActive]}
@@ -397,11 +401,15 @@ export default function AddExpense() {
           onPress={handleAdd}
           disabled={submitting}
         >
-          <Ionicons
-            name={isRecurring ? 'repeat' : 'checkmark'}
-            size={18} color="#fff"
-            style={{ marginRight: 8 }}
-          />
+          {submitting ? (
+            <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+          ) : (
+            <Ionicons
+              name={isRecurring ? 'repeat' : 'checkmark'}
+              size={18} color="#fff"
+              style={{ marginRight: 8 }}
+            />
+          )}
           <Text style={styles.btnText}>
             {submitting ? 'Saving...' : isRecurring ? 'Add Recurring Expense' : 'Add Expense'}
           </Text>
@@ -443,7 +451,10 @@ const styles = StyleSheet.create({
   },
   autoDetectHint: { fontSize: 11, color: COLORS.accentGreen, fontWeight: '600' },
   quickAmounts: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20, marginTop: -12 },
-  quickBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
+  quickBtn: {
+    paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20,
+    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card
+  },
   quickBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   quickText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
   quickTextActive: { color: '#fff' },

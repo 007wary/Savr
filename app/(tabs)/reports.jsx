@@ -45,7 +45,9 @@ export default function Reports() {
   const [expandedCategory, setExpandedCategory] = useState(null)
   const adShownRef = useRef(false)
 
-  const now = new Date()
+  // Fix #3 — now inside component so it refreshes on every focus
+  const getNow = () => new Date()
+  const now = getNow()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
   const CACHE_KEY = `savr_cache_reports_${currentMonth}`
@@ -99,6 +101,10 @@ export default function Reports() {
   }
 
   async function syncFromSupabase() {
+    // Fix #3 — use fresh now inside async function
+    const freshNow = new Date()
+    const freshCurrentMonth = `${freshNow.getFullYear()}-${String(freshNow.getMonth() + 1).padStart(2, '0')}`
+
     try {
       const historyCached = await loadCache('savr_cache_history')
       let data = historyCached
@@ -116,8 +122,8 @@ export default function Reports() {
       }
 
       if (data) {
-        const filtered = data.filter(e => e.date.startsWith(currentMonth))
-        const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+        const filtered = data.filter(e => e.date.startsWith(freshCurrentMonth))
+        const lastMonthDate = new Date(freshNow.getFullYear(), freshNow.getMonth() - 1, 1)
         const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
         const lastMonth = data.filter(e => e.date.startsWith(lastMonthKey))
 
@@ -188,12 +194,13 @@ export default function Reports() {
   }
   const maxHeatmap = Math.max(...heatmapDays.map(d => d.amount), 1)
 
+  // Fix #12 — add T00:00:00 to prevent timezone off-by-one bug
   const weekendExpenses = expenses.filter(e => {
-    const day = new Date(e.date).getDay()
+    const day = new Date(e.date + 'T00:00:00').getDay()
     return day === 0 || day === 6
   })
   const weekdayExpenses = expenses.filter(e => {
-    const day = new Date(e.date).getDay()
+    const day = new Date(e.date + 'T00:00:00').getDay()
     return day !== 0 && day !== 6
   })
   const weekendTotal = weekendExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
@@ -255,30 +262,34 @@ export default function Reports() {
             style={styles.totalCard}
           >
             <Text style={styles.totalLabel}>Total Spent</Text>
-            <Text style={styles.totalAmount}>{formatAmount(total, currencySymbol, currencyCode)}</Text>
+            <Text style={styles.totalAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+              {formatAmount(total, currencySymbol, currencyCode)}
+            </Text>
             <Text style={styles.totalSub}>{expenses.length} transactions</Text>
           </LinearGradient>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
             <View style={styles.miniCard}>
               <Text style={styles.miniLabel}>DAILY AVG</Text>
-              <Text style={styles.miniValue}>{formatAmount(dailyAvg, currencySymbol, currencyCode)}</Text>
+              <Text style={styles.miniValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                {formatAmount(dailyAvg, currencySymbol, currencyCode)}
+              </Text>
             </View>
             <View style={styles.miniCard}>
               <Text style={styles.miniLabel}>FORECAST</Text>
-              <Text style={[styles.miniValue, { color: forecast > lastTotal && lastTotal > 0 ? COLORS.accentRed : COLORS.accentGreen }]}>
+              <Text style={[styles.miniValue, { color: forecast > lastTotal && lastTotal > 0 ? COLORS.accentRed : COLORS.accentGreen }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                 {formatAmount(forecast, currencySymbol, currencyCode)}
               </Text>
             </View>
             <View style={styles.miniCard}>
               <Text style={styles.miniLabel}>BIGGEST DAY</Text>
-              <Text style={styles.miniValue}>
+              <Text style={styles.miniValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                 {biggestDay ? formatAmount(parseFloat(biggestDay[1]), currencySymbol, currencyCode) : 'N/A'}
               </Text>
             </View>
             <View style={[styles.miniCard, { marginRight: 0 }]}>
               <Text style={styles.miniLabel}>TOP CATEGORY</Text>
-              <Text style={styles.miniValue}>
+              <Text style={styles.miniValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                 {categoryTotals[0] ? `${categoryTotals[0].icon} ${categoryTotals[0].label}` : 'N/A'}
               </Text>
             </View>
@@ -299,7 +310,9 @@ export default function Reports() {
               <Ionicons name="trending-up-outline" size={20} color={COLORS.accent} />
               <Text style={styles.forecastTitle}>Spending Forecast</Text>
             </View>
-            <Text style={styles.forecastAmount}>{formatAmount(forecast, currencySymbol, currencyCode)}</Text>
+            <Text style={styles.forecastAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+              {formatAmount(forecast, currencySymbol, currencyCode)}
+            </Text>
             <Text style={styles.forecastSub}>
               At {formatAmount(dailyAvg, currencySymbol, currencyCode)}/day, you'll spend this much by end of {now.toLocaleString('default', { month: 'long' })}
             </Text>
@@ -426,7 +439,9 @@ export default function Reports() {
                     <Ionicons name="briefcase-outline" size={20} color={COLORS.accent} />
                   </View>
                   <Text style={styles.splitLabel}>Weekdays</Text>
-                  <Text style={styles.splitAmount}>{formatAmount(weekdayTotal, currencySymbol, currencyCode)}</Text>
+                  <Text style={styles.splitAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                    {formatAmount(weekdayTotal, currencySymbol, currencyCode)}
+                  </Text>
                   <Text style={styles.splitPct}>
                     {total > 0 ? ((weekdayTotal / total) * 100).toFixed(0) : 0}%
                   </Text>
@@ -440,7 +455,9 @@ export default function Reports() {
                     <Ionicons name="sunny-outline" size={20} color={COLORS.accentYellow} />
                   </View>
                   <Text style={styles.splitLabel}>Weekends</Text>
-                  <Text style={styles.splitAmount}>{formatAmount(weekendTotal, currencySymbol, currencyCode)}</Text>
+                  <Text style={styles.splitAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                    {formatAmount(weekendTotal, currencySymbol, currencyCode)}
+                  </Text>
                   <Text style={styles.splitPct}>
                     {total > 0 ? ((weekendTotal / total) * 100).toFixed(0) : 0}%
                   </Text>
@@ -527,7 +544,9 @@ export default function Reports() {
                     <Text style={styles.bigNote}>{biggest.note || biggest.date}</Text>
                     <Text style={styles.bigDate}>{biggest.date}</Text>
                   </View>
-                  <Text style={styles.bigAmount}>{formatAmount(biggest.amount, currencySymbol, currencyCode)}</Text>
+                  <Text style={styles.bigAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                    {formatAmount(biggest.amount, currencySymbol, currencyCode)}
+                  </Text>
                 </View>
               </View>
             )
@@ -544,7 +563,7 @@ const styles = StyleSheet.create({
   subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 24 },
   totalCard: { borderRadius: 24, padding: 28, marginBottom: 16, alignItems: 'center' },
   totalLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 8, letterSpacing: 1.5, textTransform: 'uppercase' },
-  totalAmount: { fontSize: 42, fontWeight: '900', color: '#fff', letterSpacing: -2 },
+  totalAmount: { fontSize: 42, fontWeight: '900', color: '#fff', letterSpacing: -2, width: '100%', textAlign: 'center' },
   totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
   miniCard: {
     backgroundColor: COLORS.card, borderRadius: 14,
@@ -613,7 +632,7 @@ const styles = StyleSheet.create({
   splitItem: { flex: 1, alignItems: 'center', gap: 6 },
   splitIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   splitLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
-  splitAmount: { fontSize: 16, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  splitAmount: { fontSize: 16, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5, width: '100%', textAlign: 'center' },
   splitPct: { fontSize: 12, color: COLORS.textMuted },
   splitBarBg: { width: '100%', height: 4, backgroundColor: COLORS.border, borderRadius: 2 },
   splitBarFill: { height: 4, borderRadius: 2 },

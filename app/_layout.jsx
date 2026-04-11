@@ -6,8 +6,8 @@ import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import * as Linking from 'expo-linking'
 import { requestNotificationPermission } from '../src/lib/notifications'
-import { clearAllCache } from '../src/lib/cache'
 import { processDueRecurring } from '../src/lib/recurring'
+import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -18,6 +18,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     async function init() {
+      // Clear expired cache on every app start
+      await clearExpiredCache()
+
       const timeout = setTimeout(() => {
         if (session === undefined) {
           setSession(null)
@@ -29,10 +32,28 @@ export default function RootLayout() {
         const { data: { session: cachedSession } } = await supabase.auth.getSession()
         if (cachedSession) {
           clearTimeout(timeout)
-          setSession(cachedSession)
+
+          // Check if session is expired
+          const expiresAt = cachedSession.expires_at
+          const now = Math.floor(Date.now() / 1000)
+          if (expiresAt && expiresAt < now) {
+            // Session expired — try to refresh
+            const { data: refreshed, error } = await supabase.auth.refreshSession()
+            if (error || !refreshed.session) {
+              // Refresh failed — sign out
+              await supabase.auth.signOut()
+              await clearAllCache()
+              setSession(null)
+              SplashScreen.hideAsync()
+              return
+            }
+            setSession(refreshed.session)
+          } else {
+            setSession(cachedSession)
+          }
+
           SplashScreen.hideAsync()
           processDueRecurring(cachedSession.user.id)
-          // Initialize ads after session is confirmed
           const { initializeAds } = await import('../src/lib/ads')
           initializeAds()
         } else {
@@ -51,20 +72,55 @@ export default function RootLayout() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       setSession(session ?? null)
+
       if (event === 'SIGNED_IN') {
         await requestNotificationPermission()
         if (session?.user) {
           processDueRecurring(session.user.id)
         }
-        // Initialize ads after sign in
         const { initializeAds } = await import('../src/lib/ads')
         initializeAds()
         router.replace('/(tabs)/dashboard')
       }
+
       if (event === 'SIGNED_OUT') {
         await clearAllCache()
+        router.replace('/(auth)/login')
+      }
+
+      if (event === 'TOKEN_REFRESHED') {
+        setSession(session)
+      }
+
+      if (event === 'USER_UPDATED') {
+        setSession(session)
       }
     })
+
+    // Background token refresh check every 10 minutes
+    const refreshInterval = setInterval(async () => {
+      try {
+        const { data: { session: currentSession } } = await supabase.auth.getSession()
+        if (!currentSession) return
+
+        const expiresAt = currentSession.expires_at
+        const now = Math.floor(Date.now() / 1000)
+        const fiveMinutes = 5 * 60
+
+        if (expiresAt && expiresAt - now < fiveMinutes) {
+          const { data, error } = await supabase.auth.refreshSession()
+          if (error || !data.session) {
+            await supabase.auth.signOut()
+            await clearAllCache()
+            setSession(null)
+          } else {
+            setSession(data.session)
+          }
+        }
+      } catch {
+        // Silently fail
+      }
+    }, 10 * 60 * 1000)
 
     const handleDeepLink = async (url) => {
       if (!url) return
@@ -87,6 +143,7 @@ export default function RootLayout() {
     return () => {
       subscription.unsubscribe()
       linkSub.remove()
+      clearInterval(refreshInterval)
     }
   }, [])
 

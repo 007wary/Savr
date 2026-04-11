@@ -66,6 +66,15 @@ export default function Dashboard() {
   const { month: currentMonth, name: monthName } = getMonthInfo(monthOffset)
   const isCurrentMonth = monthOffset === 0
 
+  // Get first and last day of month for Supabase range query
+  function getMonthRange(month) {
+    const start = `${month}-01`
+    const [year, mon] = month.split('-').map(Number)
+    const lastDay = new Date(year, mon, 0).getDate()
+    const end = `${month}-${String(lastDay).padStart(2, '0')}`
+    return { start, end }
+  }
+
   function sortExpenses(data) {
     return [...data].sort((a, b) => {
       if (b.date !== a.date) return b.date.localeCompare(a.date)
@@ -107,20 +116,37 @@ export default function Dashboard() {
       const symbol = await getCurrencySymbol()
       const code = await loadCurrency()
 
-      const { data } = await supabase
-        .from('expenses')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false })
-        .order('created_at', { ascending: false })
+      // Performance fix — fetch only current month expenses from Supabase
+      const { start, end } = getMonthRange(currentMonth)
+      const lastMonthInfo = getMonthInfo(monthOffset - 1)
+      const { start: lastStart, end: lastEnd } = getMonthRange(lastMonthInfo.month)
 
-      if (data) {
-        const filtered = sortExpenses(data.filter(e => e.date.startsWith(currentMonth)))
-        const lastMonth = getMonthInfo(monthOffset - 1).month
-        const lastFiltered = data.filter(e => e.date.startsWith(lastMonth))
-        const lastTotal = lastFiltered.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+      // Run both queries in parallel
+      const [currentResult, lastMonthResult] = await Promise.all([
+        supabase
+          .from('expenses')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('date', start)
+          .lte('date', end)
+          .order('date', { ascending: false })
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('expenses')
+          .select('amount')
+          .eq('user_id', user.id)
+          .gte('date', lastStart)
+          .lte('date', lastEnd),
+      ])
+
+      if (currentResult.data) {
+        const filtered = sortExpenses(currentResult.data)
+        const lastTotal = (lastMonthResult.data || [])
+          .reduce((sum, e) => sum + parseFloat(e.amount), 0)
         const now = new Date()
-        const daysElapsed = monthOffset === 0 ? now.getDate() : new Date(currentMonth + '-01').getDate()
+        const daysElapsed = monthOffset === 0
+          ? now.getDate()
+          : new Date(currentMonth + '-01').getDate()
 
         setExpenses(filtered)
         setUserName(firstName)
@@ -184,7 +210,7 @@ export default function Dashboard() {
     const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
     if (dateStr === todayStr) return 'Today'
     if (dateStr === yesterdayStr) return 'Yesterday'
-    return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+    return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
   }
 
   if (loading) return <DashboardSkeleton />

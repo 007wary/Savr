@@ -401,16 +401,40 @@ export default function Budgets() {
             </View>
 
             {limit && (
-              <View style={styles.progressBg}>
-                <View style={[styles.progressFill, { width: `${percentage}%`, backgroundColor: isOver ? COLORS.accentRed : cat.color }]} />
-              </View>
-            )}
+  <View>
+    <View style={styles.progressBg}>
+      <View style={[styles.progressFill, {
+        width: `${Math.min(percentage, 100)}%`,
+        backgroundColor: isOver ? COLORS.accentRed : percentage > 80 ? COLORS.accentYellow : cat.color
+      }]} />
+    </View>
+    {/* Over budget overflow indicator */}
+    {isOver && (
+      <View style={styles.overflowBar}>
+        <View style={styles.overflowFill}>
+          <Text style={styles.overflowText}>
+            +{((spent / limit - 1) * 100).toFixed(0)}% over
+          </Text>
+        </View>
+      </View>
+    )}
+    {/* Warning when close to budget (80-99%) */}
+    {!isOver && percentage >= 80 && (
+      <Text style={styles.warningText}>
+        ⚠️ {(100 - percentage).toFixed(0)}% remaining
+      </Text>
+    )}
+  </View>
+)}
 
-            {isOver && (
-              <Text style={styles.overText}>
-                ⚠️ Over budget by {formatAmount(spent - limit, currencySymbol, currencyCode)}
-              </Text>
-            )}
+{isOver && (
+  <View style={styles.overBanner}>
+    <Ionicons name="alert-circle" size={14} color={COLORS.accentRed} />
+    <Text style={styles.overText}>
+      Over budget by {formatAmount(spent - limit, currencySymbol, currencyCode)} ({((spent / limit - 1) * 100).toFixed(0)}% over)
+    </Text>
+  </View>
+)}
 
             {/* Inline recommendation hint when no budget set */}
             {!limit && rec && !isEditing && (
@@ -567,4 +591,22 @@ const styles = StyleSheet.create({
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   deleteBtn: { backgroundColor: COLORS.cardAlt, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
   deleteBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 13 },
+  overflowBar: {
+  height: 4, backgroundColor: COLORS.accentRed + '22',
+  borderRadius: 3, marginTop: 2, overflow: 'hidden',
+},
+overflowFill: {
+  height: '100%', backgroundColor: COLORS.accentRed,
+  borderRadius: 3, alignItems: 'flex-end',
+  paddingRight: 4, justifyContent: 'center', width: '100%',
+},
+overflowText: { fontSize: 8, color: '#fff', fontWeight: '700' },
+warningText: { fontSize: 11, color: COLORS.accentYellow, marginTop: 4, fontWeight: '600' },
+overBanner: {
+  flexDirection: 'row', alignItems: 'center', gap: 6,
+  backgroundColor: COLORS.accentRed + '11',
+  borderRadius: 8, padding: 8, marginTop: 6,
+  borderWidth: 1, borderColor: COLORS.accentRed + '33',
+},
+overText: { fontSize: 12, color: COLORS.accentRed, fontWeight: '600', flex: 1 },
 })

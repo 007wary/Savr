@@ -111,14 +111,17 @@ export default function History() {
     const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
     if (dateStr === todayStr) return 'Today'
     if (dateStr === yesterdayStr) return 'Yesterday'
-    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
   const filtered = (expenses || []).filter(e => {
-    const matchSearch = search === '' ||
-      e.note?.toLowerCase().includes(search.toLowerCase()) ||
-      e.category.toLowerCase().includes(search.toLowerCase()) ||
-      String(parseFloat(e.amount).toFixed(2)).includes(search)
+  // Strip currency symbols and spaces from search for amount matching
+  const cleanSearch = search.replace(/[₹$€£¥₩฿₽,\s]/g, '').toLowerCase()
+  const matchSearch = search === '' ||
+    e.note?.toLowerCase().includes(search.toLowerCase()) ||
+    e.category.toLowerCase().includes(search.toLowerCase()) ||
+    String(parseFloat(e.amount).toFixed(2)).includes(cleanSearch) ||
+    String(parseFloat(e.amount).toFixed(0)).includes(cleanSearch)
     const matchCategory = selectedCategory === 'All' || e.category === selectedCategory
     const matchMonth = selectedMonth === 'All' || e.date.startsWith(selectedMonth)
     return matchSearch && matchCategory && matchMonth
