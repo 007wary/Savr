@@ -16,6 +16,7 @@ import useAlert from '../../src/hooks/useAlert'
 import { addToQueue, syncQueue } from '../../src/lib/offlineQueue'
 import { clearCache, saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
+import { getCurrencySymbol } from '../../src/lib/currency'
 
 const FREQUENCIES = [
   { label: 'Daily', value: 'daily', icon: '📅' },
@@ -33,8 +34,13 @@ export default function AddExpense() {
   const [frequency, setFrequency] = useState('monthly')
   const [isOnline, setIsOnline] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [currencySymbol, setCurrencySymbol] = useState('₹')
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
+
+  useEffect(() => {
+    getCurrencySymbol().then(setCurrencySymbol)
+  }, [])
 
   useEffect(() => {
     let syncTimeout = null
@@ -182,10 +188,10 @@ export default function AddExpense() {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.heading}>Add Expense</Text>
 
-        <Text style={styles.label}>Amount</Text>
+        <Text style={styles.label}>Amount ({currencySymbol})</Text>
         <TextInput
           style={styles.input}
-          placeholder="0.00"
+          placeholder={`${currencySymbol}0.00`}
           placeholderTextColor={COLORS.textMuted}
           value={amount}
           onChangeText={setAmount}
@@ -199,7 +205,9 @@ export default function AddExpense() {
               style={[styles.quickBtn, amount === q && styles.quickBtnActive]}
               onPress={() => setAmount(q)}
             >
-              <Text style={[styles.quickText, amount === q && styles.quickTextActive]}>{q}</Text>
+              <Text style={[styles.quickText, amount === q && styles.quickTextActive]}>
+                {currencySymbol}{q}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>

@@ -6,7 +6,7 @@ import {
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
-import { getCurrencySymbol } from '../../src/lib/currency'
+import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import { BudgetsSkeleton } from '../../src/components/SkeletonLoader'
 import { Ionicons } from '@expo/vector-icons'
 import { saveCache, loadCache } from '../../src/lib/cache'
@@ -23,6 +23,7 @@ export default function Budgets() {
   const [inputValue, setInputValue] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [currencyCode, setCurrencyCode] = useState('INR')
   const [loading, setLoading] = useState(true)
   const [savingBudget, setSavingBudget] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
@@ -43,7 +44,9 @@ export default function Budgets() {
 
   async function fetchData(forceRefresh = false) {
     const symbol = await getCurrencySymbol()
+    const code = await loadCurrency()
     setCurrencySymbol(symbol)
+    setCurrencyCode(code)
 
     if (!forceRefresh) {
       const cached = await loadCache(CACHE_KEY)
@@ -95,7 +98,6 @@ export default function Budgets() {
     const limit = parseFloat(inputValue)
     const existing = budgets.find(b => b.category === category)
 
-    // Update cache immediately
     let updatedBudgets
     if (existing) {
       updatedBudgets = budgets.map(b =>
@@ -147,7 +149,6 @@ export default function Budgets() {
     const existing = budgets.find(b => b.category === category)
     if (!existing) return
 
-    // If offline budget never synced, just remove from cache
     if (existing.id?.toString().startsWith('offline_')) {
       const updatedBudgets = budgets.filter(b => b.category !== category)
       setBudgets(updatedBudgets)
@@ -157,7 +158,6 @@ export default function Budgets() {
       return
     }
 
-    // Update cache immediately
     const updatedBudgets = budgets.filter(b => b.category !== category)
     setBudgets(updatedBudgets)
     await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses })
@@ -215,9 +215,12 @@ export default function Budgets() {
               <View style={styles.cardInfo}>
                 <Text style={styles.catName}>{cat.label}</Text>
                 <Text style={styles.spentText}>
-                  Spent: <Text style={{ color: isOver ? COLORS.accentRed : COLORS.accentGreen, fontWeight: '700' }}>{currencySymbol}{spent.toFixed(2)}</Text>
+                  Spent:{' '}
+                  <Text style={{ color: isOver ? COLORS.accentRed : COLORS.accentGreen, fontWeight: '700' }}>
+                    {formatAmount(spent, currencySymbol, currencyCode)}
+                  </Text>
                   {limit
-                    ? <Text style={styles.limitText}> / {currencySymbol}{limit.toFixed(2)}</Text>
+                    ? <Text style={styles.limitText}> / {formatAmount(limit, currencySymbol, currencyCode)}</Text>
                     : <Text style={styles.limitText}> (no budget set)</Text>
                   }
                 </Text>
@@ -246,7 +249,9 @@ export default function Budgets() {
             )}
 
             {isOver && (
-              <Text style={styles.overText}>⚠️ Over budget by {currencySymbol}{(spent - limit).toFixed(2)}</Text>
+              <Text style={styles.overText}>
+                ⚠️ Over budget by {formatAmount(spent - limit, currencySymbol, currencyCode)}
+              </Text>
             )}
 
             {isEditing && (

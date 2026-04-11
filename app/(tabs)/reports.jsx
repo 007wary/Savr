@@ -8,7 +8,7 @@ import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
-import { getCurrencySymbol } from '../../src/lib/currency'
+import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
@@ -40,6 +40,7 @@ export default function Reports() {
   const [allExpenses, setAllExpenses] = useState([])
   const [refreshing, setRefreshing] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [currencyCode, setCurrencyCode] = useState('INR')
   const [loading, setLoading] = useState(true)
   const [expandedCategory, setExpandedCategory] = useState(null)
   const adShownRef = useRef(false)
@@ -52,7 +53,6 @@ export default function Reports() {
   useFocusEffect(useCallback(() => {
     fetchData()
 
-    // Only show interstitial once per session
     if (adShownRef.current) return
     adShownRef.current = true
 
@@ -79,7 +79,9 @@ export default function Reports() {
 
   async function fetchData(forceRefresh = false) {
     const symbol = await getCurrencySymbol()
+    const code = await loadCurrency()
     setCurrencySymbol(symbol)
+    setCurrencyCode(code)
 
     if (!forceRefresh) {
       const cached = await loadCache(CACHE_KEY)
@@ -253,25 +255,25 @@ export default function Reports() {
             style={styles.totalCard}
           >
             <Text style={styles.totalLabel}>Total Spent</Text>
-            <Text style={styles.totalAmount}>{currencySymbol}{total.toFixed(2)}</Text>
+            <Text style={styles.totalAmount}>{formatAmount(total, currencySymbol, currencyCode)}</Text>
             <Text style={styles.totalSub}>{expenses.length} transactions</Text>
           </LinearGradient>
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
             <View style={styles.miniCard}>
               <Text style={styles.miniLabel}>DAILY AVG</Text>
-              <Text style={styles.miniValue}>{currencySymbol}{dailyAvg.toFixed(0)}</Text>
+              <Text style={styles.miniValue}>{formatAmount(dailyAvg, currencySymbol, currencyCode)}</Text>
             </View>
             <View style={styles.miniCard}>
               <Text style={styles.miniLabel}>FORECAST</Text>
               <Text style={[styles.miniValue, { color: forecast > lastTotal && lastTotal > 0 ? COLORS.accentRed : COLORS.accentGreen }]}>
-                {currencySymbol}{forecast.toFixed(0)}
+                {formatAmount(forecast, currencySymbol, currencyCode)}
               </Text>
             </View>
             <View style={styles.miniCard}>
               <Text style={styles.miniLabel}>BIGGEST DAY</Text>
               <Text style={styles.miniValue}>
-                {biggestDay ? `${currencySymbol}${parseFloat(biggestDay[1]).toFixed(0)}` : 'N/A'}
+                {biggestDay ? formatAmount(parseFloat(biggestDay[1]), currencySymbol, currencyCode) : 'N/A'}
               </Text>
             </View>
             <View style={[styles.miniCard, { marginRight: 0 }]}>
@@ -297,9 +299,9 @@ export default function Reports() {
               <Ionicons name="trending-up-outline" size={20} color={COLORS.accent} />
               <Text style={styles.forecastTitle}>Spending Forecast</Text>
             </View>
-            <Text style={styles.forecastAmount}>{currencySymbol}{forecast.toFixed(2)}</Text>
+            <Text style={styles.forecastAmount}>{formatAmount(forecast, currencySymbol, currencyCode)}</Text>
             <Text style={styles.forecastSub}>
-              At {currencySymbol}{dailyAvg.toFixed(0)}/day, you'll spend this much by end of {now.toLocaleString('default', { month: 'long' })}
+              At {formatAmount(dailyAvg, currencySymbol, currencyCode)}/day, you'll spend this much by end of {now.toLocaleString('default', { month: 'long' })}
             </Text>
             <View style={styles.forecastBar}>
               <View style={[styles.forecastFill, {
@@ -324,12 +326,14 @@ export default function Reports() {
                   <Text style={styles.compareText}>
                     You spent{' '}
                     <Text style={{ color: isMore ? COLORS.accentRed : COLORS.accentGreen, fontWeight: '700' }}>
-                      {isMore ? `${currencySymbol}${diff.toFixed(0)} more` : `${currencySymbol}${Math.abs(diff).toFixed(0)} less`}
+                      {isMore
+                        ? `${formatAmount(diff, currencySymbol, currencyCode)} more`
+                        : `${formatAmount(Math.abs(diff), currencySymbol, currencyCode)} less`}
                     </Text>
                     {' '}({pct}% {isMore ? 'increase' : 'decrease'})
                   </Text>
                   <Text style={styles.compareSubtext}>
-                    Last month: {currencySymbol}{lastTotal.toFixed(0)} · This month: {currencySymbol}{total.toFixed(0)}
+                    Last month: {formatAmount(lastTotal, currencySymbol, currencyCode)} · This month: {formatAmount(total, currencySymbol, currencyCode)}
                   </Text>
                 </View>
               </View>
@@ -422,7 +426,7 @@ export default function Reports() {
                     <Ionicons name="briefcase-outline" size={20} color={COLORS.accent} />
                   </View>
                   <Text style={styles.splitLabel}>Weekdays</Text>
-                  <Text style={styles.splitAmount}>{currencySymbol}{weekdayTotal.toFixed(0)}</Text>
+                  <Text style={styles.splitAmount}>{formatAmount(weekdayTotal, currencySymbol, currencyCode)}</Text>
                   <Text style={styles.splitPct}>
                     {total > 0 ? ((weekdayTotal / total) * 100).toFixed(0) : 0}%
                   </Text>
@@ -436,7 +440,7 @@ export default function Reports() {
                     <Ionicons name="sunny-outline" size={20} color={COLORS.accentYellow} />
                   </View>
                   <Text style={styles.splitLabel}>Weekends</Text>
-                  <Text style={styles.splitAmount}>{currencySymbol}{weekendTotal.toFixed(0)}</Text>
+                  <Text style={styles.splitAmount}>{formatAmount(weekendTotal, currencySymbol, currencyCode)}</Text>
                   <Text style={styles.splitPct}>
                     {total > 0 ? ((weekendTotal / total) * 100).toFixed(0) : 0}%
                   </Text>
@@ -464,7 +468,7 @@ export default function Reports() {
                     <View style={styles.catTopRow}>
                       <Text style={styles.catName}>{cat.label}</Text>
                       <View style={styles.catRight}>
-                        <Text style={styles.catAmount}>{currencySymbol}{cat.total.toFixed(2)}</Text>
+                        <Text style={styles.catAmount}>{formatAmount(cat.total, currencySymbol, currencyCode)}</Text>
                         <Text style={styles.catPercent}>{cat.percentage.toFixed(1)}%</Text>
                       </View>
                     </View>
@@ -487,7 +491,7 @@ export default function Reports() {
                           <Text style={styles.expandedNote}>{exp.note || exp.category}</Text>
                           <Text style={styles.expandedDate}>{exp.date}</Text>
                         </View>
-                        <Text style={styles.expandedAmount}>{currencySymbol}{parseFloat(exp.amount).toFixed(2)}</Text>
+                        <Text style={styles.expandedAmount}>{formatAmount(exp.amount, currencySymbol, currencyCode)}</Text>
                       </View>
                     ))}
                   </View>
@@ -523,7 +527,7 @@ export default function Reports() {
                     <Text style={styles.bigNote}>{biggest.note || biggest.date}</Text>
                     <Text style={styles.bigDate}>{biggest.date}</Text>
                   </View>
-                  <Text style={styles.bigAmount}>{currencySymbol}{parseFloat(biggest.amount).toFixed(2)}</Text>
+                  <Text style={styles.bigAmount}>{formatAmount(biggest.amount, currencySymbol, currencyCode)}</Text>
                 </View>
               </View>
             )
@@ -544,11 +548,11 @@ const styles = StyleSheet.create({
   totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
   miniCard: {
     backgroundColor: COLORS.card, borderRadius: 14,
-    padding: 14, marginRight: 10, minWidth: 110,
+    padding: 14, marginRight: 10, minWidth: 130,
     borderWidth: 1, borderColor: COLORS.border,
   },
   miniLabel: { fontSize: 9, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8 },
-  miniValue: { fontSize: 16, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  miniValue: { fontSize: 15, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
   streakCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
@@ -609,7 +613,7 @@ const styles = StyleSheet.create({
   splitItem: { flex: 1, alignItems: 'center', gap: 6 },
   splitIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   splitLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
-  splitAmount: { fontSize: 18, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  splitAmount: { fontSize: 16, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
   splitPct: { fontSize: 12, color: COLORS.textMuted },
   splitBarBg: { width: '100%', height: 4, backgroundColor: COLORS.border, borderRadius: 2 },
   splitBarFill: { height: 4, borderRadius: 2 },

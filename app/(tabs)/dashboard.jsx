@@ -6,13 +6,13 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
-import { getCurrencySymbol } from '../../src/lib/currency'
+import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads'
 import { BANNER_AD_UNIT_ID } from '../../src/lib/ads'
 
-function CountUp({ value, style, symbol }) {
+function CountUp({ value, style, symbol, currencyCode }) {
   const [display, setDisplay] = useState(0)
   const prev = useRef(0)
 
@@ -34,7 +34,11 @@ function CountUp({ value, style, symbol }) {
     return () => clearInterval(timer)
   }, [value])
 
-  return <Text style={style}>{symbol}{display.toFixed(2)}</Text>
+  return (
+    <Text style={style} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
+      {formatAmount(display, symbol, currencyCode)}
+    </Text>
+  )
 }
 
 export default function Dashboard() {
@@ -47,6 +51,7 @@ export default function Dashboard() {
   const [lastMonthTotal, setLastMonthTotal] = useState(0)
   const [daysInMonth, setDaysInMonth] = useState(1)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [currencyCode, setCurrencyCode] = useState('INR')
   const router = useRouter()
 
   function getMonthInfo(offset) {
@@ -80,6 +85,7 @@ export default function Dashboard() {
         setLastMonthTotal(cached.lastMonthTotal)
         setDaysInMonth(cached.daysInMonth)
         setCurrencySymbol(cached.currencySymbol)
+        setCurrencyCode(cached.currencyCode || 'INR')
         setLoading(false)
         setMonthLoading(false)
         syncFromSupabase(cacheKey)
@@ -99,6 +105,7 @@ export default function Dashboard() {
       const firstName = meta ? meta.split(' ')[0] : emailName
 
       const symbol = await getCurrencySymbol()
+      const code = await loadCurrency()
 
       const { data } = await supabase
         .from('expenses')
@@ -120,6 +127,7 @@ export default function Dashboard() {
         setLastMonthTotal(lastTotal)
         setDaysInMonth(daysElapsed)
         setCurrencySymbol(symbol)
+        setCurrencyCode(code)
 
         await saveCache(cacheKey, {
           expenses: filtered,
@@ -127,6 +135,7 @@ export default function Dashboard() {
           lastMonthTotal: lastTotal,
           daysInMonth: daysElapsed,
           currencySymbol: symbol,
+          currencyCode: code,
         })
       }
     } catch {
@@ -235,13 +244,23 @@ export default function Dashboard() {
           <View style={styles.totalRow}>
             <View style={styles.totalLeft}>
               <Text style={styles.totalLabel}>TOTAL SPENT</Text>
-              <CountUp value={total} style={styles.totalAmount} symbol={currencySymbol} />
+              <CountUp
+                value={total}
+                style={styles.totalAmount}
+                symbol={currencySymbol}
+                currencyCode={currencyCode}
+              />
               <Text style={styles.totalSub}>{expenses.length} transactions</Text>
             </View>
             <View style={styles.totalDivider} />
             <View style={styles.totalRight}>
               <Text style={styles.totalLabel}>TODAY</Text>
-              <CountUp value={todayTotal} style={styles.totalAmount} symbol={currencySymbol} />
+              <CountUp
+                value={todayTotal}
+                style={styles.totalAmount}
+                symbol={currencySymbol}
+                currencyCode={currencyCode}
+              />
               <Text style={styles.totalSub}>{todayExpenses.length} today</Text>
             </View>
           </View>
@@ -261,13 +280,15 @@ export default function Dashboard() {
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>Daily Avg</Text>
-              <Text style={styles.statValue}>{currencySymbol}{(total / Math.max(daysInMonth, 1)).toFixed(0)}</Text>
+              <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                {formatAmount(total / Math.max(daysInMonth, 1), currencySymbol, currencyCode)}
+              </Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>vs Last Month</Text>
-              <Text style={[styles.statValue, { color: total > lastMonthTotal ? COLORS.accentRed : COLORS.accentGreen }]}>
-                {lastMonthTotal === 0 ? 'N/A' : `${total > lastMonthTotal ? '▲' : '▼'} ${currencySymbol}${Math.abs(total - lastMonthTotal).toFixed(0)}`}
+              <Text style={[styles.statValue, { color: total > lastMonthTotal ? COLORS.accentRed : COLORS.accentGreen }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                {lastMonthTotal === 0 ? 'N/A' : `${total > lastMonthTotal ? '▲' : '▼'} ${formatAmount(Math.abs(total - lastMonthTotal), currencySymbol, currencyCode)}`}
               </Text>
             </View>
           </View>
@@ -290,7 +311,7 @@ export default function Dashboard() {
             insights.push(`📉 Great job! You're spending ${diff}% less than last month`)
           }
           const dailyAvg = total / Math.max(daysInMonth, 1)
-          if (dailyAvg > 500) insights.push(`💡 You're averaging ${currencySymbol}${dailyAvg.toFixed(0)}/day this month`)
+          if (dailyAvg > 500) insights.push(`💡 You're averaging ${formatAmount(dailyAvg, currencySymbol, currencyCode)}/day this month`)
           if (byCategory.length >= 3) insights.push(`📊 You've spent across ${byCategory.length} categories this month`)
           if (insights.length === 0) return null
           return (
@@ -315,7 +336,7 @@ export default function Dashboard() {
                 <View style={styles.catInfo}>
                   <View style={styles.catTopRow}>
                     <Text style={styles.catLabel}>{cat.label}</Text>
-                    <Text style={styles.catAmount}>{currencySymbol}{cat.total.toFixed(2)}</Text>
+                    <Text style={styles.catAmount}>{formatAmount(cat.total, currencySymbol, currencyCode)}</Text>
                   </View>
                   <View style={styles.progressBg}>
                     <View style={[styles.progressFill, { width: `${Math.min((cat.total / total) * 100, 100)}%`, backgroundColor: cat.color }]} />
@@ -341,7 +362,9 @@ export default function Dashboard() {
                     <Text style={styles.txCategory}>{item.category}</Text>
                     <Text style={styles.txNote}>{item.note || formatDate(item.date)}</Text>
                   </View>
-                  <Text style={styles.txAmount}>{currencySymbol}{parseFloat(item.amount).toFixed(2)}</Text>
+                  <Text style={styles.txAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                    {formatAmount(item.amount, currencySymbol, currencyCode)}
+                  </Text>
                 </View>
               )
             })}
@@ -384,18 +407,23 @@ const styles = StyleSheet.create({
   monthNavCenter: { alignItems: 'center' },
   monthNavText: { fontSize: 16, fontWeight: '700', color: COLORS.text, letterSpacing: -0.3 },
   monthNavBack: { fontSize: 12, color: COLORS.accent, marginTop: 4 },
-  totalCard: { borderRadius: 24, padding: 28, marginBottom: 16 },
+  totalCard: { borderRadius: 24, padding: 24, marginBottom: 16 },
   totalRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
-  totalLeft: { flex: 1, alignItems: 'center' },
-  totalRight: { flex: 1, alignItems: 'center' },
+  totalLeft: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+  totalRight: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   totalDivider: {
-    width: 1, height: 80,
+    width: 1, height: 70,
     backgroundColor: 'rgba(255,255,255,0.3)',
-    marginHorizontal: 8,
   },
-  totalLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 8, letterSpacing: 1.5, textTransform: 'uppercase' },
-  totalAmount: { fontSize: 28, fontWeight: '900', color: '#fff', letterSpacing: -1 },
-  totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
+  totalLabel: {
+    fontSize: 10, color: 'rgba(255,255,255,0.7)',
+    marginBottom: 6, letterSpacing: 1.5, textTransform: 'uppercase',
+  },
+  totalAmount: {
+    fontSize: 22, fontWeight: '900', color: '#fff',
+    letterSpacing: -0.5, width: '100%', textAlign: 'center',
+  },
+  totalSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
   bannerContainer: {
     alignItems: 'center', marginBottom: 16,
     borderRadius: 12, overflow: 'hidden',
@@ -409,7 +437,7 @@ const styles = StyleSheet.create({
   },
   statCard: { flex: 1, alignItems: 'center' },
   statLabel: { fontSize: 11, color: COLORS.textMuted, marginBottom: 6, letterSpacing: 1, textTransform: 'uppercase' },
-  statValue: { fontSize: 20, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  statValue: { fontSize: 16, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5, width: '100%', textAlign: 'center' },
   statDivider: { width: 1, backgroundColor: COLORS.border, marginHorizontal: 8 },
   insightsCard: {
     backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
@@ -432,7 +460,7 @@ const styles = StyleSheet.create({
   txInfo: { flex: 1 },
   txCategory: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2 },
   txNote: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  txAmount: { fontSize: 15, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5 },
+  txAmount: { fontSize: 14, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5, maxWidth: 100, textAlign: 'right' },
   empty: { alignItems: 'center', marginTop: 60 },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },

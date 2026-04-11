@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { HistorySkeleton } from '../../src/components/SkeletonLoader'
-import { getCurrencySymbol } from '../../src/lib/currency'
+import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import BottomSheet from '../../src/components/BottomSheet'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
@@ -31,6 +31,7 @@ export default function History() {
   const [showEditDatePicker, setShowEditDatePicker] = useState(false)
   const [saving, setSaving] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [currencyCode, setCurrencyCode] = useState('INR')
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [selectedMonth, setSelectedMonth] = useState('All')
@@ -57,7 +58,9 @@ export default function History() {
 
   async function fetchExpenses(forceRefresh = false) {
     const symbol = await getCurrencySymbol()
+    const code = await loadCurrency()
     setCurrencySymbol(symbol)
+    setCurrencyCode(code)
 
     if (!forceRefresh) {
       const cached = await loadCache(CACHE_KEY)
@@ -121,7 +124,6 @@ export default function History() {
     return matchSearch && matchCategory && matchMonth
   })
 
-  // Group expenses by date for SectionList
   function groupByDate(data) {
     const groups = {}
     data.forEach(e => {
@@ -284,7 +286,9 @@ export default function History() {
     return (
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionHeaderDate}>{formatDate(section.title)}</Text>
-        <Text style={styles.sectionHeaderTotal}>{currencySymbol}{section.total.toFixed(2)}</Text>
+        <Text style={styles.sectionHeaderTotal}>
+          {formatAmount(section.total, currencySymbol, currencyCode)}
+        </Text>
       </View>
     )
   }
@@ -301,7 +305,9 @@ export default function History() {
           <Text style={styles.note}>{item.note || formatDate(item.date)}</Text>
         </View>
         <View style={styles.right}>
-          <Text style={styles.amount}>{currencySymbol}{parseFloat(item.amount).toFixed(2)}</Text>
+          <Text style={styles.amount}>
+            {formatAmount(item.amount, currencySymbol, currencyCode)}
+          </Text>
         </View>
         <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}>
           <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
