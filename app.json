@@ -19,6 +19,7 @@
       "package": "com.saver.savr",
       "backgroundColor": "#0F0F0F",
       "versionCode": 1,
+      "targetSdkVersion": 35,
       "permissions": [
         "INTERNET",
         "RECEIVE_BOOT_COMPLETED",
