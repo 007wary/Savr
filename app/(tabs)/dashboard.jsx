@@ -47,7 +47,6 @@ export default function Dashboard() {
   const [lastMonthTotal, setLastMonthTotal] = useState(0)
   const [daysInMonth, setDaysInMonth] = useState(1)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
-  const [adReady, setAdReady] = useState(false)
   const router = useRouter()
 
   function getMonthInfo(offset) {
@@ -180,7 +179,7 @@ export default function Dashboard() {
     <View style={{ flex: 1 }}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={{ paddingBottom: adReady ? 160 : 100 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -232,6 +231,15 @@ export default function Dashboard() {
           <CountUp value={total} style={styles.totalAmount} symbol={currencySymbol} />
           <Text style={styles.totalSub}>{expenses.length} transactions</Text>
         </LinearGradient>
+
+        {/* Banner Ad — inline below total card */}
+        <View style={styles.bannerContainer}>
+          <BannerAd
+            unitId={BANNER_AD_UNIT_ID}
+            size={BannerAdSize.BANNER}
+            requestOptions={{ requestNonPersonalizedAdsOnly: false }}
+          />
+        </View>
 
         {/* Stats Row */}
         {expenses.length > 0 && (
@@ -334,20 +342,9 @@ export default function Dashboard() {
         )}
       </ScrollView>
 
-      {/* Banner Ad — only shows when ready */}
-      <View style={styles.bannerContainer}>
-        <BannerAd
-          unitId={BANNER_AD_UNIT_ID}
-          size={BannerAdSize.BANNER}
-          requestOptions={{ requestNonPersonalizedAdsOnly: false }}
-          onAdLoaded={() => setAdReady(true)}
-          onAdFailedToLoad={() => setAdReady(false)}
-        />
-      </View>
-
       {isCurrentMonth && (
         <TouchableOpacity
-          style={[styles.fab, adReady && styles.fabWithAd]}
+          style={styles.fab}
           onPress={() => router.push('/(tabs)/add')}
           activeOpacity={0.85}
         >
@@ -376,6 +373,12 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 8, letterSpacing: 1.5, textTransform: 'uppercase' },
   totalAmount: { fontSize: 52, fontWeight: '900', color: '#fff', letterSpacing: -3 },
   totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
+  bannerContainer: {
+    alignItems: 'center', marginBottom: 16,
+    borderRadius: 12, overflow: 'hidden',
+    backgroundColor: COLORS.card,
+    minHeight: 50,
+  },
   statsRow: {
     flexDirection: 'row', backgroundColor: COLORS.card,
     borderRadius: 16, padding: 16, marginBottom: 16,
@@ -410,11 +413,6 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', marginTop: 60 },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },
-  bannerContainer: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    alignItems: 'center', backgroundColor: COLORS.bg,
-    borderTopWidth: 1, borderTopColor: COLORS.border,
-  },
   fab: {
     position: 'absolute', bottom: 24, right: 24,
     width: 58, height: 58, borderRadius: 29,
@@ -422,5 +420,4 @@ const styles = StyleSheet.create({
     shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4, shadowRadius: 8, elevation: 8,
   },
-  fabWithAd: { bottom: 74 },
 })
