@@ -1,45 +1,56 @@
 import { useState } from 'react'
 import {
-  View, Text, TouchableOpacity,
-  StyleSheet, ActivityIndicator
+  View, Text, TextInput, TouchableOpacity,
+  StyleSheet, KeyboardAvoidingView, Platform, ScrollView
 } from 'react-native'
+import { useRouter } from 'expo-router'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS } from '../../src/constants/theme'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { Ionicons } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
 import * as WebBrowser from 'expo-web-browser'
 import * as AuthSession from 'expo-auth-session'
-import { useRouter } from 'expo-router'
 
 WebBrowser.maybeCompleteAuthSession()
 
 export default function Login() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
-  const [accepted, setAccepted] = useState(false)
-  const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
+  const { alertConfig, showAlert, hideAlert } = useAlert()
+
+  async function handleLogin() {
+    if (!email || !password) return showAlert('Error', 'Please fill in all fields')
+    setLoading(true)
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    setLoading(false)
+    if (error) {
+      if (error.message.toLowerCase().includes('email not confirmed')) {
+        return showAlert(
+          'Email Not Confirmed',
+          'Please check your inbox and click the confirmation link before signing in.'
+        )
+      }
+      return showAlert('Error', error.message)
+    }
+  }
 
   async function handleGoogleLogin() {
-    if (!accepted) {
-      return showAlert(
-        'Accept Terms',
-        'Please accept the Privacy Policy and Terms of Service to continue.'
-      )
-    }
     try {
       setGoogleLoading(true)
       const redirectUrl = AuthSession.makeRedirectUri({ scheme: 'savr' })
       const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          skipBrowserRedirect: true,
-          queryParams: {
-            prompt: 'select_account',
-          },
-        },
+  provider: 'google',
+  options: {
+    redirectTo: redirectUrl,
+    skipBrowserRedirect: true,
+    queryParams: {
+      prompt: 'select_account',
+    },
+  },
       })
       if (error) throw error
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
@@ -59,125 +70,89 @@ export default function Login() {
     }
   }
 
-  function openPrivacyPolicy() {
-    router.push({
-      pathname: '/webview',
-      params: { type: 'privacy', title: 'Privacy Policy' }
-    })
-  }
-
-  function openTerms() {
-    router.push({
-      pathname: '/webview',
-      params: { type: 'terms', title: 'Terms of Service' }
-    })
-  }
-
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
+        <Text style={styles.logoText}>Savr</Text>
+        <Text style={styles.title}>Welcome back</Text>
+        <Text style={styles.subtitle}>Spend smart, save more.</Text>
 
-      {/* Background gradient */}
-      <LinearGradient
-        colors={['#1A1033', '#0F0F0F']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={styles.gradientBg}
-      />
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="you@example.com"
+          placeholderTextColor={COLORS.textMuted}
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+          keyboardType="email-address"
+        />
 
-      <View style={styles.inner}>
+        <Text style={styles.label}>Password</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="••••••••"
+          placeholderTextColor={COLORS.textMuted}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+        />
 
-        {/* Logo section */}
-        <View style={styles.logoSection}>
-          <LinearGradient
-            colors={['#7C75FF', '#5A50FF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.logoBox}
-          >
-            <Text style={styles.logoEmoji}>💰</Text>
-          </LinearGradient>
-          <Text style={styles.logoText}>Savr</Text>
-          <Text style={styles.tagline}>Spend smart, save more</Text>
-        </View>
-
-        {/* Features list */}
-        <View style={styles.featureList}>
-          {[
-            { icon: '⚡', text: 'Track expenses in seconds' },
-            { icon: '🎯', text: 'Smart budget management' },
-            { icon: '📊', text: 'Beautiful spending insights' },
-            { icon: '🌍', text: '30+ currencies supported' },
-          ].map((f, i) => (
-            <View key={i} style={styles.featureItem}>
-              <Text style={styles.featureIcon}>{f.icon}</Text>
-              <Text style={styles.featureText}>{f.text}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Terms acceptance checkbox */}
         <TouchableOpacity
-          style={styles.acceptRow}
-          onPress={() => setAccepted(!accepted)}
-          activeOpacity={0.7}
+          style={{ marginBottom: 20, alignItems: 'flex-end' }}
+          onPress={() => router.push('/(auth)/forgot-password')}
         >
-          <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
-            {accepted && (
-              <Ionicons name="checkmark" size={14} color="#fff" />
-            )}
-          </View>
-          <Text style={styles.acceptText}>
-            I agree to the{' '}
-            <Text
-              style={styles.acceptLink}
-              onPress={openTerms}
-            >
-              Terms of Service
-            </Text>
-            {' '}and{' '}
-            <Text
-              style={styles.acceptLink}
-              onPress={openPrivacyPolicy}
-            >
-              Privacy Policy
-            </Text>
+          <Text style={{ color: COLORS.accent, fontSize: 13, fontWeight: '600' }}>
+            Forgot Password?
           </Text>
         </TouchableOpacity>
 
-        {/* Google Sign In Button */}
+        <TouchableOpacity style={[styles.btn, loading && { opacity: 0.6 }]} onPress={handleLogin} disabled={loading}>
+          <Text style={styles.btnText}>{loading ? 'Signing in...' : 'Sign In'}</Text>
+        </TouchableOpacity>
+
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
         <TouchableOpacity
-          style={[
-            styles.googleBtn,
-            googleLoading && { opacity: 0.7 },
-            !accepted && styles.googleBtnDisabled,
-          ]}
-          onPress={handleGoogleLogin}
-          disabled={googleLoading}
-          activeOpacity={0.85}
-        >
-          {googleLoading ? (
-            <ActivityIndicator size="small" color={COLORS.text} />
-          ) : (
-            <Ionicons
-              name="logo-google"
-              size={20}
-              color={accepted ? '#DB4437' : COLORS.textMuted}
-            />
-          )}
-          <Text style={[
-            styles.googleBtnText,
-            !accepted && { color: COLORS.textMuted }
-          ]}>
+  style={[styles.googleBtn, googleLoading && { opacity: 0.6 }]}
+  onPress={handleGoogleLogin}
+  disabled={googleLoading}
+>
+          <Ionicons name="logo-google" size={18} color={COLORS.text} style={{ marginRight: 10 }} />
+          <Text style={styles.googleBtnText}>
             {googleLoading ? 'Signing in...' : 'Continue with Google'}
           </Text>
         </TouchableOpacity>
 
-      </View>
+        <TouchableOpacity
+          style={{ marginBottom: 16 }}
+          onPress={async () => {
+            if (!email) return showAlert('Enter Email', 'Please enter your email address first')
+            const { error } = await supabase.auth.resend({ type: 'signup', email })
+            if (error) return showAlert('Error', error.message)
+            showAlert('Email Sent', 'Confirmation email resent! Check your inbox.')
+          }}
+        >
+          <Text style={[styles.link, { color: COLORS.textMuted }]}>
+            Didn't get confirmation email?{' '}
+            <Text style={{ color: COLORS.accent }}>Resend</Text>
+          </Text>
+        </TouchableOpacity>
 
-      {/* Footer */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}><b>Savr</b> © 2026 All rights reserved.</Text>
-      </View>
+        <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+          <Text style={styles.link}>
+            Don't have an account?{' '}
+            <Text style={{ color: COLORS.accent }}>Sign up</Text>
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
 
       <CustomAlert
         visible={alertConfig.visible}
@@ -186,84 +161,38 @@ export default function Login() {
         buttons={alertConfig.buttons}
         onClose={hideAlert}
       />
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  gradientBg: {
-    position: 'absolute', top: 0, left: 0, right: 0,
-    height: '50%',
-  },
-  inner: {
-  flex: 1, paddingHorizontal: 28,
-  justifyContent: 'center', paddingBottom: 40,
-  paddingTop: 60,
-},
-  logoSection: { alignItems: 'center', marginBottom: 40 },
-  logoBox: {
-    width: 80, height: 80, borderRadius: 24,
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#6C63FF',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4, shadowRadius: 16, elevation: 10,
-  },
-  logoEmoji: { fontSize: 36 },
+  inner: { flexGrow: 1, justifyContent: 'center', padding: 28 },
   logoText: {
-    fontSize: 42, fontWeight: '900', color: COLORS.text,
-    letterSpacing: -2, marginBottom: 6,
+    fontSize: 48, fontWeight: '900', color: COLORS.accent,
+    textAlign: 'center', marginBottom: 16, letterSpacing: -2,
   },
-  tagline: { fontSize: 15, color: COLORS.textMuted, letterSpacing: 0.3 },
-  featureList: { gap: 10, marginBottom: 28 },
-  featureItem: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: COLORS.card, borderRadius: 14,
-    padding: 13, borderWidth: 1, borderColor: COLORS.border,
-  },
-  featureIcon: { fontSize: 20 },
-  featureText: { fontSize: 14, color: COLORS.text, fontWeight: '500' },
-  acceptRow: {
-    flexDirection: 'row', alignItems: 'center',
-    gap: 12, marginBottom: 16,
-    backgroundColor: COLORS.card, borderRadius: 14,
-    padding: 14, borderWidth: 1, borderColor: COLORS.border,
-  },
-  checkbox: {
-    width: 22, height: 22, borderRadius: 6,
-    borderWidth: 2, borderColor: COLORS.border,
-    justifyContent: 'center', alignItems: 'center',
-    backgroundColor: 'transparent',
-  },
-  checkboxChecked: {
-    backgroundColor: COLORS.accent,
-    borderColor: COLORS.accent,
-  },
-  acceptText: {
-    flex: 1, fontSize: 13,
-    color: COLORS.textMuted, lineHeight: 20,
-  },
-  acceptLink: {
-    color: COLORS.accent, fontWeight: '600',
-  },
-  googleBtn: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 12,
-    backgroundColor: COLORS.card, borderRadius: 16,
-    padding: 18, marginBottom: 16,
+  title: { fontSize: 28, fontWeight: '700', color: COLORS.text, textAlign: 'center' },
+  subtitle: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', marginBottom: 36 },
+  label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 6, marginLeft: 2 },
+  input: {
+    backgroundColor: COLORS.card, borderRadius: 12, padding: 16,
+    color: COLORS.text, marginBottom: 18, fontSize: 15,
     borderWidth: 1, borderColor: COLORS.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15, shadowRadius: 8, elevation: 4,
   },
-  googleBtnDisabled: {
-    opacity: 0.5,
+  btn: {
+    backgroundColor: COLORS.accent, borderRadius: 12, padding: 16,
+    alignItems: 'center', marginBottom: 24,
   },
-  googleBtnText: {
-    color: COLORS.text, fontWeight: '700',
-    fontSize: 16, letterSpacing: -0.3,
+  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
+  dividerText: { color: COLORS.textMuted, fontSize: 13, marginHorizontal: 12 },
+  googleBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.card, borderRadius: 12, padding: 16,
+    marginBottom: 24, borderWidth: 1, borderColor: COLORS.border,
   },
-  footer: { paddingBottom: 32, alignItems: 'center' },
-  footerText: { fontSize: 12, color: COLORS.border },
+  googleBtnText: { color: COLORS.text, fontWeight: '600', fontSize: 15 },
+  link: { color: COLORS.textMuted, textAlign: 'center', fontSize: 14, marginBottom: 12 },
 })
