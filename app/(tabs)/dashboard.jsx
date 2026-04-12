@@ -173,11 +173,14 @@ export default function Dashboard() {
         })
 
         // Ask notification permission on first visit
-        const notifAsked = await loadCache('savr_notif_asked')
-        if (!notifAsked) {
-          await requestNotificationPermission()
-          await saveCache('savr_notif_asked', true)
-        }
+const notifAsked = await loadCache('savr_notif_asked')
+if (!notifAsked) {
+  await saveCache('savr_notif_asked', true)
+  // Small delay so dashboard loads first
+  setTimeout(async () => {
+    await requestNotificationPermission()
+  }, 2000)
+}
 
         // Check weekly summary
         if (monthOffset === 0) {
