@@ -9,6 +9,7 @@ import { requestNotificationPermission } from '../src/lib/notifications'
 import { processDueRecurring } from '../src/lib/recurring'
 import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { syncUserProfile } from '../src/lib/userProfile'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -75,14 +76,16 @@ export default function RootLayout() {
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
-        await requestNotificationPermission()
-        if (session?.user) {
-          processDueRecurring(session.user.id)
-        }
-        const { initializeAds } = await import('../src/lib/ads')
-        initializeAds()
-        router.replace('/(tabs)/dashboard')
-      }
+  await requestNotificationPermission()
+  if (session?.user) {
+    processDueRecurring(session.user.id)
+    // Sync Google profile data to Supabase
+    await syncUserProfile(session.user)
+  }
+  const { initializeAds } = await import('../src/lib/ads')
+  initializeAds()
+  router.replace('/(tabs)/dashboard')
+}
 
       if (event === 'SIGNED_OUT') {
         await clearAllCache()

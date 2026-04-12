@@ -18,6 +18,7 @@ import useAlert from '../../src/hooks/useAlert'
 import * as Notifications from 'expo-notifications'
 import { getUser, clearUserCache } from '../../src/lib/auth'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
+import { updateUserProfile } from '../../src/lib/userProfile'
 
 const APP_VERSION = '1.0'
 const CACHE_KEY = 'savr_cache_settings'
@@ -100,26 +101,32 @@ export default function Settings() {
   }
 
   async function saveProfile() {
-    if (!editName.trim()) return showAlert('Invalid', 'Name cannot be empty')
-    setSaving(true)
-    const { error } = await supabase.auth.updateUser({
-      data: { display_name: editName.trim(), phone_number: editPhone.trim() }
+  if (!editName.trim()) return showAlert('Invalid', 'Name cannot be empty')
+  setSaving(true)
+  const { error } = await supabase.auth.updateUser({
+    data: { display_name: editName.trim(), phone_number: editPhone.trim() }
+  })
+  if (error) {
+    showAlert('Error', error.message)
+  } else {
+    // Also update in user_profiles table
+    await updateUserProfile(user.id, {
+      full_name: editName.trim(),
+      phone_number: editPhone.trim(),
     })
-    if (error) showAlert('Error', error.message)
-    else {
-      setDisplayName(editName.trim())
-      setPhone(editPhone.trim())
-      setProfileModalVisible(false)
-      clearUserCache()
-      const now = new Date()
-      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-      await clearCache(`savr_cache_dashboard_${currentMonth}`)
-      await saveCache(CACHE_KEY, {
-        user, displayName: editName.trim(), phone: editPhone.trim(), currency,
-      })
-    }
-    setSaving(false)
+    setDisplayName(editName.trim())
+    setPhone(editPhone.trim())
+    setProfileModalVisible(false)
+    clearUserCache()
+    const now = new Date()
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    await clearCache(`savr_cache_dashboard_${currentMonth}`)
+    await saveCache(CACHE_KEY, {
+      user, displayName: editName.trim(), phone: editPhone.trim(), currency,
+    })
   }
+  setSaving(false)
+}
 
   async function handleChangePassword() {
     if (!currentPassword || !newPassword || !confirmPassword) {
