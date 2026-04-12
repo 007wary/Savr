@@ -92,7 +92,7 @@ export default function Onboarding() {
         </TouchableOpacity>
       )}
 
-      {/* Slides */}
+      {/* Horizontal slides */}
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -100,10 +100,12 @@ export default function Onboarding() {
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={handleScroll}
         scrollEventThrottle={16}
+        style={styles.slideScroll}
+        bounces={false}
+        decelerationRate="fast"
       >
         {SLIDES.map((s, index) => (
           <View key={index} style={styles.slide}>
-            {/* Icon area with gradient */}
             <LinearGradient
               colors={s.gradient}
               start={{ x: 0, y: 0 }}
@@ -111,7 +113,7 @@ export default function Onboarding() {
               style={styles.iconCircle}
             >
               <View style={styles.iconInner}>
-                <Ionicons name={s.icon} size={72} color="#fff" />
+                <Ionicons name={s.icon} size={64} color="#fff" />
               </View>
             </LinearGradient>
 
@@ -130,9 +132,8 @@ export default function Onboarding() {
         ))}
       </ScrollView>
 
-      {/* Bottom section */}
+      {/* Bottom controls */}
       <View style={styles.bottom}>
-        {/* Dots */}
         <View style={styles.dots}>
           {SLIDES.map((s, i) => (
             <TouchableOpacity
@@ -153,7 +154,6 @@ export default function Onboarding() {
           ))}
         </View>
 
-        {/* Next / Get Started button */}
         <LinearGradient
           colors={slide.gradient}
           start={{ x: 0, y: 0 }}
@@ -185,36 +185,39 @@ export default function Onboarding() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   skipBtn: {
-    position: 'absolute', top: 60, right: 24, zIndex: 10,
+    position: 'absolute', top: 56, right: 24, zIndex: 10,
     paddingVertical: 8, paddingHorizontal: 16,
     borderRadius: 20, backgroundColor: COLORS.card,
     borderWidth: 1, borderColor: COLORS.border,
   },
   skipText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
+  slideScroll: { flex: 1 },
   slide: {
-    width, paddingHorizontal: 28, paddingTop: 100,
+    width,
+    paddingHorizontal: 28,
+    paddingTop: 90,
     alignItems: 'center',
   },
   iconCircle: {
-    width: 160, height: 160, borderRadius: 80,
+    width: 140, height: 140, borderRadius: 70,
     justifyContent: 'center', alignItems: 'center',
-    marginBottom: 36,
+    marginBottom: 28,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2, shadowRadius: 16, elevation: 10,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2, shadowRadius: 12, elevation: 8,
   },
   iconInner: {
-    width: 120, height: 120, borderRadius: 60,
+    width: 110, height: 110, borderRadius: 55,
     justifyContent: 'center', alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.15)',
   },
   title: {
-    fontSize: 30, fontWeight: '900', color: COLORS.text,
-    textAlign: 'center', letterSpacing: -0.8, marginBottom: 14,
+    fontSize: 26, fontWeight: '900', color: COLORS.text,
+    textAlign: 'center', letterSpacing: -0.8, marginBottom: 12,
   },
   subtitle: {
-    fontSize: 15, color: COLORS.textMuted, textAlign: 'center',
-    lineHeight: 23, marginBottom: 28, paddingHorizontal: 4,
+    fontSize: 14, color: COLORS.textMuted, textAlign: 'center',
+    lineHeight: 22, marginBottom: 24, paddingHorizontal: 4,
   },
   featureList: { gap: 10, width: '100%' },
   featureItem: {
@@ -225,8 +228,8 @@ const styles = StyleSheet.create({
   featureIcon: { fontSize: 20 },
   featureText: { fontSize: 14, color: COLORS.text, fontWeight: '500', flex: 1 },
   bottom: {
-    paddingHorizontal: 24, paddingBottom: 48, paddingTop: 20,
-    alignItems: 'center', gap: 16,
+    paddingHorizontal: 24, paddingBottom: 44, paddingTop: 16,
+    alignItems: 'center', gap: 14,
   },
   dots: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   dot: { height: 8, borderRadius: 4 },
@@ -239,7 +242,7 @@ const styles = StyleSheet.create({
   nextBtn: {
     flexDirection: 'row', alignItems: 'center',
     justifyContent: 'center', gap: 10,
-    padding: 18,
+    padding: 16,
   },
   nextText: { fontSize: 17, fontWeight: '800', color: '#fff' },
   pageCounter: { fontSize: 12, color: COLORS.textMuted },

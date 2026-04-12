@@ -14,6 +14,7 @@ SplashScreen.preventAutoHideAsync()
 
 export default function RootLayout() {
   const [session, setSession] = useState(undefined)
+  const [onboardingDone, setOnboardingDone] = useState(undefined)
   const router = useRouter()
   const segments = useSegments()
 
@@ -22,13 +23,9 @@ export default function RootLayout() {
       // Clear expired cache on every app start
       await clearExpiredCache()
 
-      // Show onboarding on first launch — BEFORE timeout is set
-      const onboardingDone = await AsyncStorage.getItem('savr_onboarding_done')
-      if (!onboardingDone) {
-        SplashScreen.hideAsync()
-        router.replace('/onboarding')
-        return
-      }
+      // Check onboarding status
+      const done = await AsyncStorage.getItem('savr_onboarding_done')
+      setOnboardingDone(done === 'true')
 
       const timeout = setTimeout(() => {
         if (session === undefined) {
@@ -42,14 +39,11 @@ export default function RootLayout() {
         if (cachedSession) {
           clearTimeout(timeout)
 
-          // Check if session is expired
           const expiresAt = cachedSession.expires_at
           const now = Math.floor(Date.now() / 1000)
           if (expiresAt && expiresAt < now) {
-            // Session expired — try to refresh
             const { data: refreshed, error } = await supabase.auth.refreshSession()
             if (error || !refreshed.session) {
-              // Refresh failed — sign out
               await supabase.auth.signOut()
               await clearAllCache()
               setSession(null)
@@ -106,7 +100,6 @@ export default function RootLayout() {
       }
     })
 
-    // Background token refresh check every 10 minutes
     const refreshInterval = setInterval(async () => {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession()
@@ -126,28 +119,20 @@ export default function RootLayout() {
             setSession(data.session)
           }
         }
-      } catch {
-        // Silently fail
-      }
+      } catch {}
     }, 10 * 60 * 1000)
 
     const handleDeepLink = async (url) => {
       if (!url) return
       if (url.includes('access_token') || url.includes('confirmation')) {
         const { data } = await supabase.auth.getSessionFromUrl({ url })
-        if (data?.session) {
-          setSession(data.session)
-        }
+        if (data?.session) setSession(data.session)
       }
     }
 
-    Linking.getInitialURL().then(url => {
-      if (url) handleDeepLink(url)
-    })
+    Linking.getInitialURL().then(url => { if (url) handleDeepLink(url) })
 
-    const linkSub = Linking.addEventListener('url', ({ url }) => {
-      handleDeepLink(url)
-    })
+    const linkSub = Linking.addEventListener('url', ({ url }) => { handleDeepLink(url) })
 
     return () => {
       subscription.unsubscribe()
@@ -156,14 +141,36 @@ export default function RootLayout() {
     }
   }, [])
 
+  // Navigation logic — runs when session OR onboardingDone changes
   useEffect(() => {
-    if (session === undefined) return
-    const inAuth = segments[0] === '(auth)'
-    if (!session && !inAuth) router.replace('/(auth)/login')
-    if (session && inAuth) router.replace('/(tabs)/dashboard')
-  }, [session, segments])
+    // Wait until both are resolved
+    if (session === undefined || onboardingDone === undefined) return
 
-  if (session === undefined) {
+    const inAuth = segments[0] === '(auth)'
+    const inOnboarding = segments[0] === 'onboarding'
+    const inTabs = segments[0] === '(tabs)'
+
+    // First time user — show onboarding
+    if (!onboardingDone && !inOnboarding) {
+      router.replace('/onboarding')
+      return
+    }
+
+    // Returning user — normal auth flow
+    if (onboardingDone) {
+      if (!session && !inAuth) {
+        router.replace('/(auth)/login')
+        return
+      }
+      if (session && inAuth) {
+        router.replace('/(tabs)/dashboard')
+        return
+      }
+    }
+  }, [session, segments, onboardingDone])
+
+  // Show nothing while loading
+  if (session === undefined || onboardingDone === undefined) {
     return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />
   }
 

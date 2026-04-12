@@ -7,6 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "scheme": "savr",
+    "description": "Track expenses, set budgets, get insights. Smart, fast, beautiful.",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.saver.savr"
@@ -22,10 +23,11 @@
       "targetSdkVersion": 35,
       "googleMobileAdsAppId": "ca-app-pub-6010190127310138~6262367655",
       "permissions": [
-        "INTERNET",
-        "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE",
-        "POST_NOTIFICATIONS"
+        "android.permission.INTERNET",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.SCHEDULE_EXACT_ALARM"
       ]
     },
     "plugins": [

@@ -3,8 +3,12 @@ import { CURRENCIES } from '../constants/theme'
 
 const CURRENCY_KEY = 'savr_currency'
 
+// In-memory cache so we don't hit AsyncStorage every render
+let _cachedCode = null
+
 export async function saveCurrency(currencyCode) {
   try {
+    _cachedCode = currencyCode
     await AsyncStorage.setItem(CURRENCY_KEY, currencyCode)
   } catch {
     // Silently fail
@@ -13,8 +17,10 @@ export async function saveCurrency(currencyCode) {
 
 export async function loadCurrency() {
   try {
+    if (_cachedCode) return _cachedCode
     const saved = await AsyncStorage.getItem(CURRENCY_KEY)
-    return saved || 'INR'
+    _cachedCode = saved || 'INR'
+    return _cachedCode
   } catch {
     return 'INR'
   }
@@ -62,6 +68,7 @@ const CURRENCY_LOCALE_MAP = {
   THB: 'th-TH',
   AED: 'ar-AE',
   USD: 'en-US',
+  PHP: 'en-PH',
 }
 
 // Currencies with no decimal places
@@ -72,9 +79,10 @@ export function formatAmount(amount, symbol = '₹', currencyCode = null) {
     const num = parseFloat(amount)
     if (isNaN(num)) return `${symbol}0.00`
 
-    const code = currencyCode
-    const locale = code ? (CURRENCY_LOCALE_MAP[code] || 'en-US') : 'en-IN'
-    const noDecimal = code && NO_DECIMAL_CURRENCIES.includes(code)
+    // Use cached code as fallback if currencyCode not passed
+    const code = currencyCode || _cachedCode || 'INR'
+    const locale = CURRENCY_LOCALE_MAP[code] || 'en-US'
+    const noDecimal = NO_DECIMAL_CURRENCIES.includes(code)
 
     const formatted = num.toLocaleString(locale, {
       minimumFractionDigits: noDecimal ? 0 : 2,
