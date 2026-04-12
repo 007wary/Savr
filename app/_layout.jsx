@@ -55,8 +55,7 @@ export default function RootLayout() {
 
           SplashScreen.hideAsync()
           processDueRecurring(cachedSession.user.id)
-          const { initializeAds } = await import('../src/lib/ads')
-          initializeAds()
+          import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
         } else {
           clearTimeout(timeout)
           setSession(null)
@@ -75,18 +74,11 @@ export default function RootLayout() {
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
-        // Navigate immediately
         router.replace('/(tabs)/dashboard')
-
-        // Run everything else in background — lazy import to avoid crash
         try {
           requestNotificationPermission()
           if (session?.user) {
             processDueRecurring(session.user.id)
-            // Lazy import — so if it fails it doesn't crash app
-            import('../src/lib/userProfile').then(({ syncUserProfile }) => {
-              syncUserProfile(session.user)
-            }).catch(() => {})
           }
           import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
         } catch {}
@@ -131,7 +123,6 @@ export default function RootLayout() {
     const handleDeepLink = async (url) => {
       if (!url) return
 
-      // Handle password reset
       if (url.includes('type=recovery') || url.includes('reset-password')) {
         const { data } = await supabase.auth.getSessionFromUrl({ url })
         if (data?.session) {
@@ -141,7 +132,6 @@ export default function RootLayout() {
         return
       }
 
-      // Handle email confirmation
       if (url.includes('access_token') || url.includes('confirmation')) {
         const { data } = await supabase.auth.getSessionFromUrl({ url })
         if (data?.session) setSession(data.session)
@@ -158,7 +148,6 @@ export default function RootLayout() {
     }
   }, [])
 
-  // Re-check onboarding status whenever segments change
   useEffect(() => {
     async function checkOnboarding() {
       const done = await AsyncStorage.getItem('savr_onboarding_done')
@@ -169,20 +158,17 @@ export default function RootLayout() {
     checkOnboarding()
   }, [segments])
 
-  // Navigation logic
   useEffect(() => {
     if (session === undefined || onboardingDone === undefined) return
 
     const inOnboarding = segments[0] === 'onboarding'
     const inAuth = segments[0] === '(auth)'
 
-    // First time user — show onboarding
     if (!onboardingDone && !inOnboarding) {
       router.replace('/onboarding')
       return
     }
 
-    // Onboarding done — normal auth flow
     if (onboardingDone) {
       if (!session && !inAuth && !inOnboarding) {
         router.replace('/(auth)/login')
