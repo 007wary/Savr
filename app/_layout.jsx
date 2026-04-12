@@ -55,8 +55,7 @@ export default function RootLayout() {
 
           SplashScreen.hideAsync()
           processDueRecurring(cachedSession.user.id)
-          const { initializeAds } = await import('../src/lib/ads')
-          initializeAds()
+          import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
         } else {
           clearTimeout(timeout)
           setSession(null)
@@ -75,13 +74,21 @@ export default function RootLayout() {
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
-        await requestNotificationPermission()
-        if (session?.user) {
-          processDueRecurring(session.user.id)
-        }
-        const { initializeAds } = await import('../src/lib/ads')
-        initializeAds()
+        // Navigate immediately
         router.replace('/(tabs)/dashboard')
+
+        // Run everything in background — non blocking
+        try {
+          requestNotificationPermission()
+          if (session?.user) {
+            processDueRecurring(session.user.id)
+            // Sync Google profile to Supabase
+            import('../src/lib/userProfile').then(({ syncUserProfile }) => {
+              syncUserProfile(session.user)
+            }).catch(() => {})
+          }
+          import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+        } catch {}
       }
 
       if (event === 'SIGNED_OUT') {
@@ -121,24 +128,12 @@ export default function RootLayout() {
     }, 10 * 60 * 1000)
 
     const handleDeepLink = async (url) => {
-  if (!url) return
-
-  // Handle password reset
-  if (url.includes('type=recovery') || url.includes('reset-password')) {
-    const { data } = await supabase.auth.getSessionFromUrl({ url })
-    if (data?.session) {
-      setSession(data.session)
-      router.replace('/reset-password')
+      if (!url) return
+      if (url.includes('access_token') || url.includes('confirmation')) {
+        const { data } = await supabase.auth.getSessionFromUrl({ url })
+        if (data?.session) setSession(data.session)
+      }
     }
-    return
-  }
-
-  // Handle email confirmation
-  if (url.includes('access_token') || url.includes('confirmation')) {
-    const { data } = await supabase.auth.getSessionFromUrl({ url })
-    if (data?.session) setSession(data.session)
-  }
-}
 
     Linking.getInitialURL().then(url => { if (url) handleDeepLink(url) })
     const linkSub = Linking.addEventListener('url', ({ url }) => { handleDeepLink(url) })
@@ -150,9 +145,6 @@ export default function RootLayout() {
     }
   }, [])
 
-  // Re-check onboarding status whenever segments change
-  // This catches the case where onboarding.jsx sets AsyncStorage
-  // but _layout.jsx state hasn't updated yet
   useEffect(() => {
     async function checkOnboarding() {
       const done = await AsyncStorage.getItem('savr_onboarding_done')
@@ -163,20 +155,17 @@ export default function RootLayout() {
     checkOnboarding()
   }, [segments])
 
-  // Navigation logic
   useEffect(() => {
     if (session === undefined || onboardingDone === undefined) return
 
     const inOnboarding = segments[0] === 'onboarding'
     const inAuth = segments[0] === '(auth)'
 
-    // First time user — show onboarding
     if (!onboardingDone && !inOnboarding) {
       router.replace('/onboarding')
       return
     }
 
-    // Onboarding done — normal auth flow
     if (onboardingDone) {
       if (!session && !inAuth && !inOnboarding) {
         router.replace('/(auth)/login')
@@ -186,7 +175,6 @@ export default function RootLayout() {
         router.replace('/(tabs)/dashboard')
         return
       }
-      // If still on onboarding screen but onboarding is done — go to login
       if (inOnboarding) {
         router.replace('/(auth)/login')
         return
@@ -205,7 +193,6 @@ export default function RootLayout() {
       <Stack.Screen name="webview" />
       <Stack.Screen name="index" />
       <Stack.Screen name="onboarding" />
-      <Stack.Screen name="reset-password" />
     </Stack>
   )
 }
