@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -11,6 +11,9 @@ import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads'
 import { BANNER_AD_UNIT_ID } from '../../src/lib/ads'
+import { checkBudgetAlerts, checkWeeklySummary } from '../../src/lib/notifications'
+import { requestNotificationPermission } from '../../src/lib/notifications'
+import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
 
 function CountUp({ value, style, symbol, currencyCode }) {
   const [display, setDisplay] = useState(0)
@@ -52,6 +55,9 @@ export default function Dashboard() {
   const [daysInMonth, setDaysInMonth] = useState(1)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
   const [currencyCode, setCurrencyCode] = useState('INR')
+  const [spendingGoal, setSpendingGoal] = useState(null)
+  const [showGoalModal, setShowGoalModal] = useState(false)
+  const [goalInput, setGoalInput] = useState('')
   const router = useRouter()
 
   function getMonthInfo(offset) {
@@ -66,7 +72,6 @@ export default function Dashboard() {
   const { month: currentMonth, name: monthName } = getMonthInfo(monthOffset)
   const isCurrentMonth = monthOffset === 0
 
-  // Get first and last day of month for Supabase range query
   function getMonthRange(month) {
     const start = `${month}-01`
     const [year, mon] = month.split('-').map(Number)
@@ -81,6 +86,11 @@ export default function Dashboard() {
       return new Date(b.created_at || 0) - new Date(a.created_at || 0)
     })
   }
+
+  // Load spending goal on mount
+  useEffect(() => {
+    loadGoal().then(setSpendingGoal)
+  }, [])
 
   async function fetchData(forceRefresh = false) {
     const cacheKey = `savr_cache_dashboard_${currentMonth}`
@@ -116,12 +126,10 @@ export default function Dashboard() {
       const symbol = await getCurrencySymbol()
       const code = await loadCurrency()
 
-      // Performance fix — fetch only current month expenses from Supabase
       const { start, end } = getMonthRange(currentMonth)
       const lastMonthInfo = getMonthInfo(monthOffset - 1)
       const { start: lastStart, end: lastEnd } = getMonthRange(lastMonthInfo.month)
 
-      // Run both queries in parallel
       const [currentResult, lastMonthResult] = await Promise.all([
         supabase
           .from('expenses')
@@ -163,6 +171,18 @@ export default function Dashboard() {
           currencySymbol: symbol,
           currencyCode: code,
         })
+
+        // Ask notification permission on first visit
+        const notifAsked = await loadCache('savr_notif_asked')
+        if (!notifAsked) {
+          await requestNotificationPermission()
+          await saveCache('savr_notif_asked', true)
+        }
+
+        // Check weekly summary
+        if (monthOffset === 0) {
+          checkWeeklySummary(filtered)
+        }
       }
     } catch {
       // Silently fail — cache already shown
@@ -174,6 +194,22 @@ export default function Dashboard() {
   }
 
   useFocusEffect(useCallback(() => { fetchData() }, [currentMonth]))
+
+  async function handleSaveGoal() {
+    const amount = parseFloat(goalInput)
+    if (!goalInput || isNaN(amount) || amount <= 0) return
+    await saveGoal(amount)
+    setSpendingGoal(amount)
+    setShowGoalModal(false)
+    setGoalInput('')
+  }
+
+  async function handleClearGoal() {
+    await clearGoal()
+    setSpendingGoal(null)
+    setShowGoalModal(false)
+    setGoalInput('')
+  }
 
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
 
@@ -189,6 +225,16 @@ export default function Dashboard() {
   }).filter(c => c.total > 0).sort((a, b) => b.total - a.total)
 
   const recent = sortExpenses(expenses).slice(0, 5)
+
+  // Goal calculations
+  const goalPercentage = spendingGoal ? Math.min((total / spendingGoal) * 100, 100) : 0
+  const goalExceeded = spendingGoal && total > spendingGoal
+  const goalRemaining = spendingGoal ? Math.max(spendingGoal - total, 0) : 0
+  const goalColor = goalPercentage >= 100
+    ? COLORS.accentRed
+    : goalPercentage >= 80
+    ? COLORS.accentYellow
+    : COLORS.accentGreen
 
   function getCategoryInfo(label) {
     return CATEGORIES.find(c => c.label === label) || { icon: '📦', color: '#888' }
@@ -292,6 +338,66 @@ export default function Dashboard() {
           </View>
         </LinearGradient>
 
+        {/* Spending Goal Card */}
+        {isCurrentMonth && (
+          <TouchableOpacity
+            style={[styles.goalCard, goalExceeded && styles.goalCardExceeded]}
+            onPress={() => {
+              setGoalInput(spendingGoal ? String(spendingGoal) : '')
+              setShowGoalModal(true)
+            }}
+            activeOpacity={0.8}
+          >
+            {spendingGoal ? (
+              <>
+                <View style={styles.goalHeader}>
+                  <View style={styles.goalHeaderLeft}>
+                    <Text style={styles.goalEmoji}>
+                      {goalExceeded ? '🚨' : goalPercentage >= 80 ? '⚠️' : '🎯'}
+                    </Text>
+                    <View>
+                      <Text style={styles.goalTitle}>Monthly Goal</Text>
+                      <Text style={styles.goalSub}>
+                        {goalExceeded
+                          ? `Exceeded by ${formatAmount(total - spendingGoal, currencySymbol, currencyCode)}`
+                          : `${formatAmount(goalRemaining, currencySymbol, currencyCode)} remaining`}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.goalPctBadge}>
+                    <Text style={[styles.goalPctText, { color: goalColor }]}>
+                      {goalPercentage.toFixed(0)}%
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.goalBarBg}>
+                  <View style={[styles.goalBarFill, {
+                    width: `${goalPercentage}%`,
+                    backgroundColor: goalColor,
+                  }]} />
+                </View>
+                <View style={styles.goalFooter}>
+                  <Text style={styles.goalFooterText}>
+                    {formatAmount(total, currencySymbol, currencyCode)} of {formatAmount(spendingGoal, currencySymbol, currencyCode)}
+                  </Text>
+                  <Text style={styles.goalEditText}>Tap to edit</Text>
+                </View>
+              </>
+            ) : (
+              <View style={styles.goalEmpty}>
+                <View style={styles.goalEmptyIcon}>
+                  <Ionicons name="flag-outline" size={22} color={COLORS.accent} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.goalEmptyTitle}>Set a Spending Goal</Text>
+                  <Text style={styles.goalEmptySub}>Track progress towards your monthly target</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
+
         {/* Banner Ad */}
         <View style={styles.bannerContainer}>
           <BannerAd
@@ -339,6 +445,12 @@ export default function Dashboard() {
           const dailyAvg = total / Math.max(daysInMonth, 1)
           if (dailyAvg > 500) insights.push(`💡 You're averaging ${formatAmount(dailyAvg, currencySymbol, currencyCode)}/day this month`)
           if (byCategory.length >= 3) insights.push(`📊 You've spent across ${byCategory.length} categories this month`)
+          if (spendingGoal && !goalExceeded && goalPercentage >= 80) {
+            insights.push(`🎯 You've used ${goalPercentage.toFixed(0)}% of your monthly goal — slow down!`)
+          }
+          if (spendingGoal && goalExceeded) {
+            insights.push(`🚨 You've exceeded your monthly goal of ${formatAmount(spendingGoal, currencySymbol, currencyCode)}!`)
+          }
           if (insights.length === 0) return null
           return (
             <View style={styles.insightsCard}>
@@ -415,6 +527,53 @@ export default function Dashboard() {
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
       )}
+
+      {/* Goal Modal */}
+      <Modal
+        visible={showGoalModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowGoalModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>🎯 Monthly Spending Goal</Text>
+              <TouchableOpacity onPress={() => setShowGoalModal(false)}>
+                <Ionicons name="close" size={22} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.modalSubtitle}>
+              Set a target for how much you want to spend this month
+            </Text>
+
+            <Text style={styles.modalLabel}>Goal Amount ({currencySymbol})</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder={`e.g. ${currencySymbol}20000`}
+              placeholderTextColor={COLORS.textMuted}
+              value={goalInput}
+              onChangeText={setGoalInput}
+              keyboardType="numeric"
+              autoFocus
+            />
+
+            <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSaveGoal}>
+              <Text style={styles.modalSaveBtnText}>Save Goal</Text>
+            </TouchableOpacity>
+
+            {spendingGoal && (
+              <TouchableOpacity style={styles.modalClearBtn} onPress={handleClearGoal}>
+                <Text style={styles.modalClearBtnText}>Remove Goal</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   )
 }
@@ -437,10 +596,7 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
   totalLeft: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   totalRight: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
-  totalDivider: {
-    width: 1, height: 70,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-  },
+  totalDivider: { width: 1, height: 70, backgroundColor: 'rgba(255,255,255,0.3)' },
   totalLabel: {
     fontSize: 10, color: 'rgba(255,255,255,0.7)',
     marginBottom: 6, letterSpacing: 1.5, textTransform: 'uppercase',
@@ -450,11 +606,39 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5, width: '100%', textAlign: 'center',
   },
   totalSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
+  goalCard: {
+    backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
+    marginBottom: 16, borderWidth: 1, borderColor: COLORS.border,
+  },
+  goalCardExceeded: { borderColor: COLORS.accentRed + '66' },
+  goalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  goalHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  goalEmoji: { fontSize: 24 },
+  goalTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  goalSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  goalPctBadge: {
+    backgroundColor: COLORS.cardAlt, borderRadius: 10,
+    paddingVertical: 4, paddingHorizontal: 10,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  goalPctText: { fontSize: 16, fontWeight: '900' },
+  goalBarBg: { height: 8, backgroundColor: COLORS.border, borderRadius: 4, marginBottom: 8 },
+  goalBarFill: { height: 8, borderRadius: 4 },
+  goalFooter: { flexDirection: 'row', justifyContent: 'space-between' },
+  goalFooterText: { fontSize: 12, color: COLORS.textMuted },
+  goalEditText: { fontSize: 12, color: COLORS.accent, fontWeight: '600' },
+  goalEmpty: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  goalEmptyIcon: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: COLORS.accent + '22',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  goalEmptyTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  goalEmptySub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   bannerContainer: {
     alignItems: 'center', marginBottom: 16,
     borderRadius: 12, overflow: 'hidden',
-    backgroundColor: COLORS.card,
-    minHeight: 50,
+    backgroundColor: COLORS.card, minHeight: 50,
   },
   statsRow: {
     flexDirection: 'row', backgroundColor: COLORS.card,
@@ -497,4 +681,33 @@ const styles = StyleSheet.create({
     shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4, shadowRadius: 8, elevation: 8,
   },
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: COLORS.card, borderRadius: 24,
+    padding: 24, margin: 16,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  modalTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text },
+  modalSubtitle: { fontSize: 13, color: COLORS.textMuted, marginBottom: 20, lineHeight: 20 },
+  modalLabel: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8 },
+  modalInput: {
+    backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14,
+    color: COLORS.text, fontSize: 16, borderWidth: 1,
+    borderColor: COLORS.border, marginBottom: 16,
+  },
+  modalSaveBtn: {
+    backgroundColor: COLORS.accent, borderRadius: 12,
+    padding: 16, alignItems: 'center', marginBottom: 10,
+  },
+  modalSaveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  modalClearBtn: {
+    backgroundColor: COLORS.cardAlt, borderRadius: 12,
+    padding: 14, alignItems: 'center',
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  modalClearBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 14 },
 })

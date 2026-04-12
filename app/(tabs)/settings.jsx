@@ -2,10 +2,11 @@ import { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Switch, TextInput,
-  KeyboardAvoidingView, Platform
+  KeyboardAvoidingView, Platform, Image
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { LinearGradient } from 'expo-linear-gradient'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CURRENCIES } from '../../src/constants/theme'
 import { requestNotificationPermission } from '../../src/lib/notifications'
@@ -196,7 +197,26 @@ export default function Settings() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
-      <Text style={styles.heading}>Settings</Text>
+
+      {/* App Header */}
+      <LinearGradient
+        colors={['#7C75FF', '#6C63FF', '#5A50FF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.appHeader}
+      >
+        <Image
+          source={require('../../assets/icon.png')}
+          style={styles.appIcon}
+        />
+        <View style={styles.appHeaderInfo}>
+          <Text style={styles.appName}>Savr</Text>
+          <Text style={styles.appTagline}>Spend smart, save more</Text>
+        </View>
+        <View style={styles.versionBadge}>
+          <Text style={styles.versionBadgeText}>v{APP_VERSION}</Text>
+        </View>
+      </LinearGradient>
 
       {/* Profile Card */}
       <TouchableOpacity style={styles.profileCard} onPress={openProfileModal} activeOpacity={0.8}>
@@ -281,15 +301,17 @@ export default function Settings() {
       <View style={styles.card}>
         <View style={styles.row}>
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#FF8C4222' }]}>
-              <Ionicons name="code-slash-outline" size={18} color='#FF8C42' />
+            <View style={[styles.rowIcon, { backgroundColor: '#6C63FF22' }]}>
+              <Ionicons name="information-circle-outline" size={18} color={COLORS.accent} />
             </View>
             <View>
               <Text style={styles.rowTitle}>Version</Text>
-              <Text style={styles.rowSubtitle}>Current app version</Text>
+              <Text style={styles.rowSubtitle}>Savr v{APP_VERSION} — Latest</Text>
             </View>
           </View>
-          <Text style={styles.versionText}>v{APP_VERSION}</Text>
+          <View style={styles.versionPill}>
+            <Text style={styles.versionPillText}>v{APP_VERSION}</Text>
+          </View>
         </View>
 
         <View style={styles.divider} />
@@ -321,6 +343,20 @@ export default function Settings() {
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
         </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        <View style={styles.row}>
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#FF8C4222' }]}>
+              <Ionicons name="code-slash-outline" size={18} color='#FF8C42' />
+            </View>
+            <View>
+              <Text style={styles.rowTitle}>Developer</Text>
+              <Text style={styles.rowSubtitle}>Mwnswrang Wary</Text>
+            </View>
+          </View>
+        </View>
       </View>
 
       {/* Account */}
@@ -356,9 +392,11 @@ export default function Settings() {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.footer}>
-        <Text style={styles.footerBold}>Savr</Text> · Spend smart, save more
-      </Text>
+      {/* Footer */}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>Made with ❤️ by Mwnswrang Wary</Text>
+        <Text style={styles.footerSub}>Savr v{APP_VERSION} · © 2026</Text>
+      </View>
 
       {/* Currency Bottom Sheet */}
       <BottomSheet visible={showCurrencyModal} onClose={() => { setShowCurrencyModal(false); setCurrencySearch('') }} maxHeight="85%">
@@ -562,7 +600,23 @@ export default function Settings() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
-  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8, marginBottom: 24 },
+  appHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    borderRadius: 20, padding: 20, marginBottom: 20, gap: 14,
+  },
+  appIcon: {
+    width: 52, height: 52, borderRadius: 14,
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
+  },
+  appHeaderInfo: { flex: 1 },
+  appName: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.5 },
+  appTagline: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+  versionBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
+  },
+  versionBadgeText: { fontSize: 12, color: '#fff', fontWeight: '700' },
   profileCard: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: COLORS.card, borderRadius: 16,
@@ -599,9 +653,15 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
   rowSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 1 },
   divider: { height: 1, backgroundColor: COLORS.border, marginLeft: 66 },
-  versionText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
-  footer: { textAlign: 'center', color: COLORS.textMuted, fontSize: 13, marginTop: 8, marginBottom: 32 },
-  footerBold: { fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  versionPill: {
+    backgroundColor: COLORS.accent + '22', borderRadius: 20,
+    paddingVertical: 4, paddingHorizontal: 10,
+    borderWidth: 1, borderColor: COLORS.accent + '44',
+  },
+  versionPillText: { fontSize: 12, color: COLORS.accent, fontWeight: '700' },
+  footer: { alignItems: 'center', marginTop: 8, marginBottom: 32, gap: 4 },
+  footerText: { fontSize: 13, color: COLORS.textMuted },
+  footerSub: { fontSize: 11, color: COLORS.border },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
   currencySearch: {

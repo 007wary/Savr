@@ -8,6 +8,7 @@ import * as Linking from 'expo-linking'
 import { requestNotificationPermission } from '../src/lib/notifications'
 import { processDueRecurring } from '../src/lib/recurring'
 import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -20,6 +21,14 @@ export default function RootLayout() {
     async function init() {
       // Clear expired cache on every app start
       await clearExpiredCache()
+
+      // Show onboarding on first launch — BEFORE timeout is set
+      const onboardingDone = await AsyncStorage.getItem('savr_onboarding_done')
+      if (!onboardingDone) {
+        SplashScreen.hideAsync()
+        router.replace('/onboarding')
+        return
+      }
 
       const timeout = setTimeout(() => {
         if (session === undefined) {
@@ -164,6 +173,7 @@ export default function RootLayout() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="webview" />
       <Stack.Screen name="index" />
+      <Stack.Screen name="onboarding" />
     </Stack>
   )
 }

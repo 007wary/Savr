@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity, TextInput, RefreshControl
+  TouchableOpacity, TextInput, RefreshControl, KeyboardAvoidingView, Platform
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
 import { supabase } from '../../src/lib/supabase'
@@ -84,11 +84,8 @@ export default function Budgets() {
         const filtered = expenseData.filter(e => e.date.startsWith(currentMonth))
         setExpenses(filtered)
         setAllExpenses(expenseData)
-
-        // Generate recommendations from all expenses
         const recs = generateBudgetRecommendations(expenseData, CATEGORIES)
         setRecommendations(recs)
-
         await saveCache(CACHE_KEY, {
           budgets: budgetData || [],
           expenses: filtered,
@@ -174,20 +171,6 @@ export default function Budgets() {
             for (const [category, rec] of Object.entries(recommendations)) {
               const existing = budgets.find(b => b.category === category)
               const limit = rec.recommended
-              let updatedBudgets
-              if (existing) {
-                updatedBudgets = budgets.map(b =>
-                  b.category === category ? { ...b, limit_amount: limit } : b
-                )
-              } else {
-                updatedBudgets = [...budgets, {
-                  id: `offline_${Date.now()}_${category}`,
-                  category,
-                  limit_amount: limit,
-                  month: currentMonth,
-                  user_id: 'offline',
-                }]
-              }
               setBudgets(prev => {
                 const exists = prev.find(b => b.category === category)
                 if (exists) {
@@ -248,7 +231,6 @@ export default function Budgets() {
     const updatedBudgets = budgets.filter(b => b.category !== category)
     setBudgets(updatedBudgets)
     await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses, allExpenses })
-
     setEditing(null)
     setInputValue('')
 
@@ -274,9 +256,15 @@ export default function Budgets() {
   if (loading) return <BudgetsSkeleton />
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingBottom: 40 }}
+      contentContainerStyle={{ paddingBottom: 120 }}
+      keyboardShouldPersistTaps="handled"
       refreshControl={
         <RefreshControl
           refreshing={refreshing}
@@ -300,9 +288,7 @@ export default function Budgets() {
               <Text style={styles.recommendEmoji}>🤖</Text>
               <View>
                 <Text style={styles.recommendTitle}>Smart Budget Recommendations</Text>
-                <Text style={styles.recommendSub}>
-                  Based on your last 3 months spending
-                </Text>
+                <Text style={styles.recommendSub}>Based on your last 3 months spending</Text>
               </View>
             </View>
             <Ionicons
@@ -361,11 +347,22 @@ export default function Budgets() {
         const limit = getBudgetLimit(cat.label)
         const percentage = limit ? Math.min((spent / limit) * 100, 100) : 0
         const isOver = limit && spent > limit
+        const isWarning = limit && !isOver && percentage >= 80
         const isEditing = editing === cat.label
         const rec = recommendations[cat.label]
 
+        // Progress bar color
+        const barColor = isOver
+          ? COLORS.accentRed
+          : isWarning
+          ? COLORS.accentYellow
+          : cat.color
+
         return (
-          <View key={cat.label} style={styles.card}>
+          <View key={cat.label} style={[
+            styles.card,
+            isOver && styles.cardOver,
+          ]}>
             <View style={styles.cardHeader}>
               <View style={[styles.iconBox, { backgroundColor: cat.color + '22' }]}>
                 <Text style={{ fontSize: 20 }}>{cat.icon}</Text>
@@ -400,41 +397,32 @@ export default function Budgets() {
               </TouchableOpacity>
             </View>
 
+            {/* Progress bar — only when budget is set */}
             {limit && (
-  <View>
-    <View style={styles.progressBg}>
-      <View style={[styles.progressFill, {
-        width: `${Math.min(percentage, 100)}%`,
-        backgroundColor: isOver ? COLORS.accentRed : percentage > 80 ? COLORS.accentYellow : cat.color
-      }]} />
-    </View>
-    {/* Over budget overflow indicator */}
-    {isOver && (
-      <View style={styles.overflowBar}>
-        <View style={styles.overflowFill}>
-          <Text style={styles.overflowText}>
-            +{((spent / limit - 1) * 100).toFixed(0)}% over
-          </Text>
-        </View>
-      </View>
-    )}
-    {/* Warning when close to budget (80-99%) */}
-    {!isOver && percentage >= 80 && (
-      <Text style={styles.warningText}>
-        ⚠️ {(100 - percentage).toFixed(0)}% remaining
-      </Text>
-    )}
-  </View>
-)}
+              <View style={styles.progressBg}>
+                <View style={[styles.progressFill, {
+                  width: `${percentage}%`,
+                  backgroundColor: barColor,
+                }]} />
+              </View>
+            )}
 
-{isOver && (
-  <View style={styles.overBanner}>
-    <Ionicons name="alert-circle" size={14} color={COLORS.accentRed} />
-    <Text style={styles.overText}>
-      Over budget by {formatAmount(spent - limit, currencySymbol, currencyCode)} ({((spent / limit - 1) * 100).toFixed(0)}% over)
-    </Text>
-  </View>
-)}
+            {/* Warning — 80-99% */}
+            {isWarning && (
+              <Text style={styles.warningText}>
+                ⚠️ {(100 - percentage).toFixed(0)}% of budget remaining
+              </Text>
+            )}
+
+            {/* Over budget banner */}
+            {isOver && (
+              <View style={styles.overBanner}>
+                <Ionicons name="alert-circle" size={14} color={COLORS.accentRed} />
+                <Text style={styles.overText}>
+                  Over by {formatAmount(spent - limit, currencySymbol, currencyCode)} · {((spent / limit - 1) * 100).toFixed(0)}% over budget
+                </Text>
+              </View>
+            )}
 
             {/* Inline recommendation hint when no budget set */}
             {!limit && rec && !isEditing && (
@@ -500,6 +488,7 @@ export default function Budgets() {
         onClose={hideAlert}
       />
     </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 
@@ -546,6 +535,9 @@ const styles = StyleSheet.create({
     padding: 16, marginBottom: 12,
     borderWidth: 1, borderColor: COLORS.border,
   },
+  cardOver: {
+    borderColor: COLORS.accentRed + '44',
+  },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   cardInfo: { flex: 1 },
@@ -563,9 +555,19 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.accentRed + '11',
   },
   editBtnText: { fontSize: 12, fontWeight: '600', color: COLORS.accent },
-  progressBg: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, marginBottom: 6 },
+  progressBg: {
+    height: 6, backgroundColor: COLORS.border,
+    borderRadius: 3, marginBottom: 6, overflow: 'hidden',
+  },
   progressFill: { height: 6, borderRadius: 3 },
-  overText: { fontSize: 12, color: COLORS.accentRed, marginTop: 4, fontWeight: '600' },
+  warningText: { fontSize: 11, color: COLORS.accentYellow, marginTop: 2, fontWeight: '600' },
+  overBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: COLORS.accentRed + '11',
+    borderRadius: 8, padding: 8, marginTop: 6,
+    borderWidth: 1, borderColor: COLORS.accentRed + '33',
+  },
+  overText: { fontSize: 12, color: COLORS.accentRed, fontWeight: '600', flex: 1 },
   inlineRecCard: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: COLORS.accentYellow + '11',
@@ -591,22 +593,4 @@ const styles = StyleSheet.create({
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   deleteBtn: { backgroundColor: COLORS.cardAlt, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
   deleteBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 13 },
-  overflowBar: {
-  height: 4, backgroundColor: COLORS.accentRed + '22',
-  borderRadius: 3, marginTop: 2, overflow: 'hidden',
-},
-overflowFill: {
-  height: '100%', backgroundColor: COLORS.accentRed,
-  borderRadius: 3, alignItems: 'flex-end',
-  paddingRight: 4, justifyContent: 'center', width: '100%',
-},
-overflowText: { fontSize: 8, color: '#fff', fontWeight: '700' },
-warningText: { fontSize: 11, color: COLORS.accentYellow, marginTop: 4, fontWeight: '600' },
-overBanner: {
-  flexDirection: 'row', alignItems: 'center', gap: 6,
-  backgroundColor: COLORS.accentRed + '11',
-  borderRadius: 8, padding: 8, marginTop: 6,
-  borderWidth: 1, borderColor: COLORS.accentRed + '33',
-},
-overText: { fontSize: 12, color: COLORS.accentRed, fontWeight: '600', flex: 1 },
 })

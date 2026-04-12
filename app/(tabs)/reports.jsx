@@ -45,12 +45,18 @@ export default function Reports() {
   const [expandedCategory, setExpandedCategory] = useState(null)
   const adShownRef = useRef(false)
 
-  // Fix #3 — now inside component so it refreshes on every focus
-  const getNow = () => new Date()
-  const now = getNow()
+  const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
   const CACHE_KEY = `savr_cache_reports_${currentMonth}`
+
+  // Helper to get month range
+  function getMonthRange(year, month) {
+    const lastDay = new Date(year, month, 0).getDate()
+    const start = `${year}-${String(month).padStart(2, '0')}-01`
+    const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    return { start, end }
+  }
 
   useFocusEffect(useCallback(() => {
     fetchData()
@@ -101,40 +107,68 @@ export default function Reports() {
   }
 
   async function syncFromSupabase() {
-    // Fix #3 — use fresh now inside async function
     const freshNow = new Date()
-    const freshCurrentMonth = `${freshNow.getFullYear()}-${String(freshNow.getMonth() + 1).padStart(2, '0')}`
+    const freshYear = freshNow.getFullYear()
+    const freshMonth = freshNow.getMonth() + 1
+    const freshCurrentMonth = `${freshYear}-${String(freshMonth).padStart(2, '0')}`
 
     try {
-      const historyCached = await loadCache('savr_cache_history')
-      let data = historyCached
+      const user = await getUser()
 
-      if (!data) {
-        const user = await getUser()
-        const { data: fetchedData } = await supabase
+      // Current month range
+      const { start: curStart, end: curEnd } = getMonthRange(freshYear, freshMonth)
+
+      // Last month range
+      const lastMonthDate = new Date(freshYear, freshMonth - 2, 1)
+      const lastYear = lastMonthDate.getFullYear()
+      const lastMonth = lastMonthDate.getMonth() + 1
+      const { start: lastStart, end: lastEnd } = getMonthRange(lastYear, lastMonth)
+
+      // 6 months ago for trend data
+      const sixMonthsAgo = new Date(freshYear, freshMonth - 7, 1)
+      const sixMonthsAgoStr = `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`
+
+      // Run all 3 queries in parallel
+      const [currentResult, lastMonthResult, allResult] = await Promise.all([
+        // Current month — full data needed
+        supabase
           .from('expenses')
           .select('*')
           .eq('user_id', user.id)
-          .order('date', { ascending: true })
-        data = fetchedData
-      } else {
-        data = [...data].sort((a, b) => a.date.localeCompare(b.date))
-      }
+          .gte('date', curStart)
+          .lte('date', curEnd)
+          .order('date', { ascending: true }),
 
-      if (data) {
-        const filtered = data.filter(e => e.date.startsWith(freshCurrentMonth))
-        const lastMonthDate = new Date(freshNow.getFullYear(), freshNow.getMonth() - 1, 1)
-        const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
-        const lastMonth = data.filter(e => e.date.startsWith(lastMonthKey))
+        // Last month — only amount needed for comparison
+        supabase
+          .from('expenses')
+          .select('amount, date')
+          .eq('user_id', user.id)
+          .gte('date', lastStart)
+          .lte('date', lastEnd),
 
-        setAllExpenses(data)
-        setExpenses(filtered)
-        setLastMonthExpenses(lastMonth)
+        // Last 6 months — only amount and date needed for trend
+        supabase
+          .from('expenses')
+          .select('amount, date')
+          .eq('user_id', user.id)
+          .gte('date', sixMonthsAgoStr)
+          .order('date', { ascending: true }),
+      ])
+
+      if (currentResult.data) {
+        const currentData = currentResult.data
+        const lastMonthData = lastMonthResult.data || []
+        const allData = allResult.data || []
+
+        setExpenses(currentData)
+        setLastMonthExpenses(lastMonthData)
+        setAllExpenses(allData)
 
         await saveCache(CACHE_KEY, {
-          expenses: filtered,
-          lastMonthExpenses: lastMonth,
-          allExpenses: data,
+          expenses: currentData,
+          lastMonthExpenses: lastMonthData,
+          allExpenses: allData,
         })
       }
     } catch {
@@ -194,7 +228,7 @@ export default function Reports() {
   }
   const maxHeatmap = Math.max(...heatmapDays.map(d => d.amount), 1)
 
-  // Fix #12 — add T00:00:00 to prevent timezone off-by-one bug
+  // Fix #12 — T00:00:00 timezone fix
   const weekendExpenses = expenses.filter(e => {
     const day = new Date(e.date + 'T00:00:00').getDay()
     return day === 0 || day === 6
