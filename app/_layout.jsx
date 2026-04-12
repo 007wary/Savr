@@ -20,10 +20,8 @@ export default function RootLayout() {
 
   useEffect(() => {
     async function init() {
-      // Clear expired cache on every app start
       await clearExpiredCache()
 
-      // Check onboarding status
       const done = await AsyncStorage.getItem('savr_onboarding_done')
       setOnboardingDone(done === 'true')
 
@@ -131,7 +129,6 @@ export default function RootLayout() {
     }
 
     Linking.getInitialURL().then(url => { if (url) handleDeepLink(url) })
-
     const linkSub = Linking.addEventListener('url', ({ url }) => { handleDeepLink(url) })
 
     return () => {
@@ -141,14 +138,25 @@ export default function RootLayout() {
     }
   }, [])
 
-  // Navigation logic — runs when session OR onboardingDone changes
+  // Re-check onboarding status whenever segments change
+  // This catches the case where onboarding.jsx sets AsyncStorage
+  // but _layout.jsx state hasn't updated yet
   useEffect(() => {
-    // Wait until both are resolved
+    async function checkOnboarding() {
+      const done = await AsyncStorage.getItem('savr_onboarding_done')
+      if (done === 'true' && !onboardingDone) {
+        setOnboardingDone(true)
+      }
+    }
+    checkOnboarding()
+  }, [segments])
+
+  // Navigation logic
+  useEffect(() => {
     if (session === undefined || onboardingDone === undefined) return
 
-    const inAuth = segments[0] === '(auth)'
     const inOnboarding = segments[0] === 'onboarding'
-    const inTabs = segments[0] === '(tabs)'
+    const inAuth = segments[0] === '(auth)'
 
     // First time user — show onboarding
     if (!onboardingDone && !inOnboarding) {
@@ -156,9 +164,9 @@ export default function RootLayout() {
       return
     }
 
-    // Returning user — normal auth flow
+    // Onboarding done — normal auth flow
     if (onboardingDone) {
-      if (!session && !inAuth) {
+      if (!session && !inAuth && !inOnboarding) {
         router.replace('/(auth)/login')
         return
       }
@@ -166,10 +174,14 @@ export default function RootLayout() {
         router.replace('/(tabs)/dashboard')
         return
       }
+      // If still on onboarding screen but onboarding is done — go to login
+      if (inOnboarding) {
+        router.replace('/(auth)/login')
+        return
+      }
     }
   }, [session, segments, onboardingDone])
 
-  // Show nothing while loading
   if (session === undefined || onboardingDone === undefined) {
     return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />
   }
