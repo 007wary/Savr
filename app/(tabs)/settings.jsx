@@ -353,7 +353,7 @@ export default function Settings() {
             </View>
             <View>
               <Text style={styles.rowTitle}>Developer</Text>
-              <Text style={styles.rowSubtitle}>Mwnswrang Wary</Text>
+              <Text style={styles.rowSubtitle}>Wary Dev.</Text>
             </View>
           </View>
         </View>
@@ -394,7 +394,6 @@ export default function Settings() {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Made with ❤️ by Mwnswrang Wary</Text>
         <Text style={styles.footerSub}>Savr v{APP_VERSION} · © 2026</Text>
       </View>
 
