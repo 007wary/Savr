@@ -121,12 +121,24 @@ export default function RootLayout() {
     }, 10 * 60 * 1000)
 
     const handleDeepLink = async (url) => {
-      if (!url) return
-      if (url.includes('access_token') || url.includes('confirmation')) {
-        const { data } = await supabase.auth.getSessionFromUrl({ url })
-        if (data?.session) setSession(data.session)
-      }
+  if (!url) return
+
+  // Handle password reset
+  if (url.includes('type=recovery') || url.includes('reset-password')) {
+    const { data } = await supabase.auth.getSessionFromUrl({ url })
+    if (data?.session) {
+      setSession(data.session)
+      router.replace('/reset-password')
     }
+    return
+  }
+
+  // Handle email confirmation
+  if (url.includes('access_token') || url.includes('confirmation')) {
+    const { data } = await supabase.auth.getSessionFromUrl({ url })
+    if (data?.session) setSession(data.session)
+  }
+}
 
     Linking.getInitialURL().then(url => { if (url) handleDeepLink(url) })
     const linkSub = Linking.addEventListener('url', ({ url }) => { handleDeepLink(url) })
@@ -193,6 +205,7 @@ export default function RootLayout() {
       <Stack.Screen name="webview" />
       <Stack.Screen name="index" />
       <Stack.Screen name="onboarding" />
+      <Stack.Screen name="reset-password" />
     </Stack>
   )
 }
