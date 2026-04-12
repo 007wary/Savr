@@ -30,23 +30,14 @@ export default function Settings() {
   const [budgetAlerts, setBudgetAlerts] = useState(false)
   const [profileModalVisible, setProfileModalVisible] = useState(false)
   const [showCurrencyModal, setShowCurrencyModal] = useState(false)
-  const [showPasswordModal, setShowPasswordModal] = useState(false)
   const [currency, setCurrency] = useState('INR')
   const [currencySearch, setCurrencySearch] = useState('')
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [changingPassword, setChangingPassword] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
-
-  const isGoogleUser = user?.app_metadata?.providers?.includes('google')
-  const hasEmailIdentity = user?.identities?.some(i => i.provider === 'email')
-  const showSetPassword = isGoogleUser && !hasEmailIdentity
 
   async function fetchUser(forceRefresh = false) {
     const { status } = await Notifications.getPermissionsAsync()
@@ -85,7 +76,7 @@ export default function Settings() {
         user, displayName: name, phone: ph, currency: savedCurrency,
       })
     } catch {
-      // Silently fail — cache already shown
+      // Silently fail
     } finally {
       setLoading(false)
     }
@@ -102,80 +93,56 @@ export default function Settings() {
   async function saveProfile() {
     if (!editName.trim()) return showAlert('Invalid', 'Name cannot be empty')
     setSaving(true)
-    const { error } = await supabase.auth.updateUser({
-      data: { display_name: editName.trim(), phone_number: editPhone.trim() }
-    })
-    if (error) showAlert('Error', error.message)
-    else {
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          display_name: editName.trim(),
+          phone_number: editPhone.trim()
+        }
+      })
+      if (error) {
+        showAlert('Error', error.message)
+        return
+      }
+
+      // Update in user_profiles table — lazy import to avoid crash
+      try {
+        const { updateUserProfile } = await import('../../src/lib/userProfile')
+        await updateUserProfile(user.id, {
+          full_name: editName.trim(),
+          phone_number: editPhone.trim(),
+        })
+      } catch {}
+
       setDisplayName(editName.trim())
       setPhone(editPhone.trim())
       setProfileModalVisible(false)
       clearUserCache()
+
       const now = new Date()
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
       await clearCache(`savr_cache_dashboard_${currentMonth}`)
       await saveCache(CACHE_KEY, {
-        user, displayName: editName.trim(), phone: editPhone.trim(), currency,
+        user, displayName: editName.trim(),
+        phone: editPhone.trim(), currency,
       })
-    }
-    setSaving(false)
-  }
 
-  async function handleChangePassword() {
-    if (!currentPassword || !newPassword || !confirmPassword) {
-      return showAlert('Error', 'Please fill in all fields')
+      showAlert('✅ Saved!', 'Your profile has been updated.')
+    } catch {
+      showAlert('Error', 'Failed to save. Please try again.')
+    } finally {
+      setSaving(false)
     }
-    if (newPassword.length < 6) {
-      return showAlert('Error', 'New password must be at least 6 characters')
-    }
-    if (newPassword !== confirmPassword) {
-      return showAlert('Error', 'New passwords do not match')
-    }
-    setChangingPassword(true)
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: currentPassword,
-    })
-    if (signInError) {
-      setChangingPassword(false)
-      return showAlert('Error', 'Current password is incorrect')
-    }
-    const { error } = await supabase.auth.updateUser({ password: newPassword })
-    setChangingPassword(false)
-    if (error) return showAlert('Error', error.message)
-    closePasswordModal()
-    showAlert('Success! 🎉', 'Your password has been changed successfully.')
-  }
-
-  async function handleSetPassword() {
-    if (!newPassword || !confirmPassword) {
-      return showAlert('Error', 'Please fill in all fields')
-    }
-    if (newPassword.length < 6) {
-      return showAlert('Error', 'Password must be at least 6 characters')
-    }
-    if (newPassword !== confirmPassword) {
-      return showAlert('Error', 'Passwords do not match')
-    }
-    setChangingPassword(true)
-    const { error } = await supabase.auth.updateUser({ password: newPassword })
-    setChangingPassword(false)
-    if (error) return showAlert('Error', error.message)
-    closePasswordModal()
-    showAlert('Password Set! 🎉', 'You can now sign in with your email and this password.')
-  }
-
-  function closePasswordModal() {
-    setShowPasswordModal(false)
-    setCurrentPassword('')
-    setNewPassword('')
-    setConfirmPassword('')
   }
 
   async function handleSignOut() {
     showAlert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Sign Out', style: 'destructive', onPress: () => supabase.auth.signOut() }
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: () => supabase.auth.signOut()
+      }
     ])
   }
 
@@ -187,7 +154,6 @@ export default function Settings() {
   }
 
   const selectedCurrency = CURRENCIES.find(c => c.code === currency)
-
   const filteredCurrencies = CURRENCIES.filter(cur =>
     cur.name.toLowerCase().includes(currencySearch.toLowerCase()) ||
     cur.code.toLowerCase().includes(currencySearch.toLowerCase())
@@ -219,14 +185,21 @@ export default function Settings() {
       </LinearGradient>
 
       {/* Profile Card */}
-      <TouchableOpacity style={styles.profileCard} onPress={openProfileModal} activeOpacity={0.8}>
+      <TouchableOpacity
+        style={styles.profileCard}
+        onPress={openProfileModal}
+        activeOpacity={0.8}
+      >
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{getInitials()}</Text>
         </View>
         <View style={styles.profileInfo}>
           <Text style={styles.displayName}>{displayName}</Text>
           <Text style={styles.email}>{user?.email}</Text>
-          {phone ? <Text style={styles.phoneText}>📱 {phone}</Text> : null}
+          {phone
+            ? <Text style={styles.phoneText}>📱 {phone}</Text>
+            : <Text style={styles.phoneAdd}>📱 Add phone number</Text>
+          }
         </View>
         <View style={styles.editProfileBtn}>
           <Ionicons name="pencil-outline" size={16} color={COLORS.accent} />
@@ -362,25 +335,6 @@ export default function Settings() {
       {/* Account */}
       <Text style={styles.sectionLabel}>ACCOUNT</Text>
       <View style={styles.card}>
-        <TouchableOpacity style={styles.row} onPress={() => setShowPasswordModal(true)}>
-          <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#6C63FF22' }]}>
-              <Ionicons name="lock-closed-outline" size={18} color={COLORS.accent} />
-            </View>
-            <View>
-              <Text style={styles.rowTitle}>
-                {showSetPassword ? 'Set Password' : 'Change Password'}
-              </Text>
-              {showSetPassword && (
-                <Text style={styles.rowSubtitle}>Sign in with email too</Text>
-              )}
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-        </TouchableOpacity>
-
-        <View style={styles.divider} />
-
         <TouchableOpacity style={styles.row} onPress={handleSignOut}>
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#FF5C5C22' }]}>
@@ -398,7 +352,11 @@ export default function Settings() {
       </View>
 
       {/* Currency Bottom Sheet */}
-      <BottomSheet visible={showCurrencyModal} onClose={() => { setShowCurrencyModal(false); setCurrencySearch('') }} maxHeight="85%">
+      <BottomSheet
+        visible={showCurrencyModal}
+        onClose={() => { setShowCurrencyModal(false); setCurrencySearch('') }}
+        maxHeight="85%"
+      >
         <View style={styles.sheetHeader}>
           <Text style={styles.sheetTitle}>Select Currency</Text>
           <TouchableOpacity onPress={() => { setShowCurrencyModal(false); setCurrencySearch('') }}>
@@ -455,7 +413,10 @@ export default function Settings() {
       </BottomSheet>
 
       {/* Profile Edit Bottom Sheet */}
-      <BottomSheet visible={profileModalVisible} onClose={() => setProfileModalVisible(false)}>
+      <BottomSheet
+        visible={profileModalVisible}
+        onClose={() => setProfileModalVisible(false)}
+      >
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Edit Profile</Text>
@@ -489,100 +450,13 @@ export default function Settings() {
             <Text style={styles.readOnlyText}>{user?.email}</Text>
             <Ionicons name="lock-closed-outline" size={14} color={COLORS.textMuted} />
           </View>
-          <TouchableOpacity style={styles.saveBtn} onPress={saveProfile} disabled={saving}>
+          <TouchableOpacity
+            style={[styles.saveBtn, saving && { opacity: 0.6 }]}
+            onPress={saveProfile}
+            disabled={saving}
+          >
             <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Profile'}</Text>
           </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </BottomSheet>
-
-      {/* Change Password / Set Password Bottom Sheet */}
-      <BottomSheet visible={showPasswordModal} onClose={closePasswordModal}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>
-              {showSetPassword ? 'Set Password' : 'Change Password'}
-            </Text>
-            <TouchableOpacity onPress={closePasswordModal}>
-              <Ionicons name="close" size={22} color={COLORS.textMuted} />
-            </TouchableOpacity>
-          </View>
-
-          {showSetPassword ? (
-            <>
-              <View style={styles.infoBox}>
-                <Ionicons name="information-circle-outline" size={18} color={COLORS.accent} />
-                <Text style={styles.infoText}>
-                  Adding a password lets you also sign in with {user?.email} and password in addition to Google.
-                </Text>
-              </View>
-              <Text style={styles.label}>New Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Min. 6 characters"
-                placeholderTextColor={COLORS.textMuted}
-                value={newPassword}
-                onChangeText={setNewPassword}
-                secureTextEntry
-              />
-              <Text style={styles.label}>Confirm Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Repeat new password"
-                placeholderTextColor={COLORS.textMuted}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-              />
-              <TouchableOpacity
-                style={styles.saveBtn}
-                onPress={handleSetPassword}
-                disabled={changingPassword}
-              >
-                <Text style={styles.saveBtnText}>
-                  {changingPassword ? 'Setting...' : 'Set Password'}
-                </Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <Text style={styles.label}>Current Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter current password"
-                placeholderTextColor={COLORS.textMuted}
-                value={currentPassword}
-                onChangeText={setCurrentPassword}
-                secureTextEntry
-              />
-              <Text style={styles.label}>New Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Min. 6 characters"
-                placeholderTextColor={COLORS.textMuted}
-                value={newPassword}
-                onChangeText={setNewPassword}
-                secureTextEntry
-              />
-              <Text style={styles.label}>Confirm New Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Repeat new password"
-                placeholderTextColor={COLORS.textMuted}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry
-              />
-              <TouchableOpacity
-                style={styles.saveBtn}
-                onPress={handleChangePassword}
-                disabled={changingPassword}
-              >
-                <Text style={styles.saveBtnText}>
-                  {changingPassword ? 'Changing...' : 'Change Password'}
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
         </KeyboardAvoidingView>
       </BottomSheet>
 
@@ -632,6 +506,7 @@ const styles = StyleSheet.create({
   displayName: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 2, letterSpacing: -0.3 },
   email: { fontSize: 13, color: COLORS.textMuted },
   phoneText: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
+  phoneAdd: { fontSize: 13, color: COLORS.accent, marginTop: 2 },
   editProfileBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   editProfileText: { fontSize: 13, color: COLORS.accent, fontWeight: '600' },
   sectionLabel: {
@@ -658,8 +533,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.accent + '44',
   },
   versionPillText: { fontSize: 12, color: COLORS.accent, fontWeight: '700' },
-  footer: { alignItems: 'center', marginTop: 8, marginBottom: 32, gap: 4 },
-  footerText: { fontSize: 13, color: COLORS.textMuted },
+  footer: { alignItems: 'center', marginTop: 8, marginBottom: 32 },
   footerSub: { fontSize: 11, color: COLORS.border },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
@@ -698,13 +572,9 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: COLORS.border, marginBottom: 24,
   },
   readOnlyText: { fontSize: 15, color: COLORS.textMuted },
-  saveBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  infoBox: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: COLORS.accent + '11', borderRadius: 12,
-    padding: 14, marginBottom: 20,
-    borderWidth: 1, borderColor: COLORS.accent + '33',
+  saveBtn: {
+    backgroundColor: COLORS.accent, borderRadius: 12,
+    padding: 16, alignItems: 'center', marginBottom: 8,
   },
-  infoText: { flex: 1, fontSize: 13, color: COLORS.textMuted, lineHeight: 20 },
+  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 })
