@@ -76,15 +76,17 @@ export default function RootLayout() {
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
-  await requestNotificationPermission()
+  // Navigate immediately — don't wait for anything
+  router.replace('/(tabs)/dashboard')
+
+  // Run everything else in background
+  requestNotificationPermission()
   if (session?.user) {
     processDueRecurring(session.user.id)
-    // Sync Google profile data to Supabase
-    await syncUserProfile(session.user)
+    // Non-blocking — don't await
+    syncUserProfile(session.user)
   }
-  const { initializeAds } = await import('../src/lib/ads')
-  initializeAds()
-  router.replace('/(tabs)/dashboard')
+  import('../src/lib/ads').then(({ initializeAds }) => initializeAds())
 }
 
       if (event === 'SIGNED_OUT') {

@@ -176,7 +176,7 @@ export default function Login() {
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Made with ❤️ by Mwnswrang Wary</Text>
+        <Text style={styles.footerText}><b>Savr</b> © 2026 All rights reserved.</Text>
       </View>
 
       <CustomAlert
@@ -197,9 +197,10 @@ const styles = StyleSheet.create({
     height: '50%',
   },
   inner: {
-    flex: 1, paddingHorizontal: 28,
-    justifyContent: 'center', paddingBottom: 40,
-  },
+  flex: 1, paddingHorizontal: 28,
+  justifyContent: 'center', paddingBottom: 40,
+  paddingTop: 60,
+},
   logoSection: { alignItems: 'center', marginBottom: 40 },
   logoBox: {
     width: 80, height: 80, borderRadius: 24,
