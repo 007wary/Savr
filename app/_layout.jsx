@@ -9,7 +9,6 @@ import { requestNotificationPermission } from '../src/lib/notifications'
 import { processDueRecurring } from '../src/lib/recurring'
 import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { syncUserProfile } from '../src/lib/userProfile'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -76,18 +75,22 @@ export default function RootLayout() {
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
-  // Navigate immediately — don't wait for anything
-  router.replace('/(tabs)/dashboard')
+        // Navigate immediately
+        router.replace('/(tabs)/dashboard')
 
-  // Run everything else in background
-  requestNotificationPermission()
-  if (session?.user) {
-    processDueRecurring(session.user.id)
-    // Non-blocking — don't await
-    syncUserProfile(session.user)
-  }
-  import('../src/lib/ads').then(({ initializeAds }) => initializeAds())
-}
+        // Run everything else in background — lazy import to avoid crash
+        try {
+          requestNotificationPermission()
+          if (session?.user) {
+            processDueRecurring(session.user.id)
+            // Lazy import — so if it fails it doesn't crash app
+            import('../src/lib/userProfile').then(({ syncUserProfile }) => {
+              syncUserProfile(session.user)
+            }).catch(() => {})
+          }
+          import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+        } catch {}
+      }
 
       if (event === 'SIGNED_OUT') {
         await clearAllCache()
@@ -126,24 +129,24 @@ export default function RootLayout() {
     }, 10 * 60 * 1000)
 
     const handleDeepLink = async (url) => {
-  if (!url) return
+      if (!url) return
 
-  // Handle password reset
-  if (url.includes('type=recovery') || url.includes('reset-password')) {
-    const { data } = await supabase.auth.getSessionFromUrl({ url })
-    if (data?.session) {
-      setSession(data.session)
-      router.replace('/reset-password')
+      // Handle password reset
+      if (url.includes('type=recovery') || url.includes('reset-password')) {
+        const { data } = await supabase.auth.getSessionFromUrl({ url })
+        if (data?.session) {
+          setSession(data.session)
+          router.replace('/reset-password')
+        }
+        return
+      }
+
+      // Handle email confirmation
+      if (url.includes('access_token') || url.includes('confirmation')) {
+        const { data } = await supabase.auth.getSessionFromUrl({ url })
+        if (data?.session) setSession(data.session)
+      }
     }
-    return
-  }
-
-  // Handle email confirmation
-  if (url.includes('access_token') || url.includes('confirmation')) {
-    const { data } = await supabase.auth.getSessionFromUrl({ url })
-    if (data?.session) setSession(data.session)
-  }
-}
 
     Linking.getInitialURL().then(url => { if (url) handleDeepLink(url) })
     const linkSub = Linking.addEventListener('url', ({ url }) => { handleDeepLink(url) })
@@ -156,8 +159,6 @@ export default function RootLayout() {
   }, [])
 
   // Re-check onboarding status whenever segments change
-  // This catches the case where onboarding.jsx sets AsyncStorage
-  // but _layout.jsx state hasn't updated yet
   useEffect(() => {
     async function checkOnboarding() {
       const done = await AsyncStorage.getItem('savr_onboarding_done')
@@ -191,7 +192,6 @@ export default function RootLayout() {
         router.replace('/(tabs)/dashboard')
         return
       }
-      // If still on onboarding screen but onboarding is done — go to login
       if (inOnboarding) {
         router.replace('/(auth)/login')
         return
