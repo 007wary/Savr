@@ -134,10 +134,6 @@ export default function Login() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Made with ❤️ by Mwnswrang Wary</Text>
-      </View>
-
       <CustomAlert
         visible={alertConfig.visible}
         title={alertConfig.title}
