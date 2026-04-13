@@ -167,12 +167,43 @@ export default function History() {
     }
   }
 
+  // Helper to remove item from offline queue
+  async function removeFromQueue(deletedExpense) {
+    try {
+      const { getQueue } = await import('../../src/lib/offlineQueue')
+      const queue = await getQueue()
+      const filtered = queue.filter(item => {
+        // Remove matching add_expense item
+        if (item.type === 'add_expense' && deletedExpense) {
+          return !(
+            item.amount === deletedExpense.amount &&
+            item.category === deletedExpense.category &&
+            item.date === deletedExpense.date
+          )
+        }
+        // Remove matching add_recurring item
+        if (item.type === 'add_recurring' && deletedExpense) {
+          return !(
+            item.amount === deletedExpense.amount &&
+            item.category === deletedExpense.category &&
+            item.next_due === deletedExpense.date
+          )
+        }
+        return true
+      })
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+      await AsyncStorage.setItem('savr_offline_queue', JSON.stringify(filtered))
+    } catch {}
+  }
+
   async function handleDelete(id) {
     showAlert('Delete Expense', 'Are you sure you want to delete this expense?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
+          const deletedExpense = (expenses || []).find(e => e.id === id)
+
           // Update local state immediately
           const updated = (expenses || []).filter(e => e.id !== id)
           setExpenses(updated)
@@ -180,7 +211,7 @@ export default function History() {
           // Update history cache
           await saveCache(CACHE_KEY, updated)
 
-          // Update dashboard cache immediately with removed expense
+          // Update dashboard cache immediately
           await updateDashboardCache(updated)
 
           // Clear other caches
@@ -189,34 +220,19 @@ export default function History() {
           await clearCache(`savr_cache_budgets_${currentMonth}`)
           await clearCache(`savr_cache_reports_${currentMonth}`)
 
-          if (id?.toString().startsWith('offline_')) {
-  // Remove from offline queue so it never syncs to Supabase
-  try {
-    const { getQueue } = await import('../../src/lib/offlineQueue')
-    const queue = await getQueue()
-    const filtered = queue.filter(item => {
-      // Remove matching add_expense item from queue
-      if (item.type === 'add_expense') {
-        // Match by amount, category and date
-        const deletedExpense = (expenses || []).find(e => e.id === id)
-        if (!deletedExpense) return true
-        return !(
-          item.amount === deletedExpense.amount &&
-          item.category === deletedExpense.category &&
-          item.date === deletedExpense.date
-        )
-      }
-      return true
-    })
-    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
-    await AsyncStorage.setItem('savr_offline_queue', JSON.stringify(filtered))
-  } catch {}
-  return
-}
+          // Handle offline expense (temp_ or offline_ id)
+          if (id?.toString().startsWith('offline_') || id?.toString().startsWith('temp_')) {
+            // Remove from queue so it never syncs to Supabase
+            await removeFromQueue(deletedExpense)
+            return
+          }
 
+          // Handle online expense
           if (!isOnline) {
+            // Queue delete for when back online
             await addToQueue({ type: 'delete_expense', id })
           } else {
+            // Delete from Supabase immediately
             await supabase.from('expenses').delete().eq('id', id)
           }
         }
@@ -225,7 +241,7 @@ export default function History() {
   }
 
   function openEdit(expense) {
-    if (expense.id?.toString().startsWith('offline_')) {
+    if (expense.id?.toString().startsWith('offline_') || expense.id?.toString().startsWith('temp_')) {
       return showAlert('Pending Sync', 'This expense is waiting to sync. Edit it once you are back online.')
     }
     setEditingExpense(expense)
@@ -343,7 +359,7 @@ export default function History() {
         <View style={styles.info}>
           <Text style={styles.category}>{item.category}</Text>
           <Text style={styles.note}>{item.note || formatDate(item.date)}</Text>
-          {item.id?.toString().startsWith('offline_') && (
+          {(item.id?.toString().startsWith('offline_') || item.id?.toString().startsWith('temp_')) && (
             <Text style={styles.offlineBadge}>⏳ Pending sync</Text>
           )}
         </View>
