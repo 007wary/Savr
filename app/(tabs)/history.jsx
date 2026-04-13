@@ -115,13 +115,12 @@ export default function History() {
   }
 
   const filtered = (expenses || []).filter(e => {
-  // Strip currency symbols and spaces from search for amount matching
-  const cleanSearch = search.replace(/[₹$€£¥₩฿₽,\s]/g, '').toLowerCase()
-  const matchSearch = search === '' ||
-    e.note?.toLowerCase().includes(search.toLowerCase()) ||
-    e.category.toLowerCase().includes(search.toLowerCase()) ||
-    String(parseFloat(e.amount).toFixed(2)).includes(cleanSearch) ||
-    String(parseFloat(e.amount).toFixed(0)).includes(cleanSearch)
+    const cleanSearch = search.replace(/[₹$€£¥₩฿₽,\s]/g, '').toLowerCase()
+    const matchSearch = search === '' ||
+      e.note?.toLowerCase().includes(search.toLowerCase()) ||
+      e.category.toLowerCase().includes(search.toLowerCase()) ||
+      String(parseFloat(e.amount).toFixed(2)).includes(cleanSearch) ||
+      String(parseFloat(e.amount).toFixed(0)).includes(cleanSearch)
     const matchCategory = selectedCategory === 'All' || e.category === selectedCategory
     const matchMonth = selectedMonth === 'All' || e.date.startsWith(selectedMonth)
     return matchSearch && matchCategory && matchMonth
@@ -151,36 +150,50 @@ export default function History() {
     setSearch('')
   }
 
-  async function handleDelete(id) {
-    if (id?.toString().startsWith('offline_')) {
-      showAlert('Delete Expense', 'Are you sure you want to delete this expense?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete', style: 'destructive',
-          onPress: async () => {
-            const updated = (expenses || []).filter(e => e.id !== id)
-            setExpenses(updated)
-            await saveCache(CACHE_KEY, updated)
-          }
-        }
-      ])
-      return
+  // Helper to update dashboard cache after delete/edit
+  async function updateDashboardCache(updatedExpenses) {
+    const now = new Date()
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
+    const dashCached = await loadCache(dashCacheKey)
+    if (dashCached) {
+      const currentMonthExpenses = updatedExpenses.filter(e =>
+        e.date.startsWith(currentMonth)
+      )
+      await saveCache(dashCacheKey, {
+        ...dashCached,
+        expenses: currentMonthExpenses,
+      })
     }
+  }
 
+  async function handleDelete(id) {
     showAlert('Delete Expense', 'Are you sure you want to delete this expense?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
+          // Update local state immediately
           const updated = (expenses || []).filter(e => e.id !== id)
           setExpenses(updated)
+
+          // Update history cache
           await saveCache(CACHE_KEY, updated)
 
+          // Update dashboard cache immediately with removed expense
+          await updateDashboardCache(updated)
+
+          // Clear other caches
           const now = new Date()
           const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-          await clearCache(`savr_cache_dashboard_${currentMonth}`)
           await clearCache(`savr_cache_budgets_${currentMonth}`)
           await clearCache(`savr_cache_reports_${currentMonth}`)
+
+          // Delete from Supabase or queue
+          if (id?.toString().startsWith('offline_')) {
+            // Offline expense — just remove from cache, nothing to delete in DB
+            return
+          }
 
           if (!isOnline) {
             await addToQueue({ type: 'delete_expense', id })
@@ -223,11 +236,16 @@ export default function History() {
     )
     const sorted = sortExpenses(updated)
     setExpenses(sorted)
+
+    // Update history cache
     await saveCache(CACHE_KEY, sorted)
 
+    // Update dashboard cache immediately
+    await updateDashboardCache(sorted)
+
+    // Clear other caches
     const now = new Date()
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-    await clearCache(`savr_cache_dashboard_${currentMonth}`)
     await clearCache(`savr_cache_budgets_${currentMonth}`)
     await clearCache(`savr_cache_reports_${currentMonth}`)
 
@@ -306,6 +324,9 @@ export default function History() {
         <View style={styles.info}>
           <Text style={styles.category}>{item.category}</Text>
           <Text style={styles.note}>{item.note || formatDate(item.date)}</Text>
+          {item.id?.toString().startsWith('offline_') && (
+            <Text style={styles.offlineBadge}>⏳ Pending sync</Text>
+          )}
         </View>
         <View style={styles.right}>
           <Text style={styles.amount}>
@@ -389,7 +410,7 @@ export default function History() {
       ) : (
         <SectionList
           sections={sections}
-          keyExtractor={item => item.id}
+          keyExtractor={item => item.id?.toString()}
           renderItem={renderItem}
           renderSectionHeader={renderSectionHeader}
           contentContainerStyle={{ paddingBottom: 40 }}
@@ -594,6 +615,7 @@ const styles = StyleSheet.create({
   info: { flex: 1 },
   category: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2 },
   note: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  offlineBadge: { fontSize: 10, color: COLORS.accentYellow, marginTop: 2, fontWeight: '600' },
   right: { alignItems: 'flex-end', marginRight: 10 },
   amount: { fontSize: 15, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5 },
   deleteBtn: { padding: 6 },
