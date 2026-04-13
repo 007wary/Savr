@@ -153,21 +153,55 @@ export default function AddExpense() {
     const user = await getUser()
 
     if (isRecurring) {
-      // Save recurring rule to Supabase
-      await supabase.from('recurring_expenses').insert({
-        user_id: user.id,
-        amount: expenseData.amount,
-        category: expenseData.category,
-        note: expenseData.note,
-        frequency,
-        next_due: formatDate(date),
-        is_active: true,
-      })
-      // Clear all caches so dashboard/history force fetch fresh data
-      await clearCache(`savr_cache_dashboard_${expenseMonth}`)
-      await clearCache('savr_cache_history')
-      await clearCache(`savr_cache_budgets_${expenseMonth}`)
-      await clearCache(`savr_cache_reports_${expenseMonth}`)
+  // Save recurring rule to Supabase
+  await supabase.from('recurring_expenses').insert({
+    user_id: user.id,
+    amount: expenseData.amount,
+    category: expenseData.category,
+    note: expenseData.note,
+    frequency,
+    next_due: formatDate(date),
+    is_active: true,
+  })
+
+  // Also insert first expense immediately so it shows right away
+  const { error: firstError } = await supabase.from('expenses').insert({
+    user_id: user.id,
+    amount: expenseData.amount,
+    category: expenseData.category,
+    note: expenseData.note || `Auto: ${expenseData.category}`,
+    date: expenseData.date,
+  })
+
+  // Clear all caches
+  await clearCache(`savr_cache_dashboard_${expenseMonth}`)
+  await clearCache('savr_cache_history')
+  await clearCache(`savr_cache_budgets_${expenseMonth}`)
+  await clearCache(`savr_cache_reports_${expenseMonth}`)
+
+  // Update dashboard and history cache immediately
+  if (!firstError) {
+    const newExpense = {
+      ...expenseData,
+      id: `temp_${Date.now()}`,
+      user_id: user.id,
+      created_at: new Date().toISOString(),
+    }
+
+    if (expenseMonth === currentMonth) {
+      const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
+      const dashCached = await loadCache(dashCacheKey)
+      if (dashCached) {
+        await saveCache(dashCacheKey, {
+          ...dashCached,
+          expenses: [newExpense, ...dashCached.expenses],
+        })
+      }
+    }
+
+    const historyCached = await loadCache('savr_cache_history') || []
+    await saveCache('savr_cache_history', [newExpense, ...historyCached])
+  }
 
     } else {
       // Save regular expense
