@@ -189,11 +189,30 @@ export default function History() {
           await clearCache(`savr_cache_budgets_${currentMonth}`)
           await clearCache(`savr_cache_reports_${currentMonth}`)
 
-          // Delete from Supabase or queue
           if (id?.toString().startsWith('offline_')) {
-            // Offline expense — just remove from cache, nothing to delete in DB
-            return
-          }
+  // Remove from offline queue so it never syncs to Supabase
+  try {
+    const { getQueue } = await import('../../src/lib/offlineQueue')
+    const queue = await getQueue()
+    const filtered = queue.filter(item => {
+      // Remove matching add_expense item from queue
+      if (item.type === 'add_expense') {
+        // Match by amount, category and date
+        const deletedExpense = (expenses || []).find(e => e.id === id)
+        if (!deletedExpense) return true
+        return !(
+          item.amount === deletedExpense.amount &&
+          item.category === deletedExpense.category &&
+          item.date === deletedExpense.date
+        )
+      }
+      return true
+    })
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+    await AsyncStorage.setItem('savr_offline_queue', JSON.stringify(filtered))
+  } catch {}
+  return
+}
 
           if (!isOnline) {
             await addToQueue({ type: 'delete_expense', id })
