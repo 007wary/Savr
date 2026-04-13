@@ -86,85 +86,108 @@ export default function Reports() {
   }, []))
 
   async function fetchData(forceRefresh = false) {
-    const symbol = await getCurrencySymbol()
-    const code = await loadCurrency()
-    setCurrencySymbol(symbol)
-    setCurrencyCode(code)
+  const symbol = await getCurrencySymbol()
+  const code = await loadCurrency()
+  setCurrencySymbol(symbol)
+  setCurrencyCode(code)
 
-    if (!forceRefresh) {
-      const cached = await loadCache(CACHE_KEY)
-      if (cached) {
-        setExpenses(cached.expenses)
-        setLastMonthExpenses(cached.lastMonthExpenses)
-        setAllExpenses(cached.allExpenses)
-        setLoading(false)
-        syncFromSupabase()
-        return
-      }
+  if (!forceRefresh) {
+    const cached = await loadCache(CACHE_KEY)
+    if (cached) {
+      setExpenses(cached.expenses || [])
+      setLastMonthExpenses(cached.lastMonthExpenses || [])
+      setAllExpenses(cached.allExpenses || [])
+      setLoading(false)
+      syncFromSupabase()
+      return
     }
-
-    await syncFromSupabase()
   }
 
-  async function syncFromSupabase() {
-    const freshNow = new Date()
-    const freshYear = freshNow.getFullYear()
-    const freshMonth = freshNow.getMonth() + 1
-    const freshCurrentMonth = `${freshYear}-${String(freshMonth).padStart(2, '0')}`
+  await syncFromSupabase()
+}
 
+async function syncFromSupabase() {
+  const freshNow = new Date()
+  const freshYear = freshNow.getFullYear()
+  const freshMonth = freshNow.getMonth() + 1
+  const freshCurrentMonth = `${freshYear}-${String(freshMonth).padStart(2, '0')}`
+
+  try {
+    const user = await getUser()
+
+    const { start: curStart, end: curEnd } = getMonthRange(freshYear, freshMonth)
+    const lastMonthDate = new Date(freshYear, freshMonth - 2, 1)
+    const lastYear = lastMonthDate.getFullYear()
+    const lastMonth = lastMonthDate.getMonth() + 1
+    const { start: lastStart, end: lastEnd } = getMonthRange(lastYear, lastMonth)
+    const sixMonthsAgo = new Date(freshYear, freshMonth - 7, 1)
+    const sixMonthsAgoStr = `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`
+
+    const [currentResult, lastMonthResult, allResult] = await Promise.all([
+      supabase
+        .from('expenses')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('date', curStart)
+        .lte('date', curEnd)
+        .order('date', { ascending: true }),
+      supabase
+        .from('expenses')
+        .select('amount, date')
+        .eq('user_id', user.id)
+        .gte('date', lastStart)
+        .lte('date', lastEnd),
+      supabase
+        .from('expenses')
+        .select('amount, date')
+        .eq('user_id', user.id)
+        .gte('date', sixMonthsAgoStr)
+        .order('date', { ascending: true }),
+    ])
+
+    if (currentResult.data) {
+      const currentData = currentResult.data
+      const lastMonthData = lastMonthResult.data || []
+      const allData = allResult.data || []
+
+      setExpenses(currentData)
+      setLastMonthExpenses(lastMonthData)
+      setAllExpenses(allData)
+
+      await saveCache(CACHE_KEY, {
+        expenses: currentData,
+        lastMonthExpenses: lastMonthData,
+        allExpenses: allData,
+      })
+    }
+  } catch {
+    // Supabase failed — load from history cache as fallback
     try {
-      const user = await getUser()
+      const historyCached = await loadCache('savr_cache_history') || []
 
-      // Current month range
-      const { start: curStart, end: curEnd } = getMonthRange(freshYear, freshMonth)
+      const freshNowFallback = new Date()
+      const fallbackMonth = `${freshNowFallback.getFullYear()}-${String(freshNowFallback.getMonth() + 1).padStart(2, '0')}`
 
-      // Last month range
-      const lastMonthDate = new Date(freshYear, freshMonth - 2, 1)
-      const lastYear = lastMonthDate.getFullYear()
-      const lastMonth = lastMonthDate.getMonth() + 1
-      const { start: lastStart, end: lastEnd } = getMonthRange(lastYear, lastMonth)
+      // Last month key
+      const lastMonthDate = new Date(freshNowFallback.getFullYear(), freshNowFallback.getMonth() - 1, 1)
+      const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
 
-      // 6 months ago for trend data
-      const sixMonthsAgo = new Date(freshYear, freshMonth - 7, 1)
-      const sixMonthsAgoStr = `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`
+      // Filter current month expenses
+      const currentData = historyCached.filter(e => e.date.startsWith(fallbackMonth))
 
-      // Run all 3 queries in parallel
-      const [currentResult, lastMonthResult, allResult] = await Promise.all([
-        // Current month — full data needed
-        supabase
-          .from('expenses')
-          .select('*')
-          .eq('user_id', user.id)
-          .gte('date', curStart)
-          .lte('date', curEnd)
-          .order('date', { ascending: true }),
+      // Filter last month expenses
+      const lastMonthData = historyCached.filter(e => e.date.startsWith(lastMonthKey))
 
-        // Last month — only amount needed for comparison
-        supabase
-          .from('expenses')
-          .select('amount, date')
-          .eq('user_id', user.id)
-          .gte('date', lastStart)
-          .lte('date', lastEnd),
+      // Last 6 months
+      const sixMonthsAgo = new Date(freshNowFallback.getFullYear(), freshNowFallback.getMonth() - 6, 1)
+      const allData = historyCached.filter(e => new Date(e.date) >= sixMonthsAgo)
 
-        // Last 6 months — only amount and date needed for trend
-        supabase
-          .from('expenses')
-          .select('amount, date')
-          .eq('user_id', user.id)
-          .gte('date', sixMonthsAgoStr)
-          .order('date', { ascending: true }),
-      ])
+      setExpenses(currentData)
+      setLastMonthExpenses(lastMonthData)
+      setAllExpenses(allData)
 
-      if (currentResult.data) {
-        const currentData = currentResult.data
-        const lastMonthData = lastMonthResult.data || []
-        const allData = allResult.data || []
-
-        setExpenses(currentData)
-        setLastMonthExpenses(lastMonthData)
-        setAllExpenses(allData)
-
+      // Save to reports cache so next time loads faster
+      if (currentData.length > 0) {
         await saveCache(CACHE_KEY, {
           expenses: currentData,
           lastMonthExpenses: lastMonthData,
@@ -172,12 +195,13 @@ export default function Reports() {
         })
       }
     } catch {
-      // Silently fail — cache already shown
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
+      // Final fallback — keep whatever is already showing
     }
+  } finally {
+    setLoading(false)
+    setRefreshing(false)
   }
+}
 
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
   const lastTotal = lastMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
