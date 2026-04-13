@@ -117,13 +117,33 @@ export default function AddExpense() {
     // ---- OFFLINE PATH ----
     if (!isOnline) {
       if (isRecurring) {
-        await addToQueue({
-          type: 'add_recurring',
-          ...expenseData,
-          frequency,
-          next_due: formatDate(date),
-        })
-      } else {
+  await addToQueue({
+    type: 'add_recurring',
+    ...expenseData,
+    frequency,
+    next_due: formatDate(date),
+  })
+
+  // Also show first expense immediately in cache
+  const tempExpense = {
+    ...expenseData,
+    id: `offline_${Date.now()}`,
+    user_id: 'offline',
+    created_at: new Date().toISOString(),
+  }
+  const historyCached = await loadCache('savr_cache_history') || []
+  await saveCache('savr_cache_history', [tempExpense, ...historyCached])
+  if (expenseMonth === currentMonth) {
+    const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
+    const dashCached = await loadCache(dashCacheKey)
+    if (dashCached) {
+      await saveCache(dashCacheKey, {
+        ...dashCached,
+        expenses: [tempExpense, ...dashCached.expenses]
+      })
+    }
+  }
+} else {
         await addToQueue({ type: 'add_expense', ...expenseData })
         const tempExpense = {
           ...expenseData,

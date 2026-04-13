@@ -53,16 +53,31 @@ async function processItem(item, user) {
   }
 
   if (type === 'add_recurring') {
-    return supabase.from('recurring_expenses').insert({
+  // Save recurring rule
+  const { error } = await supabase.from('recurring_expenses').insert({
+    user_id: user.id,
+    amount: data.amount,
+    category: data.category,
+    note: data.note,
+    frequency: data.frequency,
+    next_due: data.next_due,
+    is_active: true,
+    last_logged: data.next_due,
+  })
+
+  // Also insert first expense immediately
+  if (!error) {
+    await supabase.from('expenses').insert({
       user_id: user.id,
       amount: data.amount,
       category: data.category,
-      note: data.note,
-      frequency: data.frequency,
-      next_due: data.next_due,
-      is_active: true,
+      note: data.note || `Auto: ${data.category}`,
+      date: data.next_due,
     })
   }
+
+  return { error }
+}
 
   if (type === 'edit_expense') {
     return supabase.from('expenses').update({
