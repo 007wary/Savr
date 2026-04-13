@@ -155,14 +155,15 @@ export default function AddExpense() {
     if (isRecurring) {
   // Save recurring rule to Supabase
   await supabase.from('recurring_expenses').insert({
-    user_id: user.id,
-    amount: expenseData.amount,
-    category: expenseData.category,
-    note: expenseData.note,
-    frequency,
-    next_due: formatDate(date),
-    is_active: true,
-  })
+  user_id: user.id,
+  amount: expenseData.amount,
+  category: expenseData.category,
+  note: expenseData.note,
+  frequency,
+  next_due: formatDate(date),
+  is_active: true,
+  last_logged: expenseData.date,
+})
 
   // Also insert first expense immediately so it shows right away
   const { error: firstError } = await supabase.from('expenses').insert({

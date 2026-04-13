@@ -1,10 +1,8 @@
 import { supabase } from './supabase'
 
-const PROCESSING_KEY = 'savr_recurring_processing'
 let isProcessing = false
 
 export async function processDueRecurring(userId) {
-  // Prevent double execution
   if (isProcessing) return 0
   isProcessing = true
 
@@ -24,26 +22,9 @@ export async function processDueRecurring(userId) {
     let logged = 0
 
     for (const item of recurring) {
-      // Check if already logged today — prevent duplicates
-      const { data: existing } = await supabase
-        .from('expenses')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('date', todayStr)
-        .eq('category', item.category)
-        .eq('amount', item.amount)
-        .eq('note', item.note || `Auto: ${item.category}`)
-        .limit(1)
-
-      if (existing && existing.length > 0) {
-        // Already logged today — just update next_due
-        const nextDue = calculateNextDue(item.next_due, item.frequency)
-        await supabase
-          .from('recurring_expenses')
-          .update({ next_due: nextDue, last_logged: todayStr })
-          .eq('id', item.id)
-        continue
-      }
+      // If already logged today — skip completely
+      // This prevents re-insertion even if user deleted the expense
+      if (item.last_logged === todayStr) continue
 
       const { error } = await supabase.from('expenses').insert({
         user_id: userId,
