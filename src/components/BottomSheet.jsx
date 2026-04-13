@@ -1,4 +1,4 @@
-import { Modal, View, TouchableOpacity, StyleSheet } from 'react-native'
+import { Modal, View, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native'
 import { COLORS } from '../constants/theme'
 
 export default function BottomSheet({ visible, onClose, children, maxHeight = '85%' }) {
@@ -9,20 +9,31 @@ export default function BottomSheet({ visible, onClose, children, maxHeight = '8
       transparent
       onRequestClose={onClose}
     >
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={onClose}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <TouchableOpacity
+          style={styles.overlay}
           activeOpacity={1}
-          onPress={() => {}}
-          style={[styles.sheet, { maxHeight }]}
+          onPress={onClose}
         >
-          <View style={styles.handle} />
-          {children}
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => {}}
+            style={[styles.sheet, { maxHeight }]}
+          >
+            <View style={styles.handle} />
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              {children}
+            </ScrollView>
+          </TouchableOpacity>
         </TouchableOpacity>
-      </TouchableOpacity>
+      </KeyboardAvoidingView>
     </Modal>
   )
 }

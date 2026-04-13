@@ -114,6 +114,7 @@ export default function AddExpense() {
   }
 
   async function saveExpense(expenseData, expenseMonth, currentMonth) {
+    // ---- OFFLINE PATH ----
     if (!isOnline) {
       if (isRecurring) {
         await addToQueue({
@@ -143,15 +144,16 @@ export default function AddExpense() {
           }
         }
       }
-      router.replace('/(tabs)/dashboard')
       setSubmitting(false)
+      router.replace('/(tabs)/dashboard')
       return
     }
 
-    router.replace('/(tabs)/dashboard')
+    // ---- ONLINE PATH ----
     const user = await getUser()
 
     if (isRecurring) {
+      // Save recurring rule to Supabase
       await supabase.from('recurring_expenses').insert({
         user_id: user.id,
         amount: expenseData.amount,
@@ -161,49 +163,70 @@ export default function AddExpense() {
         next_due: formatDate(date),
         is_active: true,
       })
+      // Clear all caches so dashboard/history force fetch fresh data
+      await clearCache(`savr_cache_dashboard_${expenseMonth}`)
+      await clearCache('savr_cache_history')
+      await clearCache(`savr_cache_budgets_${expenseMonth}`)
+      await clearCache(`savr_cache_reports_${expenseMonth}`)
+
     } else {
+      // Save regular expense
       const { error } = await supabase.from('expenses').insert({
         user_id: user.id,
         ...expenseData,
       })
+
       if (error) {
-  await addToQueue({ type: 'add_expense', ...expenseData })
-} else {
-  // Clear all caches
-  await clearCache(`savr_cache_dashboard_${expenseMonth}`)
-  await clearCache('savr_cache_history')
-  await clearCache(`savr_cache_budgets_${expenseMonth}`)
-  await clearCache(`savr_cache_reports_${expenseMonth}`)
+        await addToQueue({ type: 'add_expense', ...expenseData })
+      } else {
+        // Step 1 — clear all caches
+        await clearCache(`savr_cache_dashboard_${expenseMonth}`)
+        await clearCache('savr_cache_history')
+        await clearCache(`savr_cache_budgets_${expenseMonth}`)
+        await clearCache(`savr_cache_reports_${expenseMonth}`)
 
-  // Update dashboard cache immediately with new expense
-  if (expenseMonth === currentMonth) {
-    const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
-    const dashCached = await loadCache(dashCacheKey)
-    if (dashCached) {
-      const newExpense = {
-        ...expenseData,
-        id: `temp_${Date.now()}`,
-        user_id: user.id,
-        created_at: new Date().toISOString(),
-      }
-      await saveCache(dashCacheKey, {
-        ...dashCached,
-        expenses: [newExpense, ...dashCached.expenses],
-      })
-    }
-  }
+        // Step 2 — build temp expense object
+        const newExpense = {
+          ...expenseData,
+          id: `temp_${Date.now()}`,
+          user_id: user.id,
+          created_at: new Date().toISOString(),
+        }
 
-  // Check budget alerts in background
-  supabase.from('expenses').select('*').eq('user_id', user.id).then(({ data: allExpenses }) => {
-    supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', expenseMonth).then(({ data: budgets }) => {
-      if (allExpenses && budgets && budgets.length > 0) {
-        checkBudgetAlerts(allExpenses, budgets, expenseMonth)
+        // Step 3 — update dashboard cache immediately
+        if (expenseMonth === currentMonth) {
+          const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
+          const dashCached = await loadCache(dashCacheKey)
+          if (dashCached) {
+            await saveCache(dashCacheKey, {
+              ...dashCached,
+              expenses: [newExpense, ...dashCached.expenses],
+            })
+          }
+        }
+
+        // Step 4 — update history cache immediately
+        const historyCached = await loadCache('savr_cache_history') || []
+        await saveCache('savr_cache_history', [newExpense, ...historyCached])
+
+        // Step 5 — check budget alerts in background
+        supabase.from('expenses').select('*').eq('user_id', user.id)
+          .then(({ data: allExpenses }) => {
+            supabase.from('budgets').select('*')
+              .eq('user_id', user.id)
+              .eq('month', expenseMonth)
+              .then(({ data: budgets }) => {
+                if (allExpenses && budgets && budgets.length > 0) {
+                  checkBudgetAlerts(allExpenses, budgets, expenseMonth)
+                }
+              })
+          })
       }
-    })
-  })
-}
     }
+
+    // Navigate LAST — after all cache updates complete
     setSubmitting(false)
+    router.replace('/(tabs)/dashboard')
   }
 
   async function handleAdd() {
@@ -233,7 +256,6 @@ export default function AddExpense() {
       try {
         const historyCached = await loadCache('savr_cache_history') || []
         const anomaly = detectAnomaly(expenseData.amount, selectedCategory, historyCached)
-
         if (anomaly) {
           resetForm()
           setSubmitting(false)
@@ -253,9 +275,7 @@ export default function AddExpense() {
           )
           return
         }
-      } catch {
-        // If anomaly check fails, proceed normally
-      }
+      } catch {}
     }
 
     resetForm()
@@ -280,7 +300,6 @@ export default function AddExpense() {
           keyboardType="numeric"
         />
 
-        {/* Currency-aware quick amounts */}
         <View style={styles.quickAmounts}>
           {quickAmounts.map(q => (
             <TouchableOpacity
@@ -295,7 +314,6 @@ export default function AddExpense() {
           ))}
         </View>
 
-        {/* Note */}
         <Text style={styles.label}>Note (optional)</Text>
         <View style={styles.noteContainer}>
           <TextInput
@@ -316,7 +334,6 @@ export default function AddExpense() {
           )}
         </View>
 
-        {/* Category */}
         <View style={styles.categoryHeader}>
           <Text style={styles.label}>Category</Text>
           {autoDetected && (
