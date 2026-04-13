@@ -20,9 +20,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     async function init() {
-      await clearExpiredCache()
-
-      const done = await AsyncStorage.getItem('savr_onboarding_done')
+  // Run cache cleanup in background — don't block startup
+  clearExpiredCache().catch(() => {})
+  const done = await AsyncStorage.getItem('savr_onboarding_done')
       setOnboardingDone(done === 'true')
 
       const timeout = setTimeout(() => {
@@ -54,8 +54,8 @@ export default function RootLayout() {
           }
 
           SplashScreen.hideAsync()
-          processDueRecurring(cachedSession.user.id)
-          import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+// Only process recurring on fresh login not on every app open
+import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
         } else {
           clearTimeout(timeout)
           setSession(null)

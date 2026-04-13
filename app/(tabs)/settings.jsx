@@ -414,10 +414,14 @@ export default function Settings() {
 
       {/* Profile Edit Bottom Sheet */}
       <BottomSheet
-        visible={profileModalVisible}
-        onClose={() => setProfileModalVisible(false)}
-      >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+  visible={profileModalVisible}
+  onClose={() => setProfileModalVisible(false)}
+>
+  <KeyboardAvoidingView
+    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    keyboardVerticalOffset={100}
+  >
+    <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Edit Profile</Text>
             <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
@@ -457,6 +461,7 @@ export default function Settings() {
           >
             <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Profile'}</Text>
           </TouchableOpacity>
+          </ScrollView>
         </KeyboardAvoidingView>
       </BottomSheet>
 

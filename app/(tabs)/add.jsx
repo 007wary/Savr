@@ -167,20 +167,41 @@ export default function AddExpense() {
         ...expenseData,
       })
       if (error) {
-        await addToQueue({ type: 'add_expense', ...expenseData })
-      } else {
-        await clearCache(`savr_cache_dashboard_${expenseMonth}`)
-        await clearCache('savr_cache_history')
-        await clearCache(`savr_cache_budgets_${expenseMonth}`)
-        await clearCache(`savr_cache_reports_${expenseMonth}`)
-        const [{ data: allExpenses }, { data: budgets }] = await Promise.all([
-          supabase.from('expenses').select('*').eq('user_id', user.id),
-          supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', expenseMonth)
-        ])
-        if (allExpenses && budgets && budgets.length > 0) {
-          checkBudgetAlerts(allExpenses, budgets, expenseMonth)
-        }
+  await addToQueue({ type: 'add_expense', ...expenseData })
+} else {
+  // Clear all caches
+  await clearCache(`savr_cache_dashboard_${expenseMonth}`)
+  await clearCache('savr_cache_history')
+  await clearCache(`savr_cache_budgets_${expenseMonth}`)
+  await clearCache(`savr_cache_reports_${expenseMonth}`)
+
+  // Update dashboard cache immediately with new expense
+  if (expenseMonth === currentMonth) {
+    const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
+    const dashCached = await loadCache(dashCacheKey)
+    if (dashCached) {
+      const newExpense = {
+        ...expenseData,
+        id: `temp_${Date.now()}`,
+        user_id: user.id,
+        created_at: new Date().toISOString(),
       }
+      await saveCache(dashCacheKey, {
+        ...dashCached,
+        expenses: [newExpense, ...dashCached.expenses],
+      })
+    }
+  }
+
+  // Check budget alerts in background
+  supabase.from('expenses').select('*').eq('user_id', user.id).then(({ data: allExpenses }) => {
+    supabase.from('budgets').select('*').eq('user_id', user.id).eq('month', expenseMonth).then(({ data: budgets }) => {
+      if (allExpenses && budgets && budgets.length > 0) {
+        checkBudgetAlerts(allExpenses, budgets, expenseMonth)
+      }
+    })
+  })
+}
     }
     setSubmitting(false)
   }
