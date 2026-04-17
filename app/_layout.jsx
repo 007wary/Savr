@@ -75,29 +75,42 @@ export default function RootLayout() {
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
-  router.replace('/(tabs)/dashboard')
+        router.replace('/(tabs)/dashboard')
 
-  try {
-    requestNotificationPermission()
-    if (session?.user) {
-      processDueRecurring(session.user.id)
-    }
-    import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
-
-    // Auto backup to Google Drive in background
-    setTimeout(() => {
-      import('../src/services/driveBackupService').then(({ backupToDrive }) => {
-        backupToDrive().then(result => {
-          if (result.success) {
-            console.log('Auto backup successful:', result.backedUpAt)
-          } else {
-            console.log('Auto backup skipped:', result.error)
+        try {
+          requestNotificationPermission()
+          if (session?.user) {
+            processDueRecurring(session.user.id)
           }
-        }).catch(() => {})
-      }).catch(() => {})
-    }, 5000) // 5 second delay so app loads first
-  } catch {}
-}
+          import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+
+          // Auto backup / restore logic
+          setTimeout(async () => {
+            try {
+              const { backupToDrive, checkBackupExists } = await import('../src/services/driveBackupService')
+              const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
+              const { getExpenses } = await import('../src/services/sqliteService')
+
+              const user = session?.user
+              if (!user) return
+
+              const localExpenses = await getExpenses(user.id)
+              const hasLocalData = localExpenses.length > 0
+              const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
+
+              if (!hasLocalData && !restoreOffered) {
+                const backupInfo = await checkBackupExists()
+                if (backupInfo?.exists) {
+                  await AsyncStorageModule.setItem('savr_restore_offered', 'true')
+                  await AsyncStorageModule.setItem('savr_pending_restore', 'true')
+                }
+              } else {
+                backupToDrive().catch(() => {})
+              }
+            } catch {}
+          }, 5000)
+        } catch {}
+      }
 
       if (event === 'SIGNED_OUT') {
         await clearAllCache()

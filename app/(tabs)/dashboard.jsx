@@ -156,6 +156,40 @@ export default function Dashboard() {
       }
 
       if (monthOffset === 0) checkWeeklySummary(filtered)
+
+      // Check if restore is pending (fresh install with existing backup)
+      try {
+        const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
+        const pendingRestore = await AsyncStorageModule.getItem('savr_pending_restore')
+        if (pendingRestore === 'true') {
+          await AsyncStorageModule.removeItem('savr_pending_restore')
+          setTimeout(() => {
+            import('../../src/services/driveBackupService').then(({ restoreFromDrive }) => {
+              const { Alert } = require('react-native')
+              Alert.alert(
+                '☁️ Backup Found!',
+                'We found a Savr backup in your Google Drive. Would you like to restore your data?',
+                [
+                  { text: 'Skip', style: 'cancel' },
+                  {
+                    text: 'Restore',
+                    onPress: async () => {
+                      const result = await restoreFromDrive()
+                      if (result.success) {
+                        Alert.alert('✅ Restored!', `${result.expenseCount} expenses restored successfully.`)
+                        fetchData(true)
+                      } else {
+                        Alert.alert('Failed', result.error || 'Restore failed.')
+                      }
+                    }
+                  }
+                ]
+              )
+            }).catch(() => {})
+          }, 1000)
+        }
+      } catch {}
+
     } catch (e) {
       console.error('Dashboard sync error:', e)
     } finally {
