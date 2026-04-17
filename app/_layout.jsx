@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../src/lib/supabase'
 import { View } from 'react-native'
 import { COLORS } from '../src/constants/theme'
@@ -17,6 +17,7 @@ SplashScreen.preventAutoHideAsync()
 export default function RootLayout() {
   const [session, setSession] = useState(undefined)
   const [onboardingDone, setOnboardingDone] = useState(undefined)
+const recurringProcessedRef = useRef(false)
   const router = useRouter()
   const segments = useSegments()
 
@@ -100,7 +101,11 @@ export default function RootLayout() {
           try {
             requestNotificationPermission()
             if (session?.user) {
-              processDueRecurring(session.user.id)
+  // Guard against duplicate processing on multiple SIGNED_IN events
+  if (!recurringProcessedRef.current) {
+    recurringProcessedRef.current = true
+    processDueRecurring(session.user.id)
+  }
 
               // Sync user profile to Supabase
               import('../src/lib/userProfile').then(({ syncUserProfile }) => {
