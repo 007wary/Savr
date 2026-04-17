@@ -15,6 +15,7 @@
     ul li { margin-bottom: 6px; }
     a { color: #6C63FF; }
     strong { color: #fff; }
+    .highlight { background: #1a1a2e; border-left: 3px solid #6C63FF; padding: 12px 16px; border-radius: 0 8px 8px 0; margin-bottom: 16px; }
     .footer { margin-top: 60px; padding-top: 24px; border-top: 1px solid #2A2A2A; color: #555; font-size: 13px; }
   </style>
 </head>
@@ -22,72 +23,116 @@
   <h1>Savr</h1>
   <p class="subtitle">Privacy Policy · Effective Date: April 2026</p>
 
-  <p>At Savr, we are committed to protecting your personal information. This policy explains how we collect, use and protect your data.</p>
+  <div class="highlight">
+    <p style="color: #fff;"><strong>Summary:</strong> Your financial data never leaves your device. It is stored locally and backed up only to your own Google Drive. We never store your expenses on our servers.</p>
+  </div>
 
-  <h2>1. Information We Collect</h2>
+  <p>At Savr, your privacy is our highest priority. This policy explains exactly what data we collect, where it is stored, and how it is used.</p>
+
+  <h2>1. Data Storage Architecture</h2>
+  <p>Savr uses a privacy-first architecture:</p>
   <ul>
-    <li>Email address and password when you register</li>
-    <li>Display name and phone number if you provide them</li>
+    <li><strong>All financial data</strong> (expenses, budgets, recurring expenses, spending goals) is stored <strong>locally on your device</strong> using SQLite — it never touches our servers</li>
+    <li><strong>Backups</strong> are stored in your own <strong>Google Drive</strong> account — only you can access them</li>
+    <li><strong>Authentication</strong> is handled by Supabase using Google Sign In — we store only your identity, not your financial data</li>
+  </ul>
+
+  <h2>2. Information We Collect</h2>
+  <p><strong>Stored on your device only:</strong></p>
+  <ul>
     <li>Expense amounts, categories, notes and dates</li>
     <li>Budget limits and recurring expense settings</li>
-    <li>Device type and OS version for support purposes</li>
-    <li>Device identifiers used by Google AdMob for advertising</li>
+    <li>Spending goals</li>
+    <li>App preferences (currency, notification settings)</li>
+  </ul>
+  <p><strong>Stored on our servers (Supabase) for account management only:</strong></p>
+  <ul>
+    <li>Email address (from Google Sign In)</li>
+    <li>Full name and profile picture (from Google Sign In)</li>
+    <li>Phone number (only if you voluntarily add it in Settings)</li>
+    <li>Device model and Android version (for support and analytics)</li>
+    <li>App version installed</li>
+    <li>Last active timestamp</li>
+  </ul>
+  <p><strong>Stored in your Google Drive:</strong></p>
+  <ul>
+    <li>Encrypted backup of your expense data in a private Savr folder</li>
+    <li>Only accessible by you and the Savr app</li>
   </ul>
 
-  <h2>2. How We Use Your Information</h2>
+  <h2>3. Google Drive Backup</h2>
+  <p>Savr automatically backs up your data to a <strong>Savr</strong> folder in your Google Drive. This backup:</p>
   <ul>
-    <li>Provide and maintain the app and its features</li>
-    <li>Sync your data securely using Supabase cloud infrastructure</li>
-    <li>Send local notifications such as budget alerts and reminders</li>
-    <li>Display advertisements via Google AdMob to keep the app free</li>
-    <li>Comply with legal obligations</li>
+    <li>Is stored in your personal Google Drive account</li>
+    <li>Is only accessible by you and the Savr app</li>
+    <li>Contains your expenses, budgets, recurring expenses, and goals</li>
+    <li>Is used to restore your data when you reinstall the app or switch devices</li>
+    <li>Can be deleted at any time by deleting the Savr folder from your Google Drive</li>
+  </ul>
+  <p>We use the <strong>drive.file</strong> scope which only allows Savr to access files it creates — we cannot access any other files in your Google Drive.</p>
+
+  <h2>4. Advertising</h2>
+  <p>Savr displays advertisements powered by <strong>Google AdMob</strong> to keep the app free.</p>
+  <p><strong>We will never sell your personal or financial data to advertisers.</strong> Your expense data is never shared with advertisers.</p>
+  <p>Google AdMob may use device identifiers to show relevant ads. You can opt out of personalized ads through your device settings under <strong>Google → Ads → Opt out of Ads Personalization</strong>.</p>
+  <p>For more information, visit <a href="https://policies.google.com/privacy">Google's Privacy Policy</a>.</p>
+
+  <h2>5. How We Use Your Information</h2>
+  <ul>
+    <li>Authenticate your identity via Google Sign In</li>
+    <li>Restore your data when you reinstall or switch devices</li>
+    <li>Send local notifications such as budget alerts and weekly summaries</li>
+    <li>Display advertisements via Google AdMob</li>
+    <li>Understand app usage patterns to improve Savr (using anonymized analytics)</li>
+    <li>Provide customer support</li>
   </ul>
 
-  <h2>3. Advertising</h2>
-  <p>Savr displays advertisements powered by <strong>Google AdMob</strong> to keep the app free. By using the app you consent to the display of advertisements.</p>
-  <p><strong>We will never sell your personal data</strong> to advertisers. Your financial data is never shared with advertisers.</p>
-  <p>Google AdMob may use device identifiers and cookies to show relevant ads. You can opt out of personalized ads through your device settings under <strong>Google → Ads → Opt out of Ads Personalization</strong>.</p>
-  <p>For more information on how Google uses data, visit <a href="https://policies.google.com/privacy">Google's Privacy Policy</a>.</p>
-
-  <h2>4. Data Sharing</h2>
-  <p>We do not sell your personal data. We may share information only with:</p>
+  <h2>6. Data Sharing</h2>
+  <p>We do not sell your personal data. We share information only with:</p>
   <ul>
-    <li>Supabase — stores and manages your data securely on our behalf</li>
-    <li>Google AdMob — serves advertisements within the app</li>
-    <li>Legal authorities — if required by law or court order</li>
-    <li>Business successors — in case of merger or acquisition, with prior notice</li>
+    <li><strong>Supabase</strong> — stores your account profile (not financial data) securely on our behalf</li>
+    <li><strong>Google Drive</strong> — stores your backup in your own account</li>
+    <li><strong>Google AdMob</strong> — serves advertisements within the app</li>
+    <li><strong>Legal authorities</strong> — if required by law or court order</li>
   </ul>
 
-  <h2>5. Third Party Services</h2>
-  <p>Savr uses the following third party services:</p>
+  <h2>7. Third Party Services</h2>
   <ul>
-    <li><strong>Supabase</strong> — secure cloud database for storing your expense data. <a href="https://supabase.com/privacy">Privacy Policy</a></li>
+    <li><strong>Supabase</strong> — account authentication and profile storage. <a href="https://supabase.com/privacy">Privacy Policy</a></li>
+    <li><strong>Google Sign In</strong> — authentication service. <a href="https://policies.google.com/privacy">Privacy Policy</a></li>
+    <li><strong>Google Drive API</strong> — backup storage in your personal Drive. <a href="https://policies.google.com/privacy">Privacy Policy</a></li>
     <li><strong>Google AdMob</strong> — advertisement service. <a href="https://policies.google.com/privacy">Privacy Policy</a></li>
-    <li><strong>Google Sign In</strong> — optional authentication service. <a href="https://policies.google.com/privacy">Privacy Policy</a></li>
   </ul>
 
-  <h2>6. Data Security</h2>
-  <p>Your data is protected with encrypted HTTPS transmission and row-level security in our database, ensuring only you can access your personal data.</p>
-
-  <h2>7. Data Retention</h2>
-  <p>We retain your data as long as your account is active. To delete your account and all associated data, contact us at <a href="mailto:007mwnswrangwary@gmail.com">007mwnswrangwary@gmail.com</a>.</p>
-
-  <h2>8. Children's Privacy</h2>
-  <p>Savr is not intended for users under the age of 13. We do not knowingly collect data from children under 13.</p>
-
-  <h2>9. Your Rights</h2>
+  <h2>8. Data Security</h2>
   <ul>
-    <li>Access and download your data using CSV export in the app</li>
-    <li>Request correction of inaccurate data</li>
-    <li>Request deletion of your account and all associated data</li>
-    <li>Opt out of personalized ads via device settings</li>
+    <li>Financial data is stored locally on your device — never transmitted to our servers</li>
+    <li>All network communications use encrypted HTTPS/TLS</li>
+    <li>Supabase uses row-level security ensuring only you can access your profile</li>
+    <li>Google Drive backup is protected by your Google account security</li>
   </ul>
 
-  <h2>10. Changes to This Policy</h2>
-  <p>We may update this policy from time to time. We will notify you of any material changes through the app.</p>
+  <h2>9. Data Retention</h2>
+  <p>Your financial data lives on your device and in your Google Drive — you control it completely. Your account profile on our servers is retained as long as your account is active.</p>
+  <p>To delete your account and all associated server-side data, visit our <a href="https://007wary.github.io/savr/delete-account.html">Delete Account page</a> or contact us at <a href="mailto:007mwnswrangwary@gmail.com">007mwnswrangwary@gmail.com</a>. We will respond within 30 days.</p>
 
-  <h2>11. Contact Us</h2>
-  <p>If you have any questions about this privacy policy, please contact us:</p>
+  <h2>10. Children's Privacy</h2>
+  <p>Savr is not intended for users under the age of 13. We do not knowingly collect data from children under 13. If we become aware of such data, we will delete it promptly.</p>
+
+  <h2>11. Your Rights</h2>
+  <ul>
+    <li><strong>Access</strong> — all your financial data is on your device and accessible at any time</li>
+    <li><strong>Export</strong> — export your data as CSV from the History screen</li>
+    <li><strong>Backup</strong> — back up and restore your data via Google Drive</li>
+    <li><strong>Correction</strong> — edit any expense or profile data directly in the app</li>
+    <li><strong>Deletion</strong> — delete your account and all server-side data at any time</li>
+    <li><strong>Opt out of ads</strong> — opt out of personalized ads via device settings</li>
+  </ul>
+
+  <h2>12. Changes to This Policy</h2>
+  <p>We may update this policy from time to time. We will notify you of any material changes through the app. The effective date at the top of this page will always reflect the latest version.</p>
+
+  <h2>13. Contact Us</h2>
   <ul>
     <li>App: Savr</li>
     <li>Developer: Mwnswrang Wary</li>
