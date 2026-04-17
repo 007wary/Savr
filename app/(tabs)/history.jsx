@@ -50,7 +50,6 @@ export default function History() {
     const code = await loadCurrency()
     setCurrencySymbol(symbol)
     setCurrencyCode(code)
-
     if (!forceRefresh) {
       const cached = await loadCache(CACHE_KEY)
       if (cached) {
@@ -59,7 +58,6 @@ export default function History() {
         return
       }
     }
-
     await loadFromSQLite()
   }
 
@@ -149,24 +147,15 @@ export default function History() {
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-          // Update local state immediately
           const updated = (expenses || []).filter(e => e.id !== id)
           setExpenses(updated)
           await saveCache(CACHE_KEY, updated)
           await updateDashboardCache(updated)
-
-          // Clear other caches
           const now = new Date()
           const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
           await clearCache(`savr_cache_budgets_${currentMonth}`)
           await clearCache(`savr_cache_reports_${currentMonth}`)
-
-          // Delete from SQLite
-          try {
-            await deleteExpense(id)
-          } catch (e) {
-            console.error('Delete error:', e)
-          }
+          try { await deleteExpense(id) } catch (e) { console.error('Delete error:', e) }
         }
       }
     ])
@@ -186,7 +175,6 @@ export default function History() {
       return showAlert('Invalid', 'Please enter a valid amount')
     }
     setSaving(true)
-
     const updatedExpense = {
       ...editingExpense,
       amount: parseFloat(editAmount),
@@ -194,22 +182,17 @@ export default function History() {
       note: editNote.trim(),
       date: editDate,
     }
-
     const updated = sortExpenses((expenses || []).map(e =>
       e.id === editingExpense.id ? updatedExpense : e
     ))
     setExpenses(updated)
     await saveCache(CACHE_KEY, updated)
     await updateDashboardCache(updated)
-
     const now = new Date()
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
     await clearCache(`savr_cache_budgets_${currentMonth}`)
     await clearCache(`savr_cache_reports_${currentMonth}`)
-
     setEditingExpense(null)
-
-    // Save to SQLite
     try {
       await updateExpense(editingExpense.id, {
         amount: parseFloat(editAmount),
@@ -217,22 +200,15 @@ export default function History() {
         note: editNote.trim(),
         date: editDate,
       })
-    } catch (e) {
-      console.error('Edit error:', e)
-    }
-
+    } catch (e) { console.error('Edit error:', e) }
     setSaving(false)
   }
 
   async function handleExport() {
     try {
-      if (!expenses || expenses.length === 0) {
-        return showAlert('No data', 'No expenses to export')
-      }
+      if (!expenses || expenses.length === 0) return showAlert('No data', 'No expenses to export')
       const headers = 'Date,Category,Amount,Note\n'
-      const rows = expenses.map(e =>
-        `${e.date},${e.category},${e.amount},"${e.note || ''}"`
-      ).join('\n')
+      const rows = expenses.map(e => `${e.date},${e.category},${e.amount},"${e.note || ''}"`).join('\n')
       const fileUri = FileSystem.cacheDirectory + 'expenses.csv'
       await FileSystem.writeAsStringAsync(fileUri, headers + rows, { encoding: 'utf8' })
       const isAvailable = await Sharing.isAvailableAsync()
@@ -247,7 +223,7 @@ export default function History() {
   }
 
   function getCategoryInfo(label) {
-    return CATEGORIES.find(c => c.label === label) || { icon: '📦', color: '#888' }
+    return CATEGORIES.find(c => c.label === label) || { icon: 'grid-outline', color: '#888' }
   }
 
   function renderSectionHeader({ section }) {
@@ -264,7 +240,7 @@ export default function History() {
     return (
       <TouchableOpacity style={styles.card} onPress={() => openEdit(item)}>
         <View style={[styles.iconBox, { backgroundColor: cat.color + '22' }]}>
-          <Text style={styles.icon}>{cat.icon}</Text>
+          <Ionicons name={cat.icon} size={20} color={cat.color} />
         </View>
         <View style={styles.info}>
           <Text style={styles.category}>{item.category}</Text>
@@ -376,16 +352,25 @@ export default function History() {
         <ScrollView>
           <Text style={styles.filterLabel}>Category</Text>
           <View style={styles.filterGrid}>
-            {['All', ...CATEGORIES.map(c => c.label)].map(cat => (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.filterChip, selectedCategory === cat && styles.filterChipActive]}
-                onPress={() => setSelectedCategory(cat)}
-              >
-                {cat !== 'All' && <Text style={{ fontSize: 14 }}>{CATEGORIES.find(c => c.label === cat)?.icon}</Text>}
-                <Text style={[styles.filterChipText, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
-              </TouchableOpacity>
-            ))}
+            {['All', ...CATEGORIES.map(c => c.label)].map(cat => {
+              const catInfo = CATEGORIES.find(c => c.label === cat)
+              return (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.filterChip, selectedCategory === cat && styles.filterChipActive]}
+                  onPress={() => setSelectedCategory(cat)}
+                >
+                  {cat !== 'All' && catInfo && (
+                    <Ionicons
+                      name={catInfo.icon}
+                      size={14}
+                      color={selectedCategory === cat ? '#fff' : catInfo.color}
+                    />
+                  )}
+                  <Text style={[styles.filterChipText, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
+                </TouchableOpacity>
+              )
+            })}
           </View>
           <Text style={styles.filterLabel}>Month</Text>
           <View style={styles.filterGrid}>
@@ -441,7 +426,11 @@ export default function History() {
                 onPress={() => setEditCategory(cat.label)}
               >
                 <View style={[styles.categoryIconBox, { backgroundColor: editCategory === cat.label ? cat.color : COLORS.cardAlt }]}>
-                  <Text style={styles.categoryIcon}>{cat.icon}</Text>
+                  <Ionicons
+                    name={cat.icon}
+                    size={18}
+                    color={editCategory === cat.label ? '#fff' : cat.color}
+                  />
                 </View>
                 <Text style={[styles.categoryLabel, editCategory === cat.label && { color: COLORS.text, fontWeight: '700' }]}>
                   {cat.label}
@@ -522,7 +511,6 @@ const styles = StyleSheet.create({
   sectionHeaderTotal: { fontSize: 13, fontWeight: '800', color: COLORS.text },
   card: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border },
   iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  icon: { fontSize: 20 },
   info: { flex: 1 },
   category: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2 },
   note: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
@@ -548,7 +536,6 @@ const styles = StyleSheet.create({
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
   categoryBtn: { width: '22%', alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt, gap: 8 },
   categoryIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  categoryIcon: { fontSize: 20 },
   categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
   modalBtns: { flexDirection: 'row', gap: 12, marginTop: 8, marginBottom: 20 },
   cancelBtn: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },

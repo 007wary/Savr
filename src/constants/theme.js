@@ -12,15 +12,16 @@ export const COLORS = {
 }
 
 export const CATEGORIES = [
-  { label: 'Food',          icon: '🍔', color: '#FF6B6B' },
-  { label: 'Transport',     icon: '🚗', color: '#4ECDC4' },
-  { label: 'Shopping',      icon: '🛍️', color: '#FFB800' },
-  { label: 'Bills',         icon: '💡', color: '#6C63FF' },
-  { label: 'Health',        icon: '💊', color: '#00D9A5' },
-  { label: 'Entertainment', icon: '🎬', color: '#FF8C42' },
-  { label: 'Education',     icon: '📚', color: '#5B9BD5' },
-  { label: 'Other',         icon: '📦', color: '#888888' },
+  { label: 'Food',          icon: 'restaurant-outline',   color: '#FF6B6B' },
+  { label: 'Transport',     icon: 'car-outline',          color: '#4ECDC4' },
+  { label: 'Shopping',      icon: 'bag-handle-outline',   color: '#FFB800' },
+  { label: 'Bills',         icon: 'receipt-outline',      color: '#6C63FF' },
+  { label: 'Health',        icon: 'medical-outline',      color: '#00D9A5' },
+  { label: 'Entertainment', icon: 'film-outline',         color: '#FF8C42' },
+  { label: 'Education',     icon: 'book-outline',         color: '#5B9BD5' },
+  { label: 'Other',         icon: 'grid-outline',         color: '#888888' },
 ]
+
 export const CURRENCIES = [
   { code: 'AUD', symbol: 'A$', name: 'Australian Dollar', flag: '🇦🇺' },
   { code: 'BDT', symbol: '৳', name: 'Bangladeshi Taka', flag: '🇧🇩' },

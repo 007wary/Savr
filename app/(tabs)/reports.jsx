@@ -52,14 +52,11 @@ export default function Reports() {
 
   useFocusEffect(useCallback(() => {
     fetchData()
-
     if (adShownRef.current) return
     adShownRef.current = true
-
     let interstitial = null
     let unsubLoaded = null
     let unsubError = null
-
     try {
       interstitial = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID)
       unsubLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
@@ -68,7 +65,6 @@ export default function Reports() {
       unsubError = interstitial.addAdEventListener(AdEventType.ERROR, () => {})
       interstitial.load()
     } catch {}
-
     return () => {
       try {
         if (unsubLoaded) unsubLoaded()
@@ -82,7 +78,6 @@ export default function Reports() {
     const code = await loadCurrency()
     setCurrencySymbol(symbol)
     setCurrencyCode(code)
-
     if (!forceRefresh) {
       const cached = await loadCache(CACHE_KEY)
       if (cached) {
@@ -94,40 +89,27 @@ export default function Reports() {
         return
       }
     }
-
     await loadFromSQLite()
   }
 
   async function loadFromSQLite() {
     try {
       const user = await getUser()
-
-      // Get all expenses from SQLite
       const allData = await getExpenses(user.id)
-
       const freshNow = new Date()
       const freshYear = freshNow.getFullYear()
       const freshMonth = freshNow.getMonth() + 1
       const freshCurrentMonth = `${freshYear}-${String(freshMonth).padStart(2, '0')}`
-
       const lastMonthDate = new Date(freshYear, freshMonth - 2, 1)
       const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
-
       const sixMonthsAgo = new Date(freshYear, freshMonth - 7, 1)
-
       const currentData = allData.filter(e => e.date.startsWith(freshCurrentMonth))
       const lastMonthData = allData.filter(e => e.date.startsWith(lastMonthKey))
       const sixMonthData = allData.filter(e => new Date(e.date) >= sixMonthsAgo)
-
       setExpenses(currentData)
       setLastMonthExpenses(lastMonthData)
       setAllExpenses(sixMonthData)
-
-      await saveCache(CACHE_KEY, {
-        expenses: currentData,
-        lastMonthExpenses: lastMonthData,
-        allExpenses: sixMonthData,
-      })
+      await saveCache(CACHE_KEY, { expenses: currentData, lastMonthExpenses: lastMonthData, allExpenses: sixMonthData })
     } catch (e) {
       console.error('Reports load error:', e)
     } finally {
@@ -150,9 +132,7 @@ export default function Reports() {
   }).filter(c => c.total > 0).sort((a, b) => b.total - a.total)
 
   const dailyMap = {}
-  expenses.forEach(e => {
-    dailyMap[e.date] = (dailyMap[e.date] || 0) + parseFloat(e.amount)
-  })
+  expenses.forEach(e => { dailyMap[e.date] = (dailyMap[e.date] || 0) + parseFloat(e.amount) })
 
   const last7 = []
   for (let i = 6; i >= 0; i--) {
@@ -258,14 +238,16 @@ export default function Reports() {
             <View style={[styles.miniCard, { marginRight: 0 }]}>
               <Text style={styles.miniLabel}>TOP CATEGORY</Text>
               <Text style={styles.miniValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                {categoryTotals[0] ? `${categoryTotals[0].icon} ${categoryTotals[0].label}` : 'N/A'}
+                {categoryTotals[0] ? categoryTotals[0].label : 'N/A'}
               </Text>
             </View>
           </ScrollView>
 
           {streak > 0 && (
             <View style={styles.streakCard}>
-              <Text style={styles.streakEmoji}>🔥</Text>
+              <View style={styles.streakIconBox}>
+                <Ionicons name="flame-outline" size={22} color="#FF8C42" />
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.streakTitle}>{streak} Day Streak!</Text>
                 <Text style={styles.streakSub}>You've logged expenses {streak} day{streak > 1 ? 's' : ''} in a row</Text>
@@ -296,7 +278,13 @@ export default function Reports() {
             const isMore = diff > 0
             return (
               <View style={[styles.compareCard, { borderColor: isMore ? COLORS.accentRed + '44' : COLORS.accentGreen + '44' }]}>
-                <Text style={styles.compareIcon}>{isMore ? '📈' : '📉'}</Text>
+                <View style={[styles.compareIconBox, { backgroundColor: isMore ? COLORS.accentRed + '22' : COLORS.accentGreen + '22' }]}>
+                  <Ionicons
+                    name={isMore ? 'trending-up-outline' : 'trending-down-outline'}
+                    size={22}
+                    color={isMore ? COLORS.accentRed : COLORS.accentGreen}
+                  />
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.compareTitle}>VS LAST MONTH</Text>
                   <Text style={styles.compareText}>
@@ -403,7 +391,7 @@ export default function Reports() {
               <View key={cat.label}>
                 <TouchableOpacity style={styles.catRow} onPress={() => setExpandedCategory(expandedCategory === cat.label ? null : cat.label)} activeOpacity={0.7}>
                   <View style={[styles.catIcon, { backgroundColor: cat.color + '22' }]}>
-                    <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
+                    <Ionicons name={cat.icon} size={18} color={cat.color} />
                   </View>
                   <View style={styles.catInfo}>
                     <View style={styles.catTopRow}>
@@ -441,7 +429,9 @@ export default function Reports() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Top Merchant</Text>
               <View style={styles.merchantCard}>
-                <Text style={styles.merchantEmoji}>🪟</Text>
+                <View style={styles.merchantIconBox}>
+                  <Ionicons name="storefront-outline" size={22} color={COLORS.accent} />
+                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.merchantName}>{topNote[0].charAt(0).toUpperCase() + topNote[0].slice(1)}</Text>
                   <Text style={styles.merchantSub}>Appears {topNote[1]} times this month</Text>
@@ -453,12 +443,14 @@ export default function Reports() {
 
           {expenses.length > 0 && (() => {
             const biggest = [...expenses].sort((a, b) => b.amount - a.amount)[0]
-            const cat = CATEGORIES.find(c => c.label === biggest.category) || { icon: '📦', color: '#888' }
+            const cat = CATEGORIES.find(c => c.label === biggest.category) || { icon: 'grid-outline', color: '#888' }
             return (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Biggest Expense</Text>
                 <View style={styles.bigCard}>
-                  <Text style={{ fontSize: 32 }}>{cat.icon}</Text>
+                  <View style={[styles.bigIconBox, { backgroundColor: cat.color + '22' }]}>
+                    <Ionicons name={cat.icon} size={26} color={cat.color} />
+                  </View>
                   <View style={{ marginLeft: 16, flex: 1 }}>
                     <Text style={styles.bigCategory}>{biggest.category}</Text>
                     <Text style={styles.bigNote}>{biggest.note || biggest.date}</Text>
@@ -489,7 +481,7 @@ const styles = StyleSheet.create({
   miniLabel: { fontSize: 9, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8 },
   miniValue: { fontSize: 15, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
   streakCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#FF8C4244' },
-  streakEmoji: { fontSize: 32 },
+  streakIconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FF8C4222', justifyContent: 'center', alignItems: 'center' },
   streakTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   streakSub: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
   forecastCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
@@ -501,7 +493,7 @@ const styles = StyleSheet.create({
   forecastFill: { height: 6, borderRadius: 3 },
   forecastPct: { fontSize: 11, color: COLORS.textMuted },
   compareCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1 },
-  compareIcon: { fontSize: 32 },
+  compareIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   compareTitle: { fontSize: 11, color: COLORS.textMuted, marginBottom: 4, letterSpacing: 1 },
   compareText: { fontSize: 15, color: COLORS.text, lineHeight: 22 },
   compareSubtext: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
@@ -544,11 +536,12 @@ const styles = StyleSheet.create({
   expandedDate: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
   expandedAmount: { fontSize: 13, fontWeight: '700', color: COLORS.accentGreen },
   merchantCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: COLORS.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.border },
-  merchantEmoji: { fontSize: 32 },
+  merchantIconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: COLORS.accent + '22', justifyContent: 'center', alignItems: 'center' },
   merchantName: { fontSize: 16, fontWeight: '700', color: COLORS.text, textTransform: 'capitalize' },
   merchantSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   merchantCount: { fontSize: 20, fontWeight: '800', color: COLORS.accent },
   bigCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: COLORS.border },
+  bigIconBox: { width: 56, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
   bigCategory: { fontSize: 16, fontWeight: '700', color: COLORS.text, letterSpacing: -0.3 },
   bigNote: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
   bigDate: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },

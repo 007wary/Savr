@@ -93,7 +93,6 @@ export default function Dashboard() {
   async function fetchData(forceRefresh = false) {
     const cacheKey = `savr_cache_dashboard_${currentMonth}`
     setMonthLoading(true)
-
     if (!forceRefresh) {
       const cached = await loadCache(cacheKey)
       if (cached) {
@@ -109,7 +108,6 @@ export default function Dashboard() {
         return
       }
     }
-
     await syncFromSQLite(cacheKey)
   }
 
@@ -119,48 +117,32 @@ export default function Dashboard() {
       const meta = user.user_metadata?.display_name || user.user_metadata?.full_name
       const emailName = user.email.split('@')[0]
       const firstName = meta ? meta.split(' ')[0] : emailName
-
       const symbol = await getCurrencySymbol()
       const code = await loadCurrency()
-
       const lastMonthInfo = getMonthInfo(monthOffset - 1)
-
       const [currentExpenses, lastTotal] = await Promise.all([
         getExpenses(user.id, { month: currentMonth }),
         getMonthlyTotal(user.id, lastMonthInfo.month),
       ])
-
       const filtered = sortExpenses(currentExpenses)
       const now = new Date()
-      const daysElapsed = monthOffset === 0
-        ? now.getDate()
-        : new Date(currentMonth + '-01').getDate()
-
+      const daysElapsed = monthOffset === 0 ? now.getDate() : new Date(currentMonth + '-01').getDate()
       setExpenses(filtered)
       setUserName(firstName)
       setLastMonthTotal(lastTotal)
       setDaysInMonth(daysElapsed)
       setCurrencySymbol(symbol)
       setCurrencyCode(code)
-
       await saveCache(cacheKey, {
-        expenses: filtered,
-        userName: firstName,
-        lastMonthTotal: lastTotal,
-        daysInMonth: daysElapsed,
-        currencySymbol: symbol,
-        currencyCode: code,
+        expenses: filtered, userName: firstName, lastMonthTotal: lastTotal,
+        daysInMonth: daysElapsed, currencySymbol: symbol, currencyCode: code,
       })
-
       const notifAsked = await loadCache('savr_notif_asked')
       if (!notifAsked) {
         await saveCache('savr_notif_asked', true)
         setTimeout(async () => { await requestNotificationPermission() }, 2000)
       }
-
       if (monthOffset === 0) checkWeeklySummary(filtered)
-
-      // Check if restore is pending (fresh install with existing backup)
       try {
         const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
         const pendingRestore = await AsyncStorageModule.getItem('savr_pending_restore')
@@ -195,7 +177,6 @@ export default function Dashboard() {
           }, 1000)
         }
       } catch {}
-
     } catch (e) {
       console.error('Dashboard sync error:', e)
     } finally {
@@ -245,7 +226,7 @@ export default function Dashboard() {
   const goalColor = goalPercentage >= 100 ? COLORS.accentRed : goalPercentage >= 80 ? COLORS.accentYellow : COLORS.accentGreen
 
   function getCategoryInfo(label) {
-    return CATEGORIES.find(c => c.label === label) || { icon: '📦', color: '#888' }
+    return CATEGORIES.find(c => c.label === label) || { icon: 'grid-outline', color: '#888' }
   }
 
   function getGreeting() {
@@ -332,7 +313,13 @@ export default function Dashboard() {
               <>
                 <View style={styles.goalHeader}>
                   <View style={styles.goalHeaderLeft}>
-                    <Text style={styles.goalEmoji}>{goalExceeded ? '🚨' : goalPercentage >= 80 ? '⚠️' : '🎯'}</Text>
+                    <View style={[styles.goalIconBox, { backgroundColor: goalExceeded ? COLORS.accentRed + '22' : goalPercentage >= 80 ? COLORS.accentYellow + '22' : COLORS.accentGreen + '22' }]}>
+                      <Ionicons
+                        name={goalExceeded ? 'alert-circle-outline' : goalPercentage >= 80 ? 'warning-outline' : 'trophy-outline'}
+                        size={20}
+                        color={goalColor}
+                      />
+                    </View>
                     <View>
                       <Text style={styles.goalTitle}>Monthly Goal</Text>
                       <Text style={styles.goalSub}>
@@ -394,19 +381,27 @@ export default function Dashboard() {
         {expenses.length >= 3 && (() => {
           const insights = []
           const topCat = byCategory[0]
-          if (topCat) insights.push(`🏆 ${topCat.icon} ${topCat.label} is your biggest spend at ${((topCat.total / total) * 100).toFixed(0)}% of total`)
-          if (total > lastMonthTotal && lastMonthTotal > 0) insights.push(`📈 You're spending ${((total - lastMonthTotal) / lastMonthTotal * 100).toFixed(0)}% more than last month`)
-          if (total < lastMonthTotal && lastMonthTotal > 0) insights.push(`📉 Great job! You're spending ${((lastMonthTotal - total) / lastMonthTotal * 100).toFixed(0)}% less than last month`)
+          if (topCat) insights.push(`${topCat.label} is your biggest spend at ${((topCat.total / total) * 100).toFixed(0)}% of total`)
+          if (total > lastMonthTotal && lastMonthTotal > 0) insights.push(`You're spending ${((total - lastMonthTotal) / lastMonthTotal * 100).toFixed(0)}% more than last month`)
+          if (total < lastMonthTotal && lastMonthTotal > 0) insights.push(`Great job! You're spending ${((lastMonthTotal - total) / lastMonthTotal * 100).toFixed(0)}% less than last month`)
           const dailyAvg = total / Math.max(daysInMonth, 1)
-          if (dailyAvg > 500) insights.push(`💡 You're averaging ${formatAmount(dailyAvg, currencySymbol, currencyCode)}/day this month`)
-          if (byCategory.length >= 3) insights.push(`📊 You've spent across ${byCategory.length} categories this month`)
-          if (spendingGoal && !goalExceeded && goalPercentage >= 80) insights.push(`🎯 You've used ${goalPercentage.toFixed(0)}% of your monthly goal — slow down!`)
-          if (spendingGoal && goalExceeded) insights.push(`🚨 You've exceeded your monthly goal of ${formatAmount(spendingGoal, currencySymbol, currencyCode)}!`)
+          if (dailyAvg > 500) insights.push(`You're averaging ${formatAmount(dailyAvg, currencySymbol, currencyCode)}/day this month`)
+          if (byCategory.length >= 3) insights.push(`You've spent across ${byCategory.length} categories this month`)
+          if (spendingGoal && !goalExceeded && goalPercentage >= 80) insights.push(`You've used ${goalPercentage.toFixed(0)}% of your monthly goal — slow down!`)
+          if (spendingGoal && goalExceeded) insights.push(`You've exceeded your monthly goal of ${formatAmount(spendingGoal, currencySymbol, currencyCode)}!`)
           if (insights.length === 0) return null
           return (
             <View style={styles.insightsCard}>
-              <Text style={styles.insightsTitle}>💡 Insights</Text>
-              {insights.map((insight, i) => <Text key={i} style={styles.insightText}>{insight}</Text>)}
+              <View style={styles.insightsTitleRow}>
+                <Ionicons name="bulb-outline" size={16} color={COLORS.accentYellow} />
+                <Text style={styles.insightsTitle}>Insights</Text>
+              </View>
+              {insights.map((insight, i) => (
+                <View key={i} style={styles.insightRow}>
+                  <View style={styles.insightDot} />
+                  <Text style={styles.insightText}>{insight}</Text>
+                </View>
+              ))}
             </View>
           )
         })()}
@@ -417,7 +412,7 @@ export default function Dashboard() {
             {byCategory.map(cat => (
               <View key={cat.label} style={styles.categoryRow}>
                 <View style={[styles.catIconBox, { backgroundColor: cat.color + '22' }]}>
-                  <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
+                  <Ionicons name={cat.icon} size={18} color={cat.color} />
                 </View>
                 <View style={styles.catInfo}>
                   <View style={styles.catTopRow}>
@@ -441,7 +436,7 @@ export default function Dashboard() {
               return (
                 <View key={item.id} style={styles.txRow}>
                   <View style={[styles.txIcon, { backgroundColor: cat.color + '22' }]}>
-                    <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
+                    <Ionicons name={cat.icon} size={18} color={cat.color} />
                   </View>
                   <View style={styles.txInfo}>
                     <Text style={styles.txCategory}>{item.category}</Text>
@@ -475,7 +470,10 @@ export default function Dashboard() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>🎯 Monthly Spending Goal</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="flag-outline" size={20} color={COLORS.accent} />
+                <Text style={styles.modalTitle}>Monthly Spending Goal</Text>
+              </View>
               <TouchableOpacity onPress={() => setShowGoalModal(false)}>
                 <Ionicons name="close" size={22} color={COLORS.textMuted} />
               </TouchableOpacity>
@@ -536,7 +534,7 @@ const styles = StyleSheet.create({
   goalCardExceeded: { borderColor: COLORS.accentRed + '66' },
   goalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   goalHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  goalEmoji: { fontSize: 24 },
+  goalIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   goalTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
   goalSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   goalPctBadge: { backgroundColor: COLORS.cardAlt, borderRadius: 10, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: COLORS.border },
@@ -557,8 +555,11 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 16, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5, width: '100%', textAlign: 'center' },
   statDivider: { width: 1, backgroundColor: COLORS.border, marginHorizontal: 8 },
   insightsCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
-  insightsTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
-  insightText: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, lineHeight: 20 },
+  insightsTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  insightsTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  insightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 8 },
+  insightDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: COLORS.accent, marginTop: 8 },
+  insightText: { flex: 1, fontSize: 13, color: COLORS.textMuted, lineHeight: 20 },
   section: { marginBottom: 24 },
   sectionTitle: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted, marginBottom: 14, letterSpacing: 1.5, textTransform: 'uppercase' },
   categoryRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },

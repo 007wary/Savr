@@ -145,6 +145,16 @@ export default function Settings() {
     ])
   }
 
+  async function handleShareApp() {
+  try {
+    const { Share } = await import('react-native')
+    await Share.share({
+      message: `Savr — Expense Tracker & Budget Planner\n\nTrack expenses, set budgets, and get spending insights — all stored privately on your device.\n\nDownload free on Google Play:\nhttps://play.google.com/store/apps/details?id=com.saver.savr`,
+      title: 'Check out Savr!',
+    })
+  } catch {}
+}
+
   async function handleManualBackup() {
     setBackingUp(true)
     const result = await backupToDrive()
@@ -363,17 +373,32 @@ export default function Settings() {
 
         <View style={styles.divider} />
 
-        <View style={styles.row}>
-          <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#FF8C4222' }]}>
-              <Ionicons name="code-slash-outline" size={18} color='#FF8C42' />
-            </View>
-            <View>
-              <Text style={styles.rowTitle}>Developer</Text>
-              <Text style={styles.rowSubtitle}>Wary Dev.</Text>
-            </View>
-          </View>
-        </View>
+<TouchableOpacity style={styles.row} onPress={handleShareApp}>
+  <View style={styles.rowLeft}>
+    <View style={[styles.rowIcon, { backgroundColor: '#30D15822' }]}>
+      <Ionicons name="share-social-outline" size={18} color='#30D158' />
+    </View>
+    <View>
+      <Text style={styles.rowTitle}>Share Savr</Text>
+      <Text style={styles.rowSubtitle}>Invite friends to track smarter</Text>
+    </View>
+  </View>
+  <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+</TouchableOpacity>
+
+<View style={styles.divider} />
+
+<View style={styles.row}>
+  <View style={styles.rowLeft}>
+    <View style={[styles.rowIcon, { backgroundColor: '#FF8C4222' }]}>
+      <Ionicons name="code-slash-outline" size={18} color='#FF8C42' />
+    </View>
+    <View>
+      <Text style={styles.rowTitle}>Developer</Text>
+      <Text style={styles.rowSubtitle}>Wary Dev.</Text>
+    </View>
+  </View>
+</View>
       </View>
 
       {/* Account */}

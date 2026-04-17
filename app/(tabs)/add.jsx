@@ -19,9 +19,9 @@ import { checkBudgetAlerts } from '../../src/lib/notifications'
 import { addExpense, addRecurring, getExpenses, getBudgets } from '../../src/services/sqliteService'
 
 const FREQUENCIES = [
-  { label: 'Daily', value: 'daily', icon: '📅' },
-  { label: 'Weekly', value: 'weekly', icon: '📆' },
-  { label: 'Monthly', value: 'monthly', icon: '🗓️' },
+  { label: 'Daily', value: 'daily', icon: 'sunny-outline' },
+  { label: 'Weekly', value: 'weekly', icon: 'calendar-outline' },
+  { label: 'Monthly', value: 'monthly', icon: 'calendar-number-outline' },
 ]
 
 export default function AddExpense() {
@@ -90,7 +90,6 @@ export default function AddExpense() {
     const user = await getUser()
 
     if (isRecurring) {
-      // Save recurring rule to SQLite
       await addRecurring(user.id, {
         amount: expenseData.amount,
         category: expenseData.category,
@@ -98,7 +97,6 @@ export default function AddExpense() {
         frequency,
         next_due: expenseData.date,
       })
-      // Also insert first expense immediately
       await addExpense(user.id, {
         amount: expenseData.amount,
         category: expenseData.category,
@@ -107,17 +105,14 @@ export default function AddExpense() {
         is_recurring: 1,
       })
     } else {
-      // Save regular expense to SQLite
       await addExpense(user.id, expenseData)
     }
 
-    // Clear caches so screens refresh
     await clearCache(`savr_cache_dashboard_${expenseMonth}`)
     await clearCache('savr_cache_history')
     await clearCache(`savr_cache_budgets_${expenseMonth}`)
     await clearCache(`savr_cache_reports_${expenseMonth}`)
 
-    // Update dashboard cache immediately so it shows without reload
     if (expenseMonth === currentMonth) {
       const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
       const dashCached = await loadCache(dashCacheKey)
@@ -136,7 +131,6 @@ export default function AddExpense() {
       }
     }
 
-    // Update history cache immediately
     const historyCached = await loadCache('savr_cache_history') || []
     const newExpense = {
       ...expenseData,
@@ -147,13 +141,10 @@ export default function AddExpense() {
     }
     await saveCache('savr_cache_history', [newExpense, ...historyCached])
 
-    // Check budget alerts in background
     try {
       const allExpenses = await getExpenses(user.id)
       const budgets = await getBudgets(user.id, expenseMonth)
-      if (budgets.length > 0) {
-        checkBudgetAlerts(allExpenses, budgets, expenseMonth)
-      }
+      if (budgets.length > 0) checkBudgetAlerts(allExpenses, budgets, expenseMonth)
     } catch {}
 
     setSubmitting(false)
@@ -182,7 +173,6 @@ export default function AddExpense() {
       date: formatDateStr(date),
     }
 
-    // Check anomaly before saving
     if (!isRecurring) {
       try {
         const historyCached = await loadCache('savr_cache_history') || []
@@ -212,6 +202,8 @@ export default function AddExpense() {
     resetForm()
     await saveExpense(expenseData, expenseMonth, currentMonth)
   }
+
+  const selectedCat = CATEGORIES.find(c => c.label === selectedCategory)
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: COLORS.bg }}>
@@ -256,7 +248,7 @@ export default function AddExpense() {
             <View style={styles.autoDetectBadge}>
               <Ionicons name="flash" size={12} color={COLORS.accentGreen} />
               <Text style={styles.autoDetectText}>
-                Auto-detected: {CATEGORIES.find(c => c.label === selectedCategory)?.icon} {selectedCategory}
+                Auto-detected: {selectedCat && <Ionicons name={selectedCat.icon} size={12} color={COLORS.accentGreen} />} {selectedCategory}
               </Text>
             </View>
           )}
@@ -278,7 +270,11 @@ export default function AddExpense() {
               onPress={() => handleCategorySelect(cat.label)}
             >
               <View style={[styles.categoryIconBox, { backgroundColor: selectedCategory === cat.label ? cat.color : COLORS.cardAlt }]}>
-                <Text style={styles.categoryIcon}>{cat.icon}</Text>
+                <Ionicons
+                  name={cat.icon}
+                  size={20}
+                  color={selectedCategory === cat.label ? '#fff' : cat.color}
+                />
               </View>
               <Text style={[styles.categoryLabel, selectedCategory === cat.label && { color: COLORS.text, fontWeight: '700' }]}>
                 {cat.label}
@@ -334,7 +330,11 @@ export default function AddExpense() {
                   style={[styles.freqBtn, frequency === f.value && styles.freqBtnActive]}
                   onPress={() => setFrequency(f.value)}
                 >
-                  <Text style={{ fontSize: 16 }}>{f.icon}</Text>
+                  <Ionicons
+                    name={f.icon}
+                    size={16}
+                    color={frequency === f.value ? '#fff' : COLORS.textMuted}
+                  />
                   <Text style={[styles.freqLabel, frequency === f.value && { color: '#fff' }]}>{f.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -388,7 +388,6 @@ const styles = StyleSheet.create({
   categoryBtn: { width: '22%', alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, gap: 8 },
   categoryBtnAutoDetected: { borderColor: COLORS.accentGreen, backgroundColor: COLORS.accentGreen + '11' },
   categoryIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  categoryIcon: { fontSize: 22 },
   categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
   autoDetectDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.accentGreen, position: 'absolute', top: 6, right: 6 },
   datePicker: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 12, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },

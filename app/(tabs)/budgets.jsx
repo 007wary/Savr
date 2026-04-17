@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, TextInput, RefreshControl, KeyboardAvoidingView, Platform
@@ -40,7 +40,6 @@ export default function Budgets() {
     const code = await loadCurrency()
     setCurrencySymbol(symbol)
     setCurrencyCode(code)
-
     if (!forceRefresh) {
       const cached = await loadCache(CACHE_KEY)
       if (cached) {
@@ -55,7 +54,6 @@ export default function Budgets() {
         return
       }
     }
-
     await loadFromSQLite()
   }
 
@@ -66,18 +64,12 @@ export default function Budgets() {
         getBudgets(user.id, currentMonth),
         getExpenses(user.id),
       ])
-
       const filtered = allExp.filter(e => e.date.startsWith(currentMonth))
       setBudgets(budgetData)
       setExpenses(filtered)
       setAllExpenses(allExp)
       setRecommendations(generateBudgetRecommendations(allExp, CATEGORIES))
-
-      await saveCache(CACHE_KEY, {
-        budgets: budgetData,
-        expenses: filtered,
-        allExpenses: allExp,
-      })
+      await saveCache(CACHE_KEY, { budgets: budgetData, expenses: filtered, allExpenses: allExp })
     } catch (e) {
       console.error('Budgets load error:', e)
     } finally {
@@ -93,23 +85,17 @@ export default function Budgets() {
     if (!limitValue || isNaN(parseFloat(limitValue))) {
       return showAlert('Invalid', 'Please enter a valid amount')
     }
-
     setSavingBudget(true)
     const limit = parseFloat(limitValue)
-
-    // Update local state immediately
     const existing = budgets.find(b => b.category === category)
     const updatedBudgets = existing
       ? budgets.map(b => b.category === category ? { ...b, limit_amount: limit } : b)
       : [...budgets, { id: `temp_${Date.now()}`, category, limit_amount: limit, month: currentMonth }]
-
     setBudgets(updatedBudgets)
     await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses, allExpenses })
     setEditing(null)
     setInputValue('')
     setSavingBudget(false)
-
-    // Save to SQLite
     try {
       const user = await getUser()
       await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth })
@@ -121,18 +107,12 @@ export default function Budgets() {
   async function handleDeleteBudget(category) {
     const existing = budgets.find(b => b.category === category)
     if (!existing) return
-
     const updatedBudgets = budgets.filter(b => b.category !== category)
     setBudgets(updatedBudgets)
     await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses, allExpenses })
     setEditing(null)
     setInputValue('')
-
-    try {
-      await deleteBudget(existing.id)
-    } catch (e) {
-      console.error('Delete budget error:', e)
-    }
+    try { await deleteBudget(existing.id) } catch (e) { console.error('Delete budget error:', e) }
   }
 
   async function applyAllRecommendations() {
@@ -190,7 +170,9 @@ export default function Budgets() {
           >
             <View style={styles.recommendHeader}>
               <View style={styles.recommendLeft}>
-                <Text style={styles.recommendEmoji}>🤖</Text>
+                <View style={styles.recommendIconBox2}>
+                  <Ionicons name="sparkles-outline" size={20} color={COLORS.accent} />
+                </View>
                 <View>
                   <Text style={styles.recommendTitle}>Smart Budget Recommendations</Text>
                   <Text style={styles.recommendSub}>Based on your last 3 months spending</Text>
@@ -209,7 +191,7 @@ export default function Budgets() {
                     <View key={category} style={styles.recommendItem}>
                       <View style={styles.recommendItemLeft}>
                         <View style={[styles.recommendIconBox, { backgroundColor: cat.color + '22' }]}>
-                          <Text style={{ fontSize: 16 }}>{cat.icon}</Text>
+                          <Ionicons name={cat.icon} size={16} color={cat.color} />
                         </View>
                         <View>
                           <Text style={styles.recommendCatName}>{category}</Text>
@@ -248,7 +230,7 @@ export default function Budgets() {
             <View key={cat.label} style={[styles.card, isOver && styles.cardOver]}>
               <View style={styles.cardHeader}>
                 <View style={[styles.iconBox, { backgroundColor: cat.color + '22' }]}>
-                  <Text style={{ fontSize: 20 }}>{cat.icon}</Text>
+                  <Ionicons name={cat.icon} size={20} color={cat.color} />
                 </View>
                 <View style={styles.cardInfo}>
                   <Text style={styles.catName}>{cat.label}</Text>
@@ -287,7 +269,10 @@ export default function Budgets() {
               )}
 
               {isWarning && (
-                <Text style={styles.warningText}>⚠️ {(100 - percentage).toFixed(0)}% of budget remaining</Text>
+                <View style={styles.warningRow}>
+                  <Ionicons name="warning-outline" size={12} color={COLORS.accentYellow} />
+                  <Text style={styles.warningText}>{(100 - percentage).toFixed(0)}% of budget remaining</Text>
+                </View>
               )}
 
               {isOver && (
@@ -365,7 +350,7 @@ const styles = StyleSheet.create({
   recommendCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: COLORS.accent + '44' },
   recommendHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   recommendLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  recommendEmoji: { fontSize: 28 },
+  recommendIconBox2: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.accent + '22', justifyContent: 'center', alignItems: 'center' },
   recommendTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
   recommendSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   recommendDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 14 },
@@ -394,7 +379,8 @@ const styles = StyleSheet.create({
   editBtnText: { fontSize: 12, fontWeight: '600', color: COLORS.accent },
   progressBg: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, marginBottom: 6, overflow: 'hidden' },
   progressFill: { height: 6, borderRadius: 3 },
-  warningText: { fontSize: 11, color: COLORS.accentYellow, marginTop: 2, fontWeight: '600' },
+  warningRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  warningText: { fontSize: 11, color: COLORS.accentYellow, fontWeight: '600' },
   overBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.accentRed + '11', borderRadius: 8, padding: 8, marginTop: 6, borderWidth: 1, borderColor: COLORS.accentRed + '33' },
   overText: { fontSize: 12, color: COLORS.accentRed, fontWeight: '600', flex: 1 },
   inlineRecCard: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.accentYellow + '11', borderRadius: 10, padding: 10, marginTop: 8, borderWidth: 1, borderColor: COLORS.accentYellow + '33' },
