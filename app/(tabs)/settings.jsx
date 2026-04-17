@@ -18,7 +18,7 @@ import useAlert from '../../src/hooks/useAlert'
 import * as Notifications from 'expo-notifications'
 import { getUser, clearUserCache } from '../../src/lib/auth'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
-import { backupToDrive, restoreFromDrive, checkBackupExists } from '../../src/services/driveBackupService'
+import { backupToDrive, checkBackupExists } from '../../src/services/driveBackupService'
 
 const APP_VERSION = '1.0'
 const CACHE_KEY = 'savr_cache_settings'
@@ -39,7 +39,6 @@ export default function Settings() {
   const [loading, setLoading] = useState(true)
   const [lastBackup, setLastBackup] = useState(null)
   const [backingUp, setBackingUp] = useState(false)
-  const [restoring, setRestoring] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
@@ -158,34 +157,6 @@ export default function Settings() {
     } else {
       showAlert('Backup Failed', result.error || 'Something went wrong.')
     }
-  }
-
-  async function handleRestore() {
-    showAlert(
-      'Restore from Backup?',
-      'This will replace all your current data with the backup. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Restore',
-          style: 'destructive',
-          onPress: async () => {
-            setRestoring(true)
-            const result = await restoreFromDrive()
-            setRestoring(false)
-            if (result.success) {
-              showAlert('✅ Restored!', `${result.expenseCount} expenses restored from Google Drive backup.`)
-            } else if (result.error === 'NO_BACKUP') {
-              showAlert('No Backup Found', 'No backup file found in your Google Drive.')
-            } else if (result.error === 'NO_TOKEN') {
-              showAlert('Sign In Required', 'Please sign out and sign in again to enable Google Drive backup.')
-            } else {
-              showAlert('Restore Failed', result.error || 'Something went wrong.')
-            }
-          }
-        }
-      ]
-    )
   }
 
   function getInitials() {
@@ -314,10 +285,10 @@ export default function Settings() {
             <View>
               <Text style={styles.rowTitle}>Google Drive Backup</Text>
               <Text style={styles.rowSubtitle}>
-                {lastBackup
-                  ? `Last backup: ${new Date(lastBackup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
-                  : 'No backup yet'}
-              </Text>
+  {lastBackup
+    ? `Last backup: ${new Date(lastBackup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} at ${new Date(lastBackup).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+    : 'No backup yet — tap Backup Now'}
+</Text>
             </View>
           </View>
         </View>
@@ -337,25 +308,6 @@ export default function Settings() {
               }
             </View>
             <Text style={styles.rowTitle}>{backingUp ? 'Backing up...' : 'Backup Now'}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-        </TouchableOpacity>
-
-        <View style={styles.divider} />
-
-        <TouchableOpacity
-          style={styles.row}
-          onPress={handleRestore}
-          disabled={restoring}
-        >
-          <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#FF9F0A22' }]}>
-              {restoring
-                ? <ActivityIndicator size="small" color="#FF9F0A" />
-                : <Ionicons name="cloud-download-outline" size={18} color="#FF9F0A" />
-              }
-            </View>
-            <Text style={styles.rowTitle}>{restoring ? 'Restoring...' : 'Restore from Backup'}</Text>
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
         </TouchableOpacity>

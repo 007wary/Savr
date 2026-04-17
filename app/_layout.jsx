@@ -10,6 +10,7 @@ import { processDueRecurring } from '../src/lib/recurring'
 import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { initializeDatabase } from '../src/services/sqliteService'
+import { registerBackupTask } from '../src/services/backgroundBackup'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -83,9 +84,12 @@ export default function RootLayout() {
             processDueRecurring(session.user.id)
           }
           import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+        
+        // Register daily background backup
+registerBackupTask().catch(() => {})
 
-          // Auto backup / restore logic
-          setTimeout(async () => {
+// Auto backup / restore logic
+setTimeout(async () => {
             try {
               const { backupToDrive, checkBackupExists } = await import('../src/services/driveBackupService')
               const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
@@ -108,7 +112,7 @@ export default function RootLayout() {
                 backupToDrive().catch(() => {})
               }
             } catch {}
-          }, 5000)
+          }, 2000)
         } catch {}
       }
 

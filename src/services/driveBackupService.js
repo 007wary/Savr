@@ -157,11 +157,15 @@ export async function backupToDrive() {
       }
     }
 
-    return {
-      success: true,
-      backedUpAt: backupPayload.backedUpAt,
-      expenseCount: data.expenses.length,
-    }
+    // Save last backup time locally
+const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
+
+return {
+  success: true,
+  backedUpAt: backupPayload.backedUpAt,
+  expenseCount: data.expenses.length,
+}
   } catch (e) {
     return { success: false, error: e.message }
   }
@@ -200,13 +204,23 @@ export async function restoreFromDrive() {
   }
 }
 
-// ─── CHECK IF BACKUP EXISTS ───────────────────────────────────
 export async function checkBackupExists() {
   try {
+    // Check local cache first for speed
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+    const localTimestamp = await AsyncStorage.getItem('savr_last_backup')
+    if (localTimestamp) {
+      return { exists: true, modifiedTime: localTimestamp }
+    }
+
+    // Fallback to Drive API
     const accessToken = await getAccessToken()
     if (!accessToken) return null
     const file = await findBackupFileId(accessToken)
     if (!file) return null
+
+    // Cache it locally
+    await AsyncStorage.setItem('savr_last_backup', file.modifiedTime)
     return { exists: true, modifiedTime: file.modifiedTime }
   } catch {
     return null

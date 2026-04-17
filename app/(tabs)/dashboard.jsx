@@ -13,6 +13,8 @@ import { BANNER_AD_UNIT_ID } from '../../src/lib/ads'
 import { checkWeeklySummary, requestNotificationPermission } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
 import { getExpenses, getMonthlyTotal } from '../../src/services/sqliteService'
+import CustomAlert from '../../src/components/CustomAlert'
+import useAlert from '../../src/hooks/useAlert'
 
 function CountUp({ value, style, symbol, currencyCode }) {
   const [display, setDisplay] = useState(0)
@@ -55,6 +57,7 @@ export default function Dashboard() {
   const [spendingGoal, setSpendingGoal] = useState(null)
   const [showGoalModal, setShowGoalModal] = useState(false)
   const [goalInput, setGoalInput] = useState('')
+  const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
   function getMonthInfo(offset) {
@@ -164,28 +167,31 @@ export default function Dashboard() {
         if (pendingRestore === 'true') {
           await AsyncStorageModule.removeItem('savr_pending_restore')
           setTimeout(() => {
-            import('../../src/services/driveBackupService').then(({ restoreFromDrive }) => {
-              const { Alert } = require('react-native')
-              Alert.alert(
-                '☁️ Backup Found!',
-                'We found a Savr backup in your Google Drive. Would you like to restore your data?',
-                [
-                  { text: 'Skip', style: 'cancel' },
-                  {
-                    text: 'Restore',
-                    onPress: async () => {
+            showAlert(
+              '☁️ Backup Found!',
+              'We found a Savr backup in your Google Drive. Would you like to restore your data?',
+              [
+                { text: 'Skip', style: 'cancel' },
+                {
+                  text: 'Restore',
+                  onPress: async () => {
+                    try {
+                      const { restoreFromDrive } = await import('../../src/services/driveBackupService')
                       const result = await restoreFromDrive()
                       if (result.success) {
-                        Alert.alert('✅ Restored!', `${result.expenseCount} expenses restored successfully.`)
-                        fetchData(true)
+                        showAlert('✅ Restored!', `${result.expenseCount} expenses restored successfully.`, [
+                          { text: 'OK', onPress: () => fetchData(true) }
+                        ])
                       } else {
-                        Alert.alert('Failed', result.error || 'Restore failed.')
+                        showAlert('Failed', result.error || 'Restore failed.')
                       }
+                    } catch {
+                      showAlert('Failed', 'Something went wrong.')
                     }
                   }
-                ]
-              )
-            }).catch(() => {})
+                }
+              ]
+            )
           }, 1000)
         }
       } catch {}
@@ -496,6 +502,14 @@ export default function Dashboard() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <CustomAlert
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        buttons={alertConfig.buttons}
+        onClose={hideAlert}
+      />
     </View>
   )
 }
