@@ -51,14 +51,20 @@ export default function Login() {
       if (error) throw error
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
       if (result.type === 'success') {
-        const url = result.url
-        const params = new URLSearchParams(url.split('#')[1] || url.split('?')[1])
-        const access_token = params.get('access_token')
-        const refresh_token = params.get('refresh_token')
-        if (access_token) {
-          await supabase.auth.setSession({ access_token, refresh_token })
-        }
-      }
+  const url = result.url
+  const params = new URLSearchParams(url.split('#')[1] || url.split('?')[1])
+  const access_token = params.get('access_token')
+  const refresh_token = params.get('refresh_token')
+  const provider_token = params.get('provider_token')
+  if (access_token) {
+    await supabase.auth.setSession({ access_token, refresh_token })
+    // Store provider token separately since Supabase doesn't persist it
+    if (provider_token) {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+      await AsyncStorage.setItem('savr_google_token', provider_token)
+    }
+  }
+}
     } catch (error) {
       showAlert('Error', error.message)
     } finally {

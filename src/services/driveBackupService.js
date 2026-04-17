@@ -6,18 +6,22 @@ const BACKUP_FILE_NAME = 'savr_backup.json'
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3'
 const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3'
 
-// ─── GET GOOGLE ACCESS TOKEN FROM SUPABASE SESSION ───────────
 async function getAccessToken() {
   try {
     const { data: { session } } = await supabase.auth.getSession()
-    if (!session) return null
-    return session.provider_token
+    if (session?.provider_token) return session.provider_token
+
+    // Fallback to stored token
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+    const stored = await AsyncStorage.getItem('savr_google_token')
+    if (stored) return stored
+
+    return null
   } catch {
     return null
   }
 }
 
-// ─── FIND EXISTING BACKUP FILE ON DRIVE ──────────────────────
 async function findBackupFileId(accessToken) {
   try {
     const response = await fetch(

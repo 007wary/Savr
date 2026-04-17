@@ -113,9 +113,10 @@ export default function RootLayout() {
       }
 
       if (event === 'SIGNED_OUT') {
-        await clearAllCache()
-        router.replace('/(auth)/login')
-      }
+  await clearAllCache()
+  AsyncStorage.removeItem('savr_google_token').catch(() => {})
+  router.replace('/(auth)/login')
+}
 
       if (event === 'TOKEN_REFRESHED') {
         setSession(session)
