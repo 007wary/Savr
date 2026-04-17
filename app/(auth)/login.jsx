@@ -36,7 +36,16 @@ export default function Login() {
         options: {
           redirectTo: redirectUrl,
           skipBrowserRedirect: true,
-          queryParams: { prompt: 'select_account' },
+          queryParams: {
+            prompt: 'select_account',
+            access_type: 'offline',
+            scope: [
+              'openid',
+              'email',
+              'profile',
+              'https://www.googleapis.com/auth/drive.appdata',
+            ].join(' '),
+          },
         },
       })
       if (error) throw error

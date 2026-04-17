@@ -75,16 +75,29 @@ export default function RootLayout() {
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
-        router.replace('/(tabs)/dashboard')
+  router.replace('/(tabs)/dashboard')
 
-        try {
-          requestNotificationPermission()
-          if (session?.user) {
-            processDueRecurring(session.user.id)
+  try {
+    requestNotificationPermission()
+    if (session?.user) {
+      processDueRecurring(session.user.id)
+    }
+    import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+
+    // Auto backup to Google Drive in background
+    setTimeout(() => {
+      import('../src/services/driveBackupService').then(({ backupToDrive }) => {
+        backupToDrive().then(result => {
+          if (result.success) {
+            console.log('Auto backup successful:', result.backedUpAt)
+          } else {
+            console.log('Auto backup skipped:', result.error)
           }
-          import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
-        } catch {}
-      }
+        }).catch(() => {})
+      }).catch(() => {})
+    }, 5000) // 5 second delay so app loads first
+  } catch {}
+}
 
       if (event === 'SIGNED_OUT') {
         await clearAllCache()

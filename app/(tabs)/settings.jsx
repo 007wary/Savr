@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Switch, TextInput,
-  KeyboardAvoidingView, Platform, Image
+  KeyboardAvoidingView, Platform, Image, ActivityIndicator
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -18,6 +18,7 @@ import useAlert from '../../src/hooks/useAlert'
 import * as Notifications from 'expo-notifications'
 import { getUser, clearUserCache } from '../../src/lib/auth'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
+import { backupToDrive, restoreFromDrive, checkBackupExists } from '../../src/services/driveBackupService'
 
 const APP_VERSION = '1.0'
 const CACHE_KEY = 'savr_cache_settings'
@@ -36,6 +37,9 @@ export default function Settings() {
   const [editPhone, setEditPhone] = useState('')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [lastBackup, setLastBackup] = useState(null)
+  const [backingUp, setBackingUp] = useState(false)
+  const [restoring, setRestoring] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
@@ -75,6 +79,11 @@ export default function Settings() {
       await saveCache(CACHE_KEY, {
         user, displayName: name, phone: ph, currency: savedCurrency,
       })
+
+      // Check last backup time
+      checkBackupExists().then(info => {
+        if (info?.modifiedTime) setLastBackup(info.modifiedTime)
+      }).catch(() => {})
     } catch {
       // Silently fail
     } finally {
@@ -137,6 +146,48 @@ export default function Settings() {
     ])
   }
 
+  async function handleManualBackup() {
+    setBackingUp(true)
+    const result = await backupToDrive()
+    setBackingUp(false)
+    if (result.success) {
+      setLastBackup(result.backedUpAt)
+      showAlert('✅ Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
+    } else if (result.error === 'NO_TOKEN') {
+      showAlert('Sign In Required', 'Please sign out and sign in again to enable Google Drive backup.')
+    } else {
+      showAlert('Backup Failed', result.error || 'Something went wrong.')
+    }
+  }
+
+  async function handleRestore() {
+    showAlert(
+      'Restore from Backup?',
+      'This will replace all your current data with the backup. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Restore',
+          style: 'destructive',
+          onPress: async () => {
+            setRestoring(true)
+            const result = await restoreFromDrive()
+            setRestoring(false)
+            if (result.success) {
+              showAlert('✅ Restored!', `${result.expenseCount} expenses restored from Google Drive backup.`)
+            } else if (result.error === 'NO_BACKUP') {
+              showAlert('No Backup Found', 'No backup file found in your Google Drive.')
+            } else if (result.error === 'NO_TOKEN') {
+              showAlert('Sign In Required', 'Please sign out and sign in again to enable Google Drive backup.')
+            } else {
+              showAlert('Restore Failed', result.error || 'Something went wrong.')
+            }
+          }
+        }
+      ]
+    )
+  }
+
   function getInitials() {
     if (!displayName) return '?'
     const parts = displayName.trim().split(' ')
@@ -171,6 +222,7 @@ export default function Settings() {
         </View>
       </LinearGradient>
 
+      {/* Profile Card */}
       <TouchableOpacity style={styles.profileCard} onPress={openProfileModal} activeOpacity={0.8}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{getInitials()}</Text>
@@ -189,6 +241,7 @@ export default function Settings() {
         </View>
       </TouchableOpacity>
 
+      {/* Preferences */}
       <Text style={styles.sectionLabel}>PREFERENCES</Text>
       <View style={styles.card}>
         <View style={styles.row}>
@@ -250,6 +303,65 @@ export default function Settings() {
         </TouchableOpacity>
       </View>
 
+      {/* Backup & Restore */}
+      <Text style={styles.sectionLabel}>BACKUP & RESTORE</Text>
+      <View style={styles.card}>
+        <View style={styles.row}>
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#34C75922' }]}>
+              <Ionicons name="cloud-outline" size={18} color="#34C759" />
+            </View>
+            <View>
+              <Text style={styles.rowTitle}>Google Drive Backup</Text>
+              <Text style={styles.rowSubtitle}>
+                {lastBackup
+                  ? `Last backup: ${new Date(lastBackup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                  : 'No backup yet'}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.divider} />
+
+        <TouchableOpacity
+          style={styles.row}
+          onPress={handleManualBackup}
+          disabled={backingUp}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#34C75922' }]}>
+              {backingUp
+                ? <ActivityIndicator size="small" color="#34C759" />
+                : <Ionicons name="cloud-upload-outline" size={18} color="#34C759" />
+              }
+            </View>
+            <Text style={styles.rowTitle}>{backingUp ? 'Backing up...' : 'Backup Now'}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        <TouchableOpacity
+          style={styles.row}
+          onPress={handleRestore}
+          disabled={restoring}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#FF9F0A22' }]}>
+              {restoring
+                ? <ActivityIndicator size="small" color="#FF9F0A" />
+                : <Ionicons name="cloud-download-outline" size={18} color="#FF9F0A" />
+              }
+            </View>
+            <Text style={styles.rowTitle}>{restoring ? 'Restoring...' : 'Restore from Backup'}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
+      </View>
+
+      {/* About */}
       <Text style={styles.sectionLabel}>ABOUT</Text>
       <View style={styles.card}>
         <View style={styles.row}>
@@ -312,6 +424,7 @@ export default function Settings() {
         </View>
       </View>
 
+      {/* Account */}
       <Text style={styles.sectionLabel}>ACCOUNT</Text>
       <View style={styles.card}>
         <TouchableOpacity style={styles.row} onPress={handleSignOut}>
