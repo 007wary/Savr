@@ -3,29 +3,69 @@ import { getUser } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 
 const BACKUP_FILE_NAME = 'savr_backup.json'
+const FOLDER_NAME = 'Savr'
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3'
 const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3'
 
+// ─── GET GOOGLE ACCESS TOKEN ─────────────────────────────────
 async function getAccessToken() {
   try {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.provider_token) return session.provider_token
-
-    // Fallback to stored token
     const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
     const stored = await AsyncStorage.getItem('savr_google_token')
     if (stored) return stored
-
     return null
   } catch {
     return null
   }
 }
 
-async function findBackupFileId(accessToken) {
+// ─── FIND OR CREATE SAVR FOLDER ──────────────────────────────
+async function getOrCreateFolder(accessToken) {
   try {
+    // Search for existing Savr folder
+    const searchResponse = await fetch(
+      `${DRIVE_API_BASE}/files?q=name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+    const searchData = await searchResponse.json()
+
+    if (searchData.files && searchData.files.length > 0) {
+      return searchData.files[0].id
+    }
+
+    // Create new Savr folder
+    const createResponse = await fetch(
+      `${DRIVE_API_BASE}/files`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: FOLDER_NAME,
+          mimeType: 'application/vnd.google-apps.folder',
+        }),
+      }
+    )
+    const folderData = await createResponse.json()
+    return folderData.id
+  } catch {
+    return null
+  }
+}
+
+// ─── FIND EXISTING BACKUP FILE ────────────────────────────────
+async function findBackupFileId(accessToken, folderId) {
+  try {
+    const query = folderId
+      ? `name='${BACKUP_FILE_NAME}' and '${folderId}' in parents and trashed=false`
+      : `name='${BACKUP_FILE_NAME}' and trashed=false`
+
     const response = await fetch(
-      `${DRIVE_API_BASE}/files?q=name='${BACKUP_FILE_NAME}'&fields=files(id,name,modifiedTime)`,
+      `${DRIVE_API_BASE}/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime)`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
     const data = await response.json()
@@ -110,9 +150,15 @@ export async function backupToDrive() {
     }
 
     const jsonContent = JSON.stringify(backupPayload)
-    const existingFile = await findBackupFileId(accessToken)
+
+    // Get or create Savr folder
+    const folderId = await getOrCreateFolder(accessToken)
+
+    // Find existing backup file inside Savr folder
+    const existingFile = await findBackupFileId(accessToken, folderId)
 
     if (existingFile) {
+      // Update existing file content
       const response = await fetch(
         `${DRIVE_UPLOAD_BASE}/files/${existingFile.id}?uploadType=media`,
         {
@@ -129,7 +175,12 @@ export async function backupToDrive() {
         return { success: false, error: err.error?.message || 'Upload failed' }
       }
     } else {
-      const metadata = { name: BACKUP_FILE_NAME }
+      // Create new file inside Savr folder
+      const metadata = {
+        name: BACKUP_FILE_NAME,
+        parents: folderId ? [folderId] : [],
+      }
+
       const boundary = 'savr_backup_boundary'
       const multipartBody =
         `--${boundary}\r\n` +
@@ -158,14 +209,14 @@ export async function backupToDrive() {
     }
 
     // Save last backup time locally
-const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
-await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+    await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
 
-return {
-  success: true,
-  backedUpAt: backupPayload.backedUpAt,
-  expenseCount: data.expenses.length,
-}
+    return {
+      success: true,
+      backedUpAt: backupPayload.backedUpAt,
+      expenseCount: data.expenses.length,
+    }
   } catch (e) {
     return { success: false, error: e.message }
   }
@@ -180,7 +231,15 @@ export async function restoreFromDrive() {
     const user = await getUser()
     if (!user) return { success: false, error: 'No user found' }
 
-    const existingFile = await findBackupFileId(accessToken)
+    // Search in Savr folder first, then anywhere
+    const folderId = await getOrCreateFolder(accessToken)
+    let existingFile = await findBackupFileId(accessToken, folderId)
+
+    // Fallback — search anywhere in Drive (in case old backup exists outside folder)
+    if (!existingFile) {
+      existingFile = await findBackupFileId(accessToken, null)
+    }
+
     if (!existingFile) return { success: false, error: 'NO_BACKUP' }
 
     const response = await fetch(
@@ -194,6 +253,10 @@ export async function restoreFromDrive() {
 
     await restoreAllDataToSQLite(user.id, backupPayload.data)
 
+    // Save restore timestamp
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+    await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
+
     return {
       success: true,
       backedUpAt: backupPayload.backedUpAt,
@@ -204,6 +267,7 @@ export async function restoreFromDrive() {
   }
 }
 
+// ─── CHECK IF BACKUP EXISTS ───────────────────────────────────
 export async function checkBackupExists() {
   try {
     // Check local cache first for speed
@@ -216,10 +280,12 @@ export async function checkBackupExists() {
     // Fallback to Drive API
     const accessToken = await getAccessToken()
     if (!accessToken) return null
-    const file = await findBackupFileId(accessToken)
+
+    const folderId = await getOrCreateFolder(accessToken)
+    let file = await findBackupFileId(accessToken, folderId)
+    if (!file) file = await findBackupFileId(accessToken, null)
     if (!file) return null
 
-    // Cache it locally
     await AsyncStorage.setItem('savr_last_backup', file.modifiedTime)
     return { exists: true, modifiedTime: file.modifiedTime }
   } catch {
