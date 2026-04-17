@@ -21,7 +21,7 @@ async function getAccessToken() {
 async function findBackupFileId(accessToken) {
   try {
     const response = await fetch(
-      `${DRIVE_API_BASE}/files?spaces=appDataFolder&q=name='${BACKUP_FILE_NAME}'&fields=files(id,name,modifiedTime)`,
+      `${DRIVE_API_BASE}/files?q=name='${BACKUP_FILE_NAME}'&fields=files(id,name,modifiedTime)`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
     const data = await response.json()
@@ -125,7 +125,7 @@ export async function backupToDrive() {
         return { success: false, error: err.error?.message || 'Upload failed' }
       }
     } else {
-      const metadata = { name: BACKUP_FILE_NAME, parents: ['appDataFolder'] }
+      const metadata = { name: BACKUP_FILE_NAME }
       const boundary = 'savr_backup_boundary'
       const multipartBody =
         `--${boundary}\r\n` +
