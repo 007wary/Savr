@@ -52,15 +52,15 @@ export default function Settings() {
         setPhone(cached.phone)
         setCurrency(cached.currency)
         setLoading(false)
-        syncFromSupabase()
+        syncFromAuth()
         return
       }
     }
 
-    await syncFromSupabase()
+    await syncFromAuth()
   }
 
-  async function syncFromSupabase() {
+  async function syncFromAuth() {
     try {
       const user = await getUser(true)
       setUser(user)
@@ -104,15 +104,6 @@ export default function Settings() {
         showAlert('Error', error.message)
         return
       }
-
-      // Update in user_profiles table — lazy import to avoid crash
-      try {
-        const { updateUserProfile } = await import('../../src/lib/userProfile')
-        await updateUserProfile(user.id, {
-          full_name: editName.trim(),
-          phone_number: editPhone.trim(),
-        })
-      } catch {}
 
       setDisplayName(editName.trim())
       setPhone(editPhone.trim())
@@ -164,17 +155,13 @@ export default function Settings() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
 
-      {/* App Header */}
       <LinearGradient
         colors={['#7C75FF', '#6C63FF', '#5A50FF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.appHeader}
       >
-        <Image
-          source={require('../../assets/icon.png')}
-          style={styles.appIcon}
-        />
+        <Image source={require('../../assets/icon.png')} style={styles.appIcon} />
         <View style={styles.appHeaderInfo}>
           <Text style={styles.appName}>Savr</Text>
           <Text style={styles.appTagline}>Spend smart, save more</Text>
@@ -184,12 +171,7 @@ export default function Settings() {
         </View>
       </LinearGradient>
 
-      {/* Profile Card */}
-      <TouchableOpacity
-        style={styles.profileCard}
-        onPress={openProfileModal}
-        activeOpacity={0.8}
-      >
+      <TouchableOpacity style={styles.profileCard} onPress={openProfileModal} activeOpacity={0.8}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{getInitials()}</Text>
         </View>
@@ -207,7 +189,6 @@ export default function Settings() {
         </View>
       </TouchableOpacity>
 
-      {/* Preferences */}
       <Text style={styles.sectionLabel}>PREFERENCES</Text>
       <View style={styles.card}>
         <View style={styles.row}>
@@ -269,7 +250,6 @@ export default function Settings() {
         </TouchableOpacity>
       </View>
 
-      {/* About */}
       <Text style={styles.sectionLabel}>ABOUT</Text>
       <View style={styles.card}>
         <View style={styles.row}>
@@ -332,7 +312,6 @@ export default function Settings() {
         </View>
       </View>
 
-      {/* Account */}
       <Text style={styles.sectionLabel}>ACCOUNT</Text>
       <View style={styles.card}>
         <TouchableOpacity style={styles.row} onPress={handleSignOut}>
@@ -346,7 +325,6 @@ export default function Settings() {
         </TouchableOpacity>
       </View>
 
-      {/* Footer */}
       <View style={styles.footer}>
         <Text style={styles.footerSub}>Savr v{APP_VERSION} · © 2026</Text>
       </View>
@@ -413,54 +391,48 @@ export default function Settings() {
       </BottomSheet>
 
       {/* Profile Edit Bottom Sheet */}
-      <BottomSheet
-  visible={profileModalVisible}
-  onClose={() => setProfileModalVisible(false)}
->
-  <KeyboardAvoidingView
-    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    keyboardVerticalOffset={100}
-  >
-    <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>Edit Profile</Text>
-            <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
-              <Ionicons name="close" size={22} color={COLORS.textMuted} />
+      <BottomSheet visible={profileModalVisible} onClose={() => setProfileModalVisible(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={100}>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Edit Profile</Text>
+              <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
+                <Ionicons name="close" size={22} color={COLORS.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalAvatar}>
+              <Text style={styles.modalAvatarText}>{getInitials()}</Text>
+            </View>
+            <Text style={styles.label}>Full Name</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter your name"
+              placeholderTextColor={COLORS.textMuted}
+              value={editName}
+              onChangeText={setEditName}
+              autoCapitalize="words"
+            />
+            <Text style={styles.label}>Phone Number</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="+91 00000 00000"
+              placeholderTextColor={COLORS.textMuted}
+              value={editPhone}
+              onChangeText={setEditPhone}
+              keyboardType="phone-pad"
+            />
+            <Text style={styles.label}>Email</Text>
+            <View style={styles.readOnlyInput}>
+              <Text style={styles.readOnlyText}>{user?.email}</Text>
+              <Ionicons name="lock-closed-outline" size={14} color={COLORS.textMuted} />
+            </View>
+            <TouchableOpacity
+              style={[styles.saveBtn, saving && { opacity: 0.6 }]}
+              onPress={saveProfile}
+              disabled={saving}
+            >
+              <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Profile'}</Text>
             </TouchableOpacity>
-          </View>
-          <View style={styles.modalAvatar}>
-            <Text style={styles.modalAvatarText}>{getInitials()}</Text>
-          </View>
-          <Text style={styles.label}>Full Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your name"
-            placeholderTextColor={COLORS.textMuted}
-            value={editName}
-            onChangeText={setEditName}
-            autoCapitalize="words"
-          />
-          <Text style={styles.label}>Phone Number</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="+91 00000 00000"
-            placeholderTextColor={COLORS.textMuted}
-            value={editPhone}
-            onChangeText={setEditPhone}
-            keyboardType="phone-pad"
-          />
-          <Text style={styles.label}>Email</Text>
-          <View style={styles.readOnlyInput}>
-            <Text style={styles.readOnlyText}>{user?.email}</Text>
-            <Ionicons name="lock-closed-outline" size={14} color={COLORS.textMuted} />
-          </View>
-          <TouchableOpacity
-            style={[styles.saveBtn, saving && { opacity: 0.6 }]}
-            onPress={saveProfile}
-            disabled={saving}
-          >
-            <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Profile'}</Text>
-          </TouchableOpacity>
           </ScrollView>
         </KeyboardAvoidingView>
       </BottomSheet>
@@ -478,34 +450,15 @@ export default function Settings() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
-  appHeader: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: 20, padding: 20, marginBottom: 20, gap: 14,
-  },
-  appIcon: {
-    width: 52, height: 52, borderRadius: 14,
-    borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
-  },
+  appHeader: { flexDirection: 'row', alignItems: 'center', borderRadius: 20, padding: 20, marginBottom: 20, gap: 14 },
+  appIcon: { width: 52, height: 52, borderRadius: 14, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' },
   appHeaderInfo: { flex: 1 },
   appName: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.5 },
   appTagline: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
-  versionBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
-  },
+  versionBadge: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
   versionBadgeText: { fontSize: 12, color: '#fff', fontWeight: '700' },
-  profileCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.card, borderRadius: 16,
-    padding: 20, marginBottom: 28,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  avatar: {
-    width: 56, height: 56, borderRadius: 28,
-    backgroundColor: COLORS.accent,
-    justifyContent: 'center', alignItems: 'center', marginRight: 16,
-  },
+  profileCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 16, padding: 20, marginBottom: 28, borderWidth: 1, borderColor: COLORS.border },
+  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
   avatarText: { fontSize: 20, fontWeight: '700', color: '#fff' },
   profileInfo: { flex: 1 },
   displayName: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 2, letterSpacing: -0.3 },
@@ -514,72 +467,34 @@ const styles = StyleSheet.create({
   phoneAdd: { fontSize: 13, color: COLORS.accent, marginTop: 2 },
   editProfileBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   editProfileText: { fontSize: 13, color: COLORS.accent, fontWeight: '600' },
-  sectionLabel: {
-    fontSize: 11, fontWeight: '700', color: COLORS.textMuted,
-    letterSpacing: 1.2, marginBottom: 10, marginLeft: 4,
-  },
-  card: {
-    backgroundColor: COLORS.card, borderRadius: 16,
-    borderWidth: 1, borderColor: COLORS.border,
-    marginBottom: 24, overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'space-between', padding: 16,
-  },
+  sectionLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1.2, marginBottom: 10, marginLeft: 4 },
+  card: { backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 24, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
   rowIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   rowTitle: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
   rowSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 1 },
   divider: { height: 1, backgroundColor: COLORS.border, marginLeft: 66 },
-  versionPill: {
-    backgroundColor: COLORS.accent + '22', borderRadius: 20,
-    paddingVertical: 4, paddingHorizontal: 10,
-    borderWidth: 1, borderColor: COLORS.accent + '44',
-  },
+  versionPill: { backgroundColor: COLORS.accent + '22', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: COLORS.accent + '44' },
   versionPillText: { fontSize: 12, color: COLORS.accent, fontWeight: '700' },
   footer: { alignItems: 'center', marginTop: 8, marginBottom: 32 },
   footerSub: { fontSize: 11, color: COLORS.border },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
-  currencySearch: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.cardAlt, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderWidth: 1, borderColor: COLORS.border, marginBottom: 12,
-  },
+  currencySearch: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.cardAlt, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border, marginBottom: 12 },
   currencySearchInput: { flex: 1, color: COLORS.text, fontSize: 14 },
-  currencyRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    padding: 14, borderRadius: 12, marginBottom: 4,
-  },
+  currencyRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 12, marginBottom: 4 },
   currencyRowActive: { backgroundColor: COLORS.accent + '15' },
   currencyFlag: { fontSize: 24 },
   currencyName: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
   currencyCode: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   currencySymbol: { fontSize: 16, color: COLORS.textMuted, fontWeight: '700' },
-  modalAvatar: {
-    width: 72, height: 72, borderRadius: 36,
-    backgroundColor: COLORS.accent,
-    justifyContent: 'center', alignItems: 'center',
-    alignSelf: 'center', marginBottom: 24,
-  },
+  modalAvatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: 24 },
   modalAvatarText: { fontSize: 26, fontWeight: '700', color: '#fff' },
   label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
-  input: {
-    backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14,
-    color: COLORS.text, fontSize: 15, borderWidth: 1,
-    borderColor: COLORS.border, marginBottom: 16,
-  },
-  readOnlyInput: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14,
-    borderWidth: 1, borderColor: COLORS.border, marginBottom: 24,
-  },
+  input: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  readOnlyInput: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 24 },
   readOnlyText: { fontSize: 15, color: COLORS.textMuted },
-  saveBtn: {
-    backgroundColor: COLORS.accent, borderRadius: 12,
-    padding: 16, alignItems: 'center', marginBottom: 8,
-  },
+  saveBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 })

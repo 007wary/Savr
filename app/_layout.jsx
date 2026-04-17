@@ -9,6 +9,7 @@ import { requestNotificationPermission } from '../src/lib/notifications'
 import { processDueRecurring } from '../src/lib/recurring'
 import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { initializeDatabase } from '../src/services/sqliteService'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -20,9 +21,10 @@ export default function RootLayout() {
 
   useEffect(() => {
     async function init() {
-  // Run cache cleanup in background — don't block startup
-  clearExpiredCache().catch(() => {})
-  const done = await AsyncStorage.getItem('savr_onboarding_done')
+      clearExpiredCache().catch(() => {})
+      initializeDatabase().catch(() => {})
+
+      const done = await AsyncStorage.getItem('savr_onboarding_done')
       setOnboardingDone(done === 'true')
 
       const timeout = setTimeout(() => {
@@ -54,8 +56,7 @@ export default function RootLayout() {
           }
 
           SplashScreen.hideAsync()
-// Only process recurring on fresh login not on every app open
-import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+          import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
         } else {
           clearTimeout(timeout)
           setSession(null)
@@ -74,18 +75,12 @@ import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() =
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
-        // Navigate immediately
         router.replace('/(tabs)/dashboard')
 
-        // Run everything in background — non blocking
         try {
           requestNotificationPermission()
           if (session?.user) {
             processDueRecurring(session.user.id)
-            // Sync Google profile to Supabase
-            import('../src/lib/userProfile').then(({ syncUserProfile }) => {
-              syncUserProfile(session.user)
-            }).catch(() => {})
           }
           import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
         } catch {}

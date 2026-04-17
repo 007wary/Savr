@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { getRecurring, addExpense, updateRecurringAfterLog } from '../services/sqliteService'
 
 let isProcessing = false
 
@@ -10,38 +10,29 @@ export async function processDueRecurring(userId) {
     const today = new Date()
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
-    const { data: recurring } = await supabase
-      .from('recurring_expenses')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .lte('next_due', todayStr)
-
+    const recurring = await getRecurring(userId)
     if (!recurring || recurring.length === 0) return 0
 
     let logged = 0
 
     for (const item of recurring) {
-      // If already logged today — skip completely
-      // This prevents re-insertion even if user deleted the expense
+      if (item.next_due > todayStr) continue
       if (item.last_logged === todayStr) continue
 
-      const { error } = await supabase.from('expenses').insert({
-        user_id: userId,
-        amount: item.amount,
-        category: item.category,
-        note: item.note || `Auto: ${item.category}`,
-        date: todayStr,
-      })
+      try {
+        await addExpense(userId, {
+          amount: item.amount,
+          category: item.category,
+          note: item.note || `Auto: ${item.category}`,
+          date: todayStr,
+          is_recurring: 1,
+          recurring_id: item.id,
+        })
 
-      if (!error) {
         const nextDue = calculateNextDue(item.next_due, item.frequency)
-        await supabase
-          .from('recurring_expenses')
-          .update({ next_due: nextDue, last_logged: todayStr })
-          .eq('id', item.id)
+        await updateRecurringAfterLog(item.id, nextDue, todayStr)
         logged++
-      }
+      } catch {}
     }
 
     return logged
@@ -53,9 +44,9 @@ export async function processDueRecurring(userId) {
 }
 
 function calculateNextDue(currentDue, frequency) {
-  const nextDue = new Date(currentDue + 'T00:00:00')
-  if (frequency === 'daily') nextDue.setDate(nextDue.getDate() + 1)
-  else if (frequency === 'weekly') nextDue.setDate(nextDue.getDate() + 7)
-  else if (frequency === 'monthly') nextDue.setMonth(nextDue.getMonth() + 1)
-  return `${nextDue.getFullYear()}-${String(nextDue.getMonth() + 1).padStart(2, '0')}-${String(nextDue.getDate()).padStart(2, '0')}`
+  const next = new Date(currentDue + 'T00:00:00')
+  if (frequency === 'daily') next.setDate(next.getDate() + 1)
+  else if (frequency === 'weekly') next.setDate(next.getDate() + 7)
+  else if (frequency === 'monthly') next.setMonth(next.getMonth() + 1)
+  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`
 }

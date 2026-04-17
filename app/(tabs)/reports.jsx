@@ -6,7 +6,6 @@ import {
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
@@ -14,6 +13,7 @@ import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
 import { InterstitialAd, AdEventType } from 'react-native-google-mobile-ads'
 import { INTERSTITIAL_AD_UNIT_ID } from '../../src/lib/ads'
+import { getExpenses } from '../../src/services/sqliteService'
 
 function AnimatedBar({ percentage, color, delay = 0 }) {
   const anim = useRef(new Animated.Value(0)).current
@@ -50,14 +50,6 @@ export default function Reports() {
   const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
   const CACHE_KEY = `savr_cache_reports_${currentMonth}`
 
-  // Helper to get month range
-  function getMonthRange(year, month) {
-    const lastDay = new Date(year, month, 0).getDate()
-    const start = `${year}-${String(month).padStart(2, '0')}-01`
-    const end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-    return { start, end }
-  }
-
   useFocusEffect(useCallback(() => {
     fetchData()
 
@@ -86,122 +78,63 @@ export default function Reports() {
   }, []))
 
   async function fetchData(forceRefresh = false) {
-  const symbol = await getCurrencySymbol()
-  const code = await loadCurrency()
-  setCurrencySymbol(symbol)
-  setCurrencyCode(code)
+    const symbol = await getCurrencySymbol()
+    const code = await loadCurrency()
+    setCurrencySymbol(symbol)
+    setCurrencyCode(code)
 
-  if (!forceRefresh) {
-    const cached = await loadCache(CACHE_KEY)
-    if (cached) {
-      setExpenses(cached.expenses || [])
-      setLastMonthExpenses(cached.lastMonthExpenses || [])
-      setAllExpenses(cached.allExpenses || [])
-      setLoading(false)
-      syncFromSupabase()
-      return
+    if (!forceRefresh) {
+      const cached = await loadCache(CACHE_KEY)
+      if (cached) {
+        setExpenses(cached.expenses || [])
+        setLastMonthExpenses(cached.lastMonthExpenses || [])
+        setAllExpenses(cached.allExpenses || [])
+        setLoading(false)
+        loadFromSQLite()
+        return
+      }
     }
+
+    await loadFromSQLite()
   }
 
-  await syncFromSupabase()
-}
+  async function loadFromSQLite() {
+    try {
+      const user = await getUser()
 
-async function syncFromSupabase() {
-  const freshNow = new Date()
-  const freshYear = freshNow.getFullYear()
-  const freshMonth = freshNow.getMonth() + 1
-  const freshCurrentMonth = `${freshYear}-${String(freshMonth).padStart(2, '0')}`
+      // Get all expenses from SQLite
+      const allData = await getExpenses(user.id)
 
-  try {
-    const user = await getUser()
+      const freshNow = new Date()
+      const freshYear = freshNow.getFullYear()
+      const freshMonth = freshNow.getMonth() + 1
+      const freshCurrentMonth = `${freshYear}-${String(freshMonth).padStart(2, '0')}`
 
-    const { start: curStart, end: curEnd } = getMonthRange(freshYear, freshMonth)
-    const lastMonthDate = new Date(freshYear, freshMonth - 2, 1)
-    const lastYear = lastMonthDate.getFullYear()
-    const lastMonth = lastMonthDate.getMonth() + 1
-    const { start: lastStart, end: lastEnd } = getMonthRange(lastYear, lastMonth)
-    const sixMonthsAgo = new Date(freshYear, freshMonth - 7, 1)
-    const sixMonthsAgoStr = `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`
+      const lastMonthDate = new Date(freshYear, freshMonth - 2, 1)
+      const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
 
-    const [currentResult, lastMonthResult, allResult] = await Promise.all([
-      supabase
-        .from('expenses')
-        .select('*')
-        .eq('user_id', user.id)
-        .gte('date', curStart)
-        .lte('date', curEnd)
-        .order('date', { ascending: true }),
-      supabase
-        .from('expenses')
-        .select('amount, date')
-        .eq('user_id', user.id)
-        .gte('date', lastStart)
-        .lte('date', lastEnd),
-      supabase
-        .from('expenses')
-        .select('amount, date')
-        .eq('user_id', user.id)
-        .gte('date', sixMonthsAgoStr)
-        .order('date', { ascending: true }),
-    ])
+      const sixMonthsAgo = new Date(freshYear, freshMonth - 7, 1)
 
-    if (currentResult.data) {
-      const currentData = currentResult.data
-      const lastMonthData = lastMonthResult.data || []
-      const allData = allResult.data || []
+      const currentData = allData.filter(e => e.date.startsWith(freshCurrentMonth))
+      const lastMonthData = allData.filter(e => e.date.startsWith(lastMonthKey))
+      const sixMonthData = allData.filter(e => new Date(e.date) >= sixMonthsAgo)
 
       setExpenses(currentData)
       setLastMonthExpenses(lastMonthData)
-      setAllExpenses(allData)
+      setAllExpenses(sixMonthData)
 
       await saveCache(CACHE_KEY, {
         expenses: currentData,
         lastMonthExpenses: lastMonthData,
-        allExpenses: allData,
+        allExpenses: sixMonthData,
       })
+    } catch (e) {
+      console.error('Reports load error:', e)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
     }
-  } catch {
-    // Supabase failed — load from history cache as fallback
-    try {
-      const historyCached = await loadCache('savr_cache_history') || []
-
-      const freshNowFallback = new Date()
-      const fallbackMonth = `${freshNowFallback.getFullYear()}-${String(freshNowFallback.getMonth() + 1).padStart(2, '0')}`
-
-      // Last month key
-      const lastMonthDate = new Date(freshNowFallback.getFullYear(), freshNowFallback.getMonth() - 1, 1)
-      const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
-
-      // Filter current month expenses
-      const currentData = historyCached.filter(e => e.date.startsWith(fallbackMonth))
-
-      // Filter last month expenses
-      const lastMonthData = historyCached.filter(e => e.date.startsWith(lastMonthKey))
-
-      // Last 6 months
-      const sixMonthsAgo = new Date(freshNowFallback.getFullYear(), freshNowFallback.getMonth() - 6, 1)
-      const allData = historyCached.filter(e => new Date(e.date) >= sixMonthsAgo)
-
-      setExpenses(currentData)
-      setLastMonthExpenses(lastMonthData)
-      setAllExpenses(allData)
-
-      // Save to reports cache so next time loads faster
-      if (currentData.length > 0) {
-        await saveCache(CACHE_KEY, {
-          expenses: currentData,
-          lastMonthExpenses: lastMonthData,
-          allExpenses: allData,
-        })
-      }
-    } catch {
-      // Final fallback — keep whatever is already showing
-    }
-  } finally {
-    setLoading(false)
-    setRefreshing(false)
   }
-}
 
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
   const lastTotal = lastMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
@@ -226,8 +159,7 @@ async function syncFromSupabase() {
     const d = new Date()
     d.setDate(d.getDate() - i)
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    const label = d.toLocaleString('default', { weekday: 'short' })
-    last7.push({ date: dateStr, label, amount: dailyMap[dateStr] || 0 })
+    last7.push({ date: dateStr, label: d.toLocaleString('default', { weekday: 'short' }), amount: dailyMap[dateStr] || 0 })
   }
   const max7 = Math.max(...last7.map(d => d.amount), 1)
 
@@ -235,11 +167,8 @@ async function syncFromSupabase() {
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    const label = d.toLocaleString('default', { month: 'short' })
-    const monthTotal = allExpenses
-      .filter(e => e.date.startsWith(key))
-      .reduce((sum, e) => sum + parseFloat(e.amount), 0)
-    last6Months.push({ key, label, amount: monthTotal })
+    const monthTotal = allExpenses.filter(e => e.date.startsWith(key)).reduce((sum, e) => sum + parseFloat(e.amount), 0)
+    last6Months.push({ key, label: d.toLocaleString('default', { month: 'short' }), amount: monthTotal })
   }
   const max6 = Math.max(...last6Months.map(m => m.amount), 1)
 
@@ -247,20 +176,12 @@ async function syncFromSupabase() {
   const heatmapDays = []
   for (let d = 1; d <= daysInCurrentMonth; d++) {
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    const amount = dailyMap[dateStr] || 0
-    heatmapDays.push({ day: d, amount, dateStr })
+    heatmapDays.push({ day: d, amount: dailyMap[dateStr] || 0, dateStr })
   }
   const maxHeatmap = Math.max(...heatmapDays.map(d => d.amount), 1)
 
-  // Fix #12 — T00:00:00 timezone fix
-  const weekendExpenses = expenses.filter(e => {
-    const day = new Date(e.date + 'T00:00:00').getDay()
-    return day === 0 || day === 6
-  })
-  const weekdayExpenses = expenses.filter(e => {
-    const day = new Date(e.date + 'T00:00:00').getDay()
-    return day !== 0 && day !== 6
-  })
+  const weekendExpenses = expenses.filter(e => { const day = new Date(e.date + 'T00:00:00').getDay(); return day === 0 || day === 6 })
+  const weekdayExpenses = expenses.filter(e => { const day = new Date(e.date + 'T00:00:00').getDay(); return day !== 0 && day !== 6 })
   const weekendTotal = weekendExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
   const weekdayTotal = weekdayExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
 
@@ -274,9 +195,7 @@ async function syncFromSupabase() {
   const topNote = Object.entries(noteCounts).sort((a, b) => b[1] - a[1])[0]
 
   const dayTotals = {}
-  expenses.forEach(e => {
-    dayTotals[e.date] = (dayTotals[e.date] || 0) + parseFloat(e.amount)
-  })
+  expenses.forEach(e => { dayTotals[e.date] = (dayTotals[e.date] || 0) + parseFloat(e.amount) })
   const biggestDay = Object.entries(dayTotals).sort((a, b) => b[1] - a[1])[0]
 
   let streak = 0
@@ -295,11 +214,7 @@ async function syncFromSupabase() {
       style={styles.container}
       contentContainerStyle={{ paddingBottom: 60 }}
       refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => { setRefreshing(true); fetchData(true) }}
-          tintColor={COLORS.accent}
-        />
+        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(true) }} tintColor={COLORS.accent} />
       }
     >
       <Text style={styles.heading}>Reports</Text>
@@ -313,12 +228,7 @@ async function syncFromSupabase() {
         </View>
       ) : (
         <>
-          <LinearGradient
-            colors={['#7C75FF', '#6C63FF', '#5A50FF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.totalCard}
-          >
+          <LinearGradient colors={['#7C75FF', '#6C63FF', '#5A50FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.totalCard}>
             <Text style={styles.totalLabel}>Total Spent</Text>
             <Text style={styles.totalAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
               {formatAmount(total, currencySymbol, currencyCode)}
@@ -375,14 +285,9 @@ async function syncFromSupabase() {
               At {formatAmount(dailyAvg, currencySymbol, currencyCode)}/day, you'll spend this much by end of {now.toLocaleString('default', { month: 'long' })}
             </Text>
             <View style={styles.forecastBar}>
-              <View style={[styles.forecastFill, {
-                width: `${Math.min((total / Math.max(forecast, 1)) * 100, 100)}%`,
-                backgroundColor: total > forecast * 0.8 ? COLORS.accentRed : COLORS.accent
-              }]} />
+              <View style={[styles.forecastFill, { width: `${Math.min((total / Math.max(forecast, 1)) * 100, 100)}%`, backgroundColor: total > forecast * 0.8 ? COLORS.accentRed : COLORS.accent }]} />
             </View>
-            <Text style={styles.forecastPct}>
-              {((total / Math.max(forecast, 1)) * 100).toFixed(0)}% of forecast used
-            </Text>
+            <Text style={styles.forecastPct}>{((total / Math.max(forecast, 1)) * 100).toFixed(0)}% of forecast used</Text>
           </View>
 
           {lastTotal > 0 && (() => {
@@ -397,15 +302,11 @@ async function syncFromSupabase() {
                   <Text style={styles.compareText}>
                     You spent{' '}
                     <Text style={{ color: isMore ? COLORS.accentRed : COLORS.accentGreen, fontWeight: '700' }}>
-                      {isMore
-                        ? `${formatAmount(diff, currencySymbol, currencyCode)} more`
-                        : `${formatAmount(Math.abs(diff), currencySymbol, currencyCode)} less`}
+                      {isMore ? `${formatAmount(diff, currencySymbol, currencyCode)} more` : `${formatAmount(Math.abs(diff), currencySymbol, currencyCode)} less`}
                     </Text>
                     {' '}({pct}% {isMore ? 'increase' : 'decrease'})
                   </Text>
-                  <Text style={styles.compareSubtext}>
-                    Last month: {formatAmount(lastTotal, currencySymbol, currencyCode)} · This month: {formatAmount(total, currencySymbol, currencyCode)}
-                  </Text>
+                  <Text style={styles.compareSubtext}>Last month: {formatAmount(lastTotal, currencySymbol, currencyCode)} · This month: {formatAmount(total, currencySymbol, currencyCode)}</Text>
                 </View>
               </View>
             )
@@ -416,19 +317,11 @@ async function syncFromSupabase() {
             <View style={styles.barChart}>
               {last6Months.map((m, i) => (
                 <View key={i} style={styles.barCol}>
-                  <Text style={styles.barAmount}>
-                    {m.amount > 0 ? `${m.amount >= 1000 ? (m.amount / 1000).toFixed(1) + 'k' : m.amount.toFixed(0)}` : ''}
-                  </Text>
+                  <Text style={styles.barAmount}>{m.amount > 0 ? `${m.amount >= 1000 ? (m.amount / 1000).toFixed(1) + 'k' : m.amount.toFixed(0)}` : ''}</Text>
                   <View style={styles.barBg}>
-                    <AnimatedBar
-                      percentage={(m.amount / max6) * 100}
-                      color={m.key === currentMonth ? COLORS.accent : COLORS.accent + '55'}
-                      delay={i * 100}
-                    />
+                    <AnimatedBar percentage={(m.amount / max6) * 100} color={m.key === currentMonth ? COLORS.accent : COLORS.accent + '55'} delay={i * 100} />
                   </View>
-                  <Text style={[styles.barLabel, m.key === currentMonth && { color: COLORS.accent, fontWeight: '700' }]}>
-                    {m.label}
-                  </Text>
+                  <Text style={[styles.barLabel, m.key === currentMonth && { color: COLORS.accent, fontWeight: '700' }]}>{m.label}</Text>
                 </View>
               ))}
             </View>
@@ -439,15 +332,9 @@ async function syncFromSupabase() {
             <View style={styles.barChart}>
               {last7.map((d, i) => (
                 <View key={i} style={styles.barCol}>
-                  <Text style={styles.barAmount}>
-                    {d.amount > 0 ? `${d.amount >= 1000 ? (d.amount / 1000).toFixed(1) + 'k' : d.amount.toFixed(0)}` : ''}
-                  </Text>
+                  <Text style={styles.barAmount}>{d.amount > 0 ? `${d.amount >= 1000 ? (d.amount / 1000).toFixed(1) + 'k' : d.amount.toFixed(0)}` : ''}</Text>
                   <View style={styles.barBg}>
-                    <AnimatedBar
-                      percentage={(d.amount / max7) * 100}
-                      color={d.amount > 0 ? COLORS.accentGreen : COLORS.border}
-                      delay={i * 80}
-                    />
+                    <AnimatedBar percentage={(d.amount / max7) * 100} color={d.amount > 0 ? COLORS.accentGreen : COLORS.border} delay={i * 80} />
                   </View>
                   <Text style={styles.barLabel}>{d.label}</Text>
                 </View>
@@ -463,17 +350,8 @@ async function syncFromSupabase() {
                   const intensity = d.amount > 0 ? Math.max(0.15, d.amount / maxHeatmap) : 0
                   const isToday = d.day === now.getDate()
                   return (
-                    <View
-                      key={i}
-                      style={[
-                        styles.heatmapCell,
-                        { backgroundColor: d.amount > 0 ? `rgba(108, 99, 255, ${intensity})` : COLORS.cardAlt },
-                        isToday && { borderWidth: 1, borderColor: COLORS.accent }
-                      ]}
-                    >
-                      <Text style={[styles.heatmapDay, d.amount > 0 && intensity > 0.5 && { color: '#fff' }]}>
-                        {d.day}
-                      </Text>
+                    <View key={i} style={[styles.heatmapCell, { backgroundColor: d.amount > 0 ? `rgba(108, 99, 255, ${intensity})` : COLORS.cardAlt }, isToday && { borderWidth: 1, borderColor: COLORS.accent }]}>
+                      <Text style={[styles.heatmapDay, d.amount > 0 && intensity > 0.5 && { color: '#fff' }]}>{d.day}</Text>
                     </View>
                   )
                 })}
@@ -497,12 +375,8 @@ async function syncFromSupabase() {
                     <Ionicons name="briefcase-outline" size={20} color={COLORS.accent} />
                   </View>
                   <Text style={styles.splitLabel}>Weekdays</Text>
-                  <Text style={styles.splitAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                    {formatAmount(weekdayTotal, currencySymbol, currencyCode)}
-                  </Text>
-                  <Text style={styles.splitPct}>
-                    {total > 0 ? ((weekdayTotal / total) * 100).toFixed(0) : 0}%
-                  </Text>
+                  <Text style={styles.splitAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{formatAmount(weekdayTotal, currencySymbol, currencyCode)}</Text>
+                  <Text style={styles.splitPct}>{total > 0 ? ((weekdayTotal / total) * 100).toFixed(0) : 0}%</Text>
                   <View style={styles.splitBarBg}>
                     <View style={[styles.splitBarFill, { width: `${total > 0 ? (weekdayTotal / total) * 100 : 0}%`, backgroundColor: COLORS.accent }]} />
                   </View>
@@ -513,12 +387,8 @@ async function syncFromSupabase() {
                     <Ionicons name="sunny-outline" size={20} color={COLORS.accentYellow} />
                   </View>
                   <Text style={styles.splitLabel}>Weekends</Text>
-                  <Text style={styles.splitAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                    {formatAmount(weekendTotal, currencySymbol, currencyCode)}
-                  </Text>
-                  <Text style={styles.splitPct}>
-                    {total > 0 ? ((weekendTotal / total) * 100).toFixed(0) : 0}%
-                  </Text>
+                  <Text style={styles.splitAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>{formatAmount(weekendTotal, currencySymbol, currencyCode)}</Text>
+                  <Text style={styles.splitPct}>{total > 0 ? ((weekendTotal / total) * 100).toFixed(0) : 0}%</Text>
                   <View style={styles.splitBarBg}>
                     <View style={[styles.splitBarFill, { width: `${total > 0 ? (weekendTotal / total) * 100 : 0}%`, backgroundColor: COLORS.accentYellow }]} />
                   </View>
@@ -531,11 +401,7 @@ async function syncFromSupabase() {
             <Text style={styles.sectionTitle}>Category Breakdown</Text>
             {categoryTotals.map(cat => (
               <View key={cat.label}>
-                <TouchableOpacity
-                  style={styles.catRow}
-                  onPress={() => setExpandedCategory(expandedCategory === cat.label ? null : cat.label)}
-                  activeOpacity={0.7}
-                >
+                <TouchableOpacity style={styles.catRow} onPress={() => setExpandedCategory(expandedCategory === cat.label ? null : cat.label)} activeOpacity={0.7}>
                   <View style={[styles.catIcon, { backgroundColor: cat.color + '22' }]}>
                     <Text style={{ fontSize: 18 }}>{cat.icon}</Text>
                   </View>
@@ -551,11 +417,7 @@ async function syncFromSupabase() {
                       <View style={[styles.progressFill, { width: `${cat.percentage}%`, backgroundColor: cat.color }]} />
                     </View>
                   </View>
-                  <Ionicons
-                    name={expandedCategory === cat.label ? 'chevron-up' : 'chevron-down'}
-                    size={16} color={COLORS.textMuted}
-                    style={{ marginLeft: 8 }}
-                  />
+                  <Ionicons name={expandedCategory === cat.label ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textMuted} style={{ marginLeft: 8 }} />
                 </TouchableOpacity>
 
                 {expandedCategory === cat.label && (
@@ -579,7 +441,7 @@ async function syncFromSupabase() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Top Merchant</Text>
               <View style={styles.merchantCard}>
-                <Text style={styles.merchantEmoji}>🏪</Text>
+                <Text style={styles.merchantEmoji}>🪟</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.merchantName}>{topNote[0].charAt(0).toUpperCase() + topNote[0].slice(1)}</Text>
                   <Text style={styles.merchantSub}>Appears {topNote[1]} times this month</Text>
@@ -623,25 +485,14 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 8, letterSpacing: 1.5, textTransform: 'uppercase' },
   totalAmount: { fontSize: 42, fontWeight: '900', color: '#fff', letterSpacing: -2, width: '100%', textAlign: 'center' },
   totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
-  miniCard: {
-    backgroundColor: COLORS.card, borderRadius: 14,
-    padding: 14, marginRight: 10, minWidth: 130,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
+  miniCard: { backgroundColor: COLORS.card, borderRadius: 14, padding: 14, marginRight: 10, minWidth: 130, borderWidth: 1, borderColor: COLORS.border },
   miniLabel: { fontSize: 9, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8 },
   miniValue: { fontSize: 15, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
-  streakCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
-    marginBottom: 16, borderWidth: 1, borderColor: '#FF8C4244',
-  },
+  streakCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#FF8C4244' },
   streakEmoji: { fontSize: 32 },
   streakTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
   streakSub: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
-  forecastCard: {
-    backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
-    marginBottom: 16, borderWidth: 1, borderColor: COLORS.border,
-  },
+  forecastCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   forecastHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   forecastTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5 },
   forecastAmount: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -1, marginBottom: 6 },
@@ -649,44 +500,26 @@ const styles = StyleSheet.create({
   forecastBar: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, marginBottom: 6 },
   forecastFill: { height: 6, borderRadius: 3 },
   forecastPct: { fontSize: 11, color: COLORS.textMuted },
-  compareCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
-    marginBottom: 24, borderWidth: 1,
-  },
+  compareCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1 },
   compareIcon: { fontSize: 32 },
   compareTitle: { fontSize: 11, color: COLORS.textMuted, marginBottom: 4, letterSpacing: 1 },
   compareText: { fontSize: 15, color: COLORS.text, lineHeight: 22 },
   compareSubtext: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
   section: { marginBottom: 28 },
   sectionTitle: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted, marginBottom: 16, letterSpacing: 1.5, textTransform: 'uppercase' },
-  barChart: {
-    flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between',
-    height: 160, backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
+  barChart: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 160, backgroundColor: COLORS.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.border },
   barCol: { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end' },
   barAmount: { fontSize: 9, color: COLORS.textMuted, marginBottom: 4, textAlign: 'center' },
   barBg: { width: 20, height: '75%', backgroundColor: COLORS.border, borderRadius: 6, overflow: 'hidden', justifyContent: 'flex-end' },
   barLabel: { fontSize: 11, color: COLORS.textMuted, marginTop: 6 },
-  heatmapCard: {
-    backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
+  heatmapCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.border },
   heatmap: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  heatmapCell: {
-    width: 32, height: 32, borderRadius: 6,
-    justifyContent: 'center', alignItems: 'center',
-  },
+  heatmapCell: { width: 32, height: 32, borderRadius: 6, justifyContent: 'center', alignItems: 'center' },
   heatmapDay: { fontSize: 10, color: COLORS.textMuted, fontWeight: '600' },
   heatmapLegend: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 12, justifyContent: 'flex-end' },
   heatmapLegendText: { fontSize: 10, color: COLORS.textMuted },
   heatmapLegendBox: { width: 12, height: 12, borderRadius: 3 },
-  splitCard: {
-    flexDirection: 'row', backgroundColor: COLORS.card,
-    borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
+  splitCard: { flexDirection: 'row', backgroundColor: COLORS.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.border },
   splitItem: { flex: 1, alignItems: 'center', gap: 6 },
   splitIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   splitLabel: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
@@ -705,32 +538,17 @@ const styles = StyleSheet.create({
   catPercent: { fontSize: 11, color: COLORS.textMuted },
   progressBg: { height: 4, backgroundColor: COLORS.border, borderRadius: 2 },
   progressFill: { height: 4, borderRadius: 2 },
-  expandedList: {
-    backgroundColor: COLORS.cardAlt, borderRadius: 12,
-    padding: 12, marginBottom: 12, marginLeft: 56,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  expandedItem: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
+  expandedList: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 12, marginBottom: 12, marginLeft: 56, borderWidth: 1, borderColor: COLORS.border },
+  expandedItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   expandedNote: { fontSize: 13, color: COLORS.text, fontWeight: '500' },
   expandedDate: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
   expandedAmount: { fontSize: 13, fontWeight: '700', color: COLORS.accentGreen },
-  merchantCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
+  merchantCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: COLORS.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.border },
   merchantEmoji: { fontSize: 32 },
   merchantName: { fontSize: 16, fontWeight: '700', color: COLORS.text, textTransform: 'capitalize' },
   merchantSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   merchantCount: { fontSize: 20, fontWeight: '800', color: COLORS.accent },
-  bigCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.card, borderRadius: 16,
-    padding: 20, borderWidth: 1, borderColor: COLORS.border,
-  },
+  bigCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: COLORS.border },
   bigCategory: { fontSize: 16, fontWeight: '700', color: COLORS.text, letterSpacing: -0.3 },
   bigNote: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
   bigDate: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },

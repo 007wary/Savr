@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, A
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
@@ -11,14 +10,13 @@ import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
 import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads'
 import { BANNER_AD_UNIT_ID } from '../../src/lib/ads'
-import { checkBudgetAlerts, checkWeeklySummary } from '../../src/lib/notifications'
-import { requestNotificationPermission } from '../../src/lib/notifications'
+import { checkWeeklySummary, requestNotificationPermission } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
+import { getExpenses, getMonthlyTotal } from '../../src/services/sqliteService'
 
 function CountUp({ value, style, symbol, currencyCode }) {
   const [display, setDisplay] = useState(0)
   const prev = useRef(0)
-
   useEffect(() => {
     const start = prev.current
     const end = value
@@ -36,7 +34,6 @@ function CountUp({ value, style, symbol, currencyCode }) {
     prev.current = end
     return () => clearInterval(timer)
   }, [value])
-
   return (
     <Text style={style} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
       {formatAmount(display, symbol, currencyCode)}
@@ -72,14 +69,6 @@ export default function Dashboard() {
   const { month: currentMonth, name: monthName } = getMonthInfo(monthOffset)
   const isCurrentMonth = monthOffset === 0
 
-  function getMonthRange(month) {
-    const start = `${month}-01`
-    const [year, mon] = month.split('-').map(Number)
-    const lastDay = new Date(year, mon, 0).getDate()
-    const end = `${month}-${String(lastDay).padStart(2, '0')}`
-    return { start, end }
-  }
-
   function sortExpenses(data) {
     return [...data].sort((a, b) => {
       if (b.date !== a.date) return b.date.localeCompare(a.date)
@@ -87,9 +76,15 @@ export default function Dashboard() {
     })
   }
 
-  // Load spending goal on mount
   useEffect(() => {
-    loadGoal().then(setSpendingGoal)
+    async function loadGoalData() {
+      const user = await getUser()
+      if (user) {
+        const goal = await loadGoal(user.id)
+        setSpendingGoal(goal)
+      }
+    }
+    loadGoalData()
   }, [])
 
   async function fetchData(forceRefresh = false) {
@@ -107,88 +102,62 @@ export default function Dashboard() {
         setCurrencyCode(cached.currencyCode || 'INR')
         setLoading(false)
         setMonthLoading(false)
-        syncFromSupabase(cacheKey)
+        syncFromSQLite(cacheKey)
         return
       }
     }
 
-    await syncFromSupabase(cacheKey)
+    await syncFromSQLite(cacheKey)
   }
 
-  async function syncFromSupabase(cacheKey) {
+  async function syncFromSQLite(cacheKey) {
     try {
       const user = await getUser()
-      const meta = user.user_metadata?.display_name ||
-                   user.user_metadata?.full_name
+      const meta = user.user_metadata?.display_name || user.user_metadata?.full_name
       const emailName = user.email.split('@')[0]
       const firstName = meta ? meta.split(' ')[0] : emailName
 
       const symbol = await getCurrencySymbol()
       const code = await loadCurrency()
 
-      const { start, end } = getMonthRange(currentMonth)
       const lastMonthInfo = getMonthInfo(monthOffset - 1)
-      const { start: lastStart, end: lastEnd } = getMonthRange(lastMonthInfo.month)
 
-      const [currentResult, lastMonthResult] = await Promise.all([
-        supabase
-          .from('expenses')
-          .select('*')
-          .eq('user_id', user.id)
-          .gte('date', start)
-          .lte('date', end)
-          .order('date', { ascending: false })
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('expenses')
-          .select('amount')
-          .eq('user_id', user.id)
-          .gte('date', lastStart)
-          .lte('date', lastEnd),
+      const [currentExpenses, lastTotal] = await Promise.all([
+        getExpenses(user.id, { month: currentMonth }),
+        getMonthlyTotal(user.id, lastMonthInfo.month),
       ])
 
-      if (currentResult.data) {
-        const filtered = sortExpenses(currentResult.data)
-        const lastTotal = (lastMonthResult.data || [])
-          .reduce((sum, e) => sum + parseFloat(e.amount), 0)
-        const now = new Date()
-        const daysElapsed = monthOffset === 0
-          ? now.getDate()
-          : new Date(currentMonth + '-01').getDate()
+      const filtered = sortExpenses(currentExpenses)
+      const now = new Date()
+      const daysElapsed = monthOffset === 0
+        ? now.getDate()
+        : new Date(currentMonth + '-01').getDate()
 
-        setExpenses(filtered)
-        setUserName(firstName)
-        setLastMonthTotal(lastTotal)
-        setDaysInMonth(daysElapsed)
-        setCurrencySymbol(symbol)
-        setCurrencyCode(code)
+      setExpenses(filtered)
+      setUserName(firstName)
+      setLastMonthTotal(lastTotal)
+      setDaysInMonth(daysElapsed)
+      setCurrencySymbol(symbol)
+      setCurrencyCode(code)
 
-        await saveCache(cacheKey, {
-          expenses: filtered,
-          userName: firstName,
-          lastMonthTotal: lastTotal,
-          daysInMonth: daysElapsed,
-          currencySymbol: symbol,
-          currencyCode: code,
-        })
+      await saveCache(cacheKey, {
+        expenses: filtered,
+        userName: firstName,
+        lastMonthTotal: lastTotal,
+        daysInMonth: daysElapsed,
+        currencySymbol: symbol,
+        currencyCode: code,
+      })
 
-        // Ask notification permission on first visit
-const notifAsked = await loadCache('savr_notif_asked')
-if (!notifAsked) {
-  await saveCache('savr_notif_asked', true)
-  // Small delay so dashboard loads first
-  setTimeout(async () => {
-    await requestNotificationPermission()
-  }, 2000)
-}
-
-        // Check weekly summary
-        if (monthOffset === 0) {
-          checkWeeklySummary(filtered)
-        }
+      const notifAsked = await loadCache('savr_notif_asked')
+      if (!notifAsked) {
+        await saveCache('savr_notif_asked', true)
+        setTimeout(async () => { await requestNotificationPermission() }, 2000)
       }
-    } catch {
-      // Silently fail — cache already shown
+
+      if (monthOffset === 0) checkWeeklySummary(filtered)
+    } catch (e) {
+      console.error('Dashboard sync error:', e)
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -201,21 +170,22 @@ if (!notifAsked) {
   async function handleSaveGoal() {
     const amount = parseFloat(goalInput)
     if (!goalInput || isNaN(amount) || amount <= 0) return
-    await saveGoal(amount)
+    const user = await getUser()
+    await saveGoal(user.id, amount)
     setSpendingGoal(amount)
     setShowGoalModal(false)
     setGoalInput('')
   }
 
   async function handleClearGoal() {
-    await clearGoal()
+    const user = await getUser()
+    await clearGoal(user.id)
     setSpendingGoal(null)
     setShowGoalModal(false)
     setGoalInput('')
   }
 
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
-
   const now = new Date()
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   const todayExpenses = expenses.filter(e => e.date === todayStr)
@@ -229,15 +199,10 @@ if (!notifAsked) {
 
   const recent = sortExpenses(expenses).slice(0, 5)
 
-  // Goal calculations
   const goalPercentage = spendingGoal ? Math.min((total / spendingGoal) * 100, 100) : 0
   const goalExceeded = spendingGoal && total > spendingGoal
   const goalRemaining = spendingGoal ? Math.max(spendingGoal - total, 0) : 0
-  const goalColor = goalPercentage >= 100
-    ? COLORS.accentRed
-    : goalPercentage >= 80
-    ? COLORS.accentYellow
-    : COLORS.accentGreen
+  const goalColor = goalPercentage >= 100 ? COLORS.accentRed : goalPercentage >= 80 ? COLORS.accentYellow : COLORS.accentGreen
 
   function getCategoryInfo(label) {
     return CATEGORIES.find(c => c.label === label) || { icon: '📦', color: '#888' }
@@ -270,23 +235,15 @@ if (!notifAsked) {
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); fetchData(true) }}
-            tintColor={COLORS.accent}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(true) }} tintColor={COLORS.accent} />
         }
       >
         <View style={styles.header}>
           <Text style={styles.greeting}>{getGreeting()}, {userName} 👋</Text>
         </View>
 
-        {/* Month Navigator */}
         <View style={styles.monthNav}>
-          <TouchableOpacity
-            style={styles.monthNavBtn}
-            onPress={() => setMonthOffset(o => o - 1)}
-          >
+          <TouchableOpacity style={styles.monthNavBtn} onPress={() => setMonthOffset(o => o - 1)}>
             <Ionicons name="chevron-back" size={20} color={COLORS.text} />
           </TouchableOpacity>
           <View style={styles.monthNavCenter}>
@@ -309,55 +266,33 @@ if (!notifAsked) {
           </TouchableOpacity>
         </View>
 
-        {/* Total Card */}
-        <LinearGradient
-          colors={['#7C75FF', '#6C63FF', '#5A50FF']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.totalCard}
-        >
+        <LinearGradient colors={['#7C75FF', '#6C63FF', '#5A50FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.totalCard}>
           <View style={styles.totalRow}>
             <View style={styles.totalLeft}>
               <Text style={styles.totalLabel}>TOTAL SPENT</Text>
-              <CountUp
-                value={total}
-                style={styles.totalAmount}
-                symbol={currencySymbol}
-                currencyCode={currencyCode}
-              />
+              <CountUp value={total} style={styles.totalAmount} symbol={currencySymbol} currencyCode={currencyCode} />
               <Text style={styles.totalSub}>{expenses.length} transactions</Text>
             </View>
             <View style={styles.totalDivider} />
             <View style={styles.totalRight}>
               <Text style={styles.totalLabel}>TODAY</Text>
-              <CountUp
-                value={todayTotal}
-                style={styles.totalAmount}
-                symbol={currencySymbol}
-                currencyCode={currencyCode}
-              />
+              <CountUp value={todayTotal} style={styles.totalAmount} symbol={currencySymbol} currencyCode={currencyCode} />
               <Text style={styles.totalSub}>{todayExpenses.length} today</Text>
             </View>
           </View>
         </LinearGradient>
 
-        {/* Spending Goal Card */}
         {isCurrentMonth && (
           <TouchableOpacity
             style={[styles.goalCard, goalExceeded && styles.goalCardExceeded]}
-            onPress={() => {
-              setGoalInput(spendingGoal ? String(spendingGoal) : '')
-              setShowGoalModal(true)
-            }}
+            onPress={() => { setGoalInput(spendingGoal ? String(spendingGoal) : ''); setShowGoalModal(true) }}
             activeOpacity={0.8}
           >
             {spendingGoal ? (
               <>
                 <View style={styles.goalHeader}>
                   <View style={styles.goalHeaderLeft}>
-                    <Text style={styles.goalEmoji}>
-                      {goalExceeded ? '🚨' : goalPercentage >= 80 ? '⚠️' : '🎯'}
-                    </Text>
+                    <Text style={styles.goalEmoji}>{goalExceeded ? '🚨' : goalPercentage >= 80 ? '⚠️' : '🎯'}</Text>
                     <View>
                       <Text style={styles.goalTitle}>Monthly Goal</Text>
                       <Text style={styles.goalSub}>
@@ -368,21 +303,14 @@ if (!notifAsked) {
                     </View>
                   </View>
                   <View style={styles.goalPctBadge}>
-                    <Text style={[styles.goalPctText, { color: goalColor }]}>
-                      {goalPercentage.toFixed(0)}%
-                    </Text>
+                    <Text style={[styles.goalPctText, { color: goalColor }]}>{goalPercentage.toFixed(0)}%</Text>
                   </View>
                 </View>
                 <View style={styles.goalBarBg}>
-                  <View style={[styles.goalBarFill, {
-                    width: `${goalPercentage}%`,
-                    backgroundColor: goalColor,
-                  }]} />
+                  <View style={[styles.goalBarFill, { width: `${goalPercentage}%`, backgroundColor: goalColor }]} />
                 </View>
                 <View style={styles.goalFooter}>
-                  <Text style={styles.goalFooterText}>
-                    {formatAmount(total, currencySymbol, currencyCode)} of {formatAmount(spendingGoal, currencySymbol, currencyCode)}
-                  </Text>
+                  <Text style={styles.goalFooterText}>{formatAmount(total, currencySymbol, currencyCode)} of {formatAmount(spendingGoal, currencySymbol, currencyCode)}</Text>
                   <Text style={styles.goalEditText}>Tap to edit</Text>
                 </View>
               </>
@@ -401,16 +329,10 @@ if (!notifAsked) {
           </TouchableOpacity>
         )}
 
-        {/* Banner Ad */}
         <View style={styles.bannerContainer}>
-          <BannerAd
-            unitId={BANNER_AD_UNIT_ID}
-            size={BannerAdSize.BANNER}
-            requestOptions={{ requestNonPersonalizedAdsOnly: false }}
-          />
+          <BannerAd unitId={BANNER_AD_UNIT_ID} size={BannerAdSize.BANNER} requestOptions={{ requestNonPersonalizedAdsOnly: false }} />
         </View>
 
-        {/* Stats Row */}
         {expenses.length > 0 && (
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
@@ -429,43 +351,26 @@ if (!notifAsked) {
           </View>
         )}
 
-        {/* Spending Insights */}
         {expenses.length >= 3 && (() => {
           const insights = []
           const topCat = byCategory[0]
-          if (topCat) {
-            const pct = ((topCat.total / total) * 100).toFixed(0)
-            insights.push(`🏆 ${topCat.icon} ${topCat.label} is your biggest spend at ${pct}% of total`)
-          }
-          if (total > lastMonthTotal && lastMonthTotal > 0) {
-            const diff = ((total - lastMonthTotal) / lastMonthTotal * 100).toFixed(0)
-            insights.push(`📈 You're spending ${diff}% more than last month`)
-          }
-          if (total < lastMonthTotal && lastMonthTotal > 0) {
-            const diff = ((lastMonthTotal - total) / lastMonthTotal * 100).toFixed(0)
-            insights.push(`📉 Great job! You're spending ${diff}% less than last month`)
-          }
+          if (topCat) insights.push(`🏆 ${topCat.icon} ${topCat.label} is your biggest spend at ${((topCat.total / total) * 100).toFixed(0)}% of total`)
+          if (total > lastMonthTotal && lastMonthTotal > 0) insights.push(`📈 You're spending ${((total - lastMonthTotal) / lastMonthTotal * 100).toFixed(0)}% more than last month`)
+          if (total < lastMonthTotal && lastMonthTotal > 0) insights.push(`📉 Great job! You're spending ${((lastMonthTotal - total) / lastMonthTotal * 100).toFixed(0)}% less than last month`)
           const dailyAvg = total / Math.max(daysInMonth, 1)
           if (dailyAvg > 500) insights.push(`💡 You're averaging ${formatAmount(dailyAvg, currencySymbol, currencyCode)}/day this month`)
           if (byCategory.length >= 3) insights.push(`📊 You've spent across ${byCategory.length} categories this month`)
-          if (spendingGoal && !goalExceeded && goalPercentage >= 80) {
-            insights.push(`🎯 You've used ${goalPercentage.toFixed(0)}% of your monthly goal — slow down!`)
-          }
-          if (spendingGoal && goalExceeded) {
-            insights.push(`🚨 You've exceeded your monthly goal of ${formatAmount(spendingGoal, currencySymbol, currencyCode)}!`)
-          }
+          if (spendingGoal && !goalExceeded && goalPercentage >= 80) insights.push(`🎯 You've used ${goalPercentage.toFixed(0)}% of your monthly goal — slow down!`)
+          if (spendingGoal && goalExceeded) insights.push(`🚨 You've exceeded your monthly goal of ${formatAmount(spendingGoal, currencySymbol, currencyCode)}!`)
           if (insights.length === 0) return null
           return (
             <View style={styles.insightsCard}>
               <Text style={styles.insightsTitle}>💡 Insights</Text>
-              {insights.map((insight, i) => (
-                <Text key={i} style={styles.insightText}>{insight}</Text>
-              ))}
+              {insights.map((insight, i) => <Text key={i} style={styles.insightText}>{insight}</Text>)}
             </View>
           )
         })()}
 
-        {/* Category Breakdown */}
         {byCategory.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>By Category</Text>
@@ -488,7 +393,6 @@ if (!notifAsked) {
           </View>
         )}
 
-        {/* Recent Transactions */}
         {recent.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Recent Transactions</Text>
@@ -522,26 +426,13 @@ if (!notifAsked) {
       </ScrollView>
 
       {isCurrentMonth && (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => router.push('/(tabs)/add')}
-          activeOpacity={0.85}
-        >
+        <TouchableOpacity style={styles.fab} onPress={() => router.push('/(tabs)/add')} activeOpacity={0.85}>
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
       )}
 
-      {/* Goal Modal */}
-      <Modal
-        visible={showGoalModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowGoalModal(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalOverlay}
-        >
+      <Modal visible={showGoalModal} transparent animationType="fade" onRequestClose={() => setShowGoalModal(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>🎯 Monthly Spending Goal</Text>
@@ -549,11 +440,7 @@ if (!notifAsked) {
                 <Ionicons name="close" size={22} color={COLORS.textMuted} />
               </TouchableOpacity>
             </View>
-
-            <Text style={styles.modalSubtitle}>
-              Set a target for how much you want to spend this month
-            </Text>
-
+            <Text style={styles.modalSubtitle}>Set a target for how much you want to spend this month</Text>
             <Text style={styles.modalLabel}>Goal Amount ({currencySymbol})</Text>
             <TextInput
               style={styles.modalInput}
@@ -564,11 +451,9 @@ if (!notifAsked) {
               keyboardType="numeric"
               autoFocus
             />
-
             <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSaveGoal}>
               <Text style={styles.modalSaveBtnText}>Save Goal</Text>
             </TouchableOpacity>
-
             {spendingGoal && (
               <TouchableOpacity style={styles.modalClearBtn} onPress={handleClearGoal}>
                 <Text style={styles.modalClearBtnText}>Remove Goal</Text>
@@ -585,11 +470,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
   header: { marginBottom: 16 },
   greeting: { fontSize: 26, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
-  monthNav: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: COLORS.card, borderRadius: 14, padding: 12,
-    marginBottom: 20, borderWidth: 1, borderColor: COLORS.border,
-  },
+  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 14, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },
   monthNavBtn: { padding: 4 },
   monthNavBtnDisabled: { opacity: 0.3 },
   monthNavCenter: { alignItems: 'center' },
@@ -600,30 +481,17 @@ const styles = StyleSheet.create({
   totalLeft: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   totalRight: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   totalDivider: { width: 1, height: 70, backgroundColor: 'rgba(255,255,255,0.3)' },
-  totalLabel: {
-    fontSize: 10, color: 'rgba(255,255,255,0.7)',
-    marginBottom: 6, letterSpacing: 1.5, textTransform: 'uppercase',
-  },
-  totalAmount: {
-    fontSize: 22, fontWeight: '900', color: '#fff',
-    letterSpacing: -0.5, width: '100%', textAlign: 'center',
-  },
+  totalLabel: { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginBottom: 6, letterSpacing: 1.5, textTransform: 'uppercase' },
+  totalAmount: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.5, width: '100%', textAlign: 'center' },
   totalSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
-  goalCard: {
-    backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
-    marginBottom: 16, borderWidth: 1, borderColor: COLORS.border,
-  },
+  goalCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   goalCardExceeded: { borderColor: COLORS.accentRed + '66' },
   goalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   goalHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   goalEmoji: { fontSize: 24 },
   goalTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
   goalSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  goalPctBadge: {
-    backgroundColor: COLORS.cardAlt, borderRadius: 10,
-    paddingVertical: 4, paddingHorizontal: 10,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
+  goalPctBadge: { backgroundColor: COLORS.cardAlt, borderRadius: 10, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: COLORS.border },
   goalPctText: { fontSize: 16, fontWeight: '900' },
   goalBarBg: { height: 8, backgroundColor: COLORS.border, borderRadius: 4, marginBottom: 8 },
   goalBarFill: { height: 8, borderRadius: 4 },
@@ -631,31 +499,16 @@ const styles = StyleSheet.create({
   goalFooterText: { fontSize: 12, color: COLORS.textMuted },
   goalEditText: { fontSize: 12, color: COLORS.accent, fontWeight: '600' },
   goalEmpty: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  goalEmptyIcon: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: COLORS.accent + '22',
-    justifyContent: 'center', alignItems: 'center',
-  },
+  goalEmptyIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.accent + '22', justifyContent: 'center', alignItems: 'center' },
   goalEmptyTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text },
   goalEmptySub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  bannerContainer: {
-    alignItems: 'center', marginBottom: 16,
-    borderRadius: 12, overflow: 'hidden',
-    backgroundColor: COLORS.card, minHeight: 50,
-  },
-  statsRow: {
-    flexDirection: 'row', backgroundColor: COLORS.card,
-    borderRadius: 16, padding: 16, marginBottom: 16,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
+  bannerContainer: { alignItems: 'center', marginBottom: 16, borderRadius: 12, overflow: 'hidden', backgroundColor: COLORS.card, minHeight: 50 },
+  statsRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   statCard: { flex: 1, alignItems: 'center' },
   statLabel: { fontSize: 11, color: COLORS.textMuted, marginBottom: 6, letterSpacing: 1, textTransform: 'uppercase' },
   statValue: { fontSize: 16, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5, width: '100%', textAlign: 'center' },
   statDivider: { width: 1, backgroundColor: COLORS.border, marginHorizontal: 8 },
-  insightsCard: {
-    backgroundColor: COLORS.card, borderRadius: 16, padding: 16,
-    marginBottom: 16, borderWidth: 1, borderColor: COLORS.border,
-  },
+  insightsCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   insightsTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 12 },
   insightText: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, lineHeight: 20 },
   section: { marginBottom: 24 },
@@ -677,40 +530,16 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', marginTop: 60 },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },
-  fab: {
-    position: 'absolute', bottom: 24, right: 24,
-    width: 58, height: 58, borderRadius: 29,
-    backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center',
-    shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, shadowRadius: 8, elevation: 8,
-  },
-  modalOverlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: COLORS.card, borderRadius: 24,
-    padding: 24, margin: 16,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
+  fab: { position: 'absolute', bottom: 24, right: 24, width: 58, height: 58, borderRadius: 29, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+  modalCard: { backgroundColor: COLORS.card, borderRadius: 24, padding: 24, margin: 16, borderWidth: 1, borderColor: COLORS.border },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   modalTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text },
   modalSubtitle: { fontSize: 13, color: COLORS.textMuted, marginBottom: 20, lineHeight: 20 },
   modalLabel: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8 },
-  modalInput: {
-    backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14,
-    color: COLORS.text, fontSize: 16, borderWidth: 1,
-    borderColor: COLORS.border, marginBottom: 16,
-  },
-  modalSaveBtn: {
-    backgroundColor: COLORS.accent, borderRadius: 12,
-    padding: 16, alignItems: 'center', marginBottom: 10,
-  },
+  modalInput: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, color: COLORS.text, fontSize: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  modalSaveBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 10 },
   modalSaveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  modalClearBtn: {
-    backgroundColor: COLORS.cardAlt, borderRadius: 12,
-    padding: 14, alignItems: 'center',
-    borderWidth: 1, borderColor: COLORS.border,
-  },
+  modalClearBtn: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   modalClearBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 14 },
 })

@@ -6,7 +6,6 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { supabase } from '../../src/lib/supabase'
 import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { HistorySkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
@@ -17,8 +16,7 @@ import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
-import NetInfo from '@react-native-community/netinfo'
-import { addToQueue } from '../../src/lib/offlineQueue'
+import { getExpenses, updateExpense, deleteExpense } from '../../src/services/sqliteService'
 
 export default function History() {
   const [expenses, setExpenses] = useState(null)
@@ -36,18 +34,9 @@ export default function History() {
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [selectedMonth, setSelectedMonth] = useState('All')
   const [showFilters, setShowFilters] = useState(false)
-  const [isOnline, setIsOnline] = useState(true)
   const { alertConfig, showAlert, hideAlert } = useAlert()
 
   const CACHE_KEY = 'savr_cache_history'
-
-  useEffect(() => {
-    const unsub = NetInfo.addEventListener(state => {
-      const online = state.isConnected && state.isInternetReachable !== false
-      setIsOnline(!!online)
-    })
-    return () => unsub()
-  }, [])
 
   function sortExpenses(data) {
     return [...data].sort((a, b) => {
@@ -66,30 +55,23 @@ export default function History() {
       const cached = await loadCache(CACHE_KEY)
       if (cached) {
         setExpenses(sortExpenses(cached))
-        syncFromSupabase()
+        loadFromSQLite()
         return
       }
     }
 
-    await syncFromSupabase()
+    await loadFromSQLite()
   }
 
-  async function syncFromSupabase() {
+  async function loadFromSQLite() {
     try {
       const user = await getUser()
-      const { data, error } = await supabase
-        .from('expenses')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false })
-        .order('created_at', { ascending: false })
-      if (!error && data) {
-        const sorted = sortExpenses(data)
-        setExpenses(sorted)
-        await saveCache(CACHE_KEY, sorted)
-      }
-    } catch {
-      // Silently fail — cache already shown
+      const data = await getExpenses(user.id)
+      const sorted = sortExpenses(data)
+      setExpenses(sorted)
+      await saveCache(CACHE_KEY, sorted)
+    } catch (e) {
+      console.error('History load error:', e)
     } finally {
       setRefreshing(false)
     }
@@ -150,50 +132,15 @@ export default function History() {
     setSearch('')
   }
 
-  // Helper to update dashboard cache after delete/edit
   async function updateDashboardCache(updatedExpenses) {
     const now = new Date()
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
     const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
     const dashCached = await loadCache(dashCacheKey)
     if (dashCached) {
-      const currentMonthExpenses = updatedExpenses.filter(e =>
-        e.date.startsWith(currentMonth)
-      )
-      await saveCache(dashCacheKey, {
-        ...dashCached,
-        expenses: currentMonthExpenses,
-      })
+      const currentMonthExpenses = updatedExpenses.filter(e => e.date.startsWith(currentMonth))
+      await saveCache(dashCacheKey, { ...dashCached, expenses: currentMonthExpenses })
     }
-  }
-
-  // Helper to remove item from offline queue
-  async function removeFromQueue(deletedExpense) {
-    try {
-      const { getQueue } = await import('../../src/lib/offlineQueue')
-      const queue = await getQueue()
-      const filtered = queue.filter(item => {
-        // Remove matching add_expense item
-        if (item.type === 'add_expense' && deletedExpense) {
-          return !(
-            item.amount === deletedExpense.amount &&
-            item.category === deletedExpense.category &&
-            item.date === deletedExpense.date
-          )
-        }
-        // Remove matching add_recurring item
-        if (item.type === 'add_recurring' && deletedExpense) {
-          return !(
-            item.amount === deletedExpense.amount &&
-            item.category === deletedExpense.category &&
-            item.next_due === deletedExpense.date
-          )
-        }
-        return true
-      })
-      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
-      await AsyncStorage.setItem('savr_offline_queue', JSON.stringify(filtered))
-    } catch {}
   }
 
   async function handleDelete(id) {
@@ -202,16 +149,10 @@ export default function History() {
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-          const deletedExpense = (expenses || []).find(e => e.id === id)
-
           // Update local state immediately
           const updated = (expenses || []).filter(e => e.id !== id)
           setExpenses(updated)
-
-          // Update history cache
           await saveCache(CACHE_KEY, updated)
-
-          // Update dashboard cache immediately
           await updateDashboardCache(updated)
 
           // Clear other caches
@@ -220,20 +161,11 @@ export default function History() {
           await clearCache(`savr_cache_budgets_${currentMonth}`)
           await clearCache(`savr_cache_reports_${currentMonth}`)
 
-          // Handle offline expense (temp_ or offline_ id)
-          if (id?.toString().startsWith('offline_') || id?.toString().startsWith('temp_')) {
-            // Remove from queue so it never syncs to Supabase
-            await removeFromQueue(deletedExpense)
-            return
-          }
-
-          // Handle online expense
-          if (!isOnline) {
-            // Queue delete for when back online
-            await addToQueue({ type: 'delete_expense', id })
-          } else {
-            // Delete from Supabase immediately
-            await supabase.from('expenses').delete().eq('id', id)
+          // Delete from SQLite
+          try {
+            await deleteExpense(id)
+          } catch (e) {
+            console.error('Delete error:', e)
           }
         }
       }
@@ -241,9 +173,6 @@ export default function History() {
   }
 
   function openEdit(expense) {
-    if (expense.id?.toString().startsWith('offline_') || expense.id?.toString().startsWith('temp_')) {
-      return showAlert('Pending Sync', 'This expense is waiting to sync. Edit it once you are back online.')
-    }
     setEditingExpense(expense)
     setEditAmount(String(expense.amount))
     setEditCategory(expense.category)
@@ -266,19 +195,13 @@ export default function History() {
       date: editDate,
     }
 
-    const updated = (expenses || []).map(e =>
+    const updated = sortExpenses((expenses || []).map(e =>
       e.id === editingExpense.id ? updatedExpense : e
-    )
-    const sorted = sortExpenses(updated)
-    setExpenses(sorted)
+    ))
+    setExpenses(updated)
+    await saveCache(CACHE_KEY, updated)
+    await updateDashboardCache(updated)
 
-    // Update history cache
-    await saveCache(CACHE_KEY, sorted)
-
-    // Update dashboard cache immediately
-    await updateDashboardCache(sorted)
-
-    // Clear other caches
     const now = new Date()
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
     await clearCache(`savr_cache_budgets_${currentMonth}`)
@@ -286,26 +209,16 @@ export default function History() {
 
     setEditingExpense(null)
 
-    if (!isOnline) {
-      await addToQueue({
-        type: 'edit_expense',
-        id: editingExpense.id,
+    // Save to SQLite
+    try {
+      await updateExpense(editingExpense.id, {
         amount: parseFloat(editAmount),
         category: editCategory,
         note: editNote.trim(),
         date: editDate,
       })
-    } else {
-      const { error } = await supabase
-        .from('expenses')
-        .update({
-          amount: parseFloat(editAmount),
-          category: editCategory,
-          note: editNote.trim(),
-          date: editDate,
-        })
-        .eq('id', editingExpense.id)
-      if (error) showAlert('Error', error.message)
+    } catch (e) {
+      console.error('Edit error:', e)
     }
 
     setSaving(false)
@@ -320,9 +233,8 @@ export default function History() {
       const rows = expenses.map(e =>
         `${e.date},${e.category},${e.amount},"${e.note || ''}"`
       ).join('\n')
-      const csvContent = headers + rows
       const fileUri = FileSystem.cacheDirectory + 'expenses.csv'
-      await FileSystem.writeAsStringAsync(fileUri, csvContent, { encoding: 'utf8' })
+      await FileSystem.writeAsStringAsync(fileUri, headers + rows, { encoding: 'utf8' })
       const isAvailable = await Sharing.isAvailableAsync()
       if (isAvailable) {
         await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'Export Expenses' })
@@ -342,9 +254,7 @@ export default function History() {
     return (
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionHeaderDate}>{formatDate(section.title)}</Text>
-        <Text style={styles.sectionHeaderTotal}>
-          {formatAmount(section.total, currencySymbol, currencyCode)}
-        </Text>
+        <Text style={styles.sectionHeaderTotal}>{formatAmount(section.total, currencySymbol, currencyCode)}</Text>
       </View>
     )
   }
@@ -359,14 +269,9 @@ export default function History() {
         <View style={styles.info}>
           <Text style={styles.category}>{item.category}</Text>
           <Text style={styles.note}>{item.note || formatDate(item.date)}</Text>
-          {(item.id?.toString().startsWith('offline_') || item.id?.toString().startsWith('temp_')) && (
-            <Text style={styles.offlineBadge}>⏳ Pending sync</Text>
-          )}
         </View>
         <View style={styles.right}>
-          <Text style={styles.amount}>
-            {formatAmount(item.amount, currencySymbol, currencyCode)}
-          </Text>
+          <Text style={styles.amount}>{formatAmount(item.amount, currencySymbol, currencyCode)}</Text>
         </View>
         <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}>
           <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
@@ -477,9 +382,7 @@ export default function History() {
                 style={[styles.filterChip, selectedCategory === cat && styles.filterChipActive]}
                 onPress={() => setSelectedCategory(cat)}
               >
-                {cat !== 'All' && (
-                  <Text style={{ fontSize: 14 }}>{CATEGORIES.find(c => c.label === cat)?.icon}</Text>
-                )}
+                {cat !== 'All' && <Text style={{ fontSize: 14 }}>{CATEGORIES.find(c => c.label === cat)?.icon}</Text>}
                 <Text style={[styles.filterChipText, selectedCategory === cat && { color: '#fff' }]}>{cat}</Text>
               </TouchableOpacity>
             ))}
@@ -533,34 +436,21 @@ export default function History() {
                 key={cat.label}
                 style={[
                   styles.categoryBtn,
-                  editCategory === cat.label && {
-                    backgroundColor: cat.color + '22',
-                    borderColor: cat.color,
-                    borderWidth: 2,
-                  }
+                  editCategory === cat.label && { backgroundColor: cat.color + '22', borderColor: cat.color, borderWidth: 2 }
                 ]}
                 onPress={() => setEditCategory(cat.label)}
               >
-                <View style={[
-                  styles.categoryIconBox,
-                  { backgroundColor: editCategory === cat.label ? cat.color : COLORS.cardAlt }
-                ]}>
+                <View style={[styles.categoryIconBox, { backgroundColor: editCategory === cat.label ? cat.color : COLORS.cardAlt }]}>
                   <Text style={styles.categoryIcon}>{cat.icon}</Text>
                 </View>
-                <Text style={[
-                  styles.categoryLabel,
-                  editCategory === cat.label && { color: COLORS.text, fontWeight: '700' }
-                ]}>
+                <Text style={[styles.categoryLabel, editCategory === cat.label && { color: COLORS.text, fontWeight: '700' }]}>
                   {cat.label}
                 </Text>
               </TouchableOpacity>
             ))}
           </View>
           <Text style={styles.filterLabel}>Date</Text>
-          <TouchableOpacity
-            style={styles.datePicker}
-            onPress={() => setShowEditDatePicker(true)}
-          >
+          <TouchableOpacity style={styles.datePicker} onPress={() => setShowEditDatePicker(true)}>
             <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} style={{ marginRight: 10 }} />
             <Text style={styles.datePickerText}>
               {editDate ? new Date(editDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
@@ -617,11 +507,7 @@ const styles = StyleSheet.create({
   exportBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
   exportText: { color: COLORS.accent, fontWeight: '600', fontSize: 13 },
   searchRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  searchBox: {
-    flex: 1, flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.card, borderRadius: 12, paddingHorizontal: 14,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
+  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
   searchInput: { flex: 1, color: COLORS.text, fontSize: 14, paddingVertical: 12 },
   filterBtn: { width: 46, height: 46, borderRadius: 12, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
   filterBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
@@ -631,26 +517,15 @@ const styles = StyleSheet.create({
   chipText: { color: COLORS.accent, fontSize: 12, fontWeight: '600' },
   clearText: { color: COLORS.accentRed, fontSize: 12, fontWeight: '600' },
   resultsText: { fontSize: 12, color: COLORS.textMuted, marginBottom: 10 },
-  sectionHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: 10, paddingHorizontal: 4, marginTop: 8,
-    borderBottomWidth: 1, borderBottomColor: COLORS.border,
-    marginBottom: 8,
-  },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, marginTop: 8, borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: 8 },
   sectionHeaderDate: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5 },
   sectionHeaderTotal: { fontSize: 13, fontWeight: '800', color: COLORS.text },
-  card: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.card, borderRadius: 14,
-    padding: 14, marginBottom: 8,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
+  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 14, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: COLORS.border },
   iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   icon: { fontSize: 20 },
   info: { flex: 1 },
   category: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2 },
   note: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  offlineBadge: { fontSize: 10, color: COLORS.accentYellow, marginTop: 2, fontWeight: '600' },
   right: { alignItems: 'flex-end', marginRight: 10 },
   amount: { fontSize: 15, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5 },
   deleteBtn: { padding: 6 },
@@ -660,39 +535,19 @@ const styles = StyleSheet.create({
   sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
   filterLabel: { fontSize: 13, color: COLORS.textMuted, marginBottom: 10, marginLeft: 2, fontWeight: '600' },
   filterGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  filterChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20,
-    borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt,
-  },
+  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
   filterChipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   filterChipText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '500' },
   applyBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
   applyBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   clearBtn: { borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, marginBottom: 20 },
   clearBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 15 },
-  input: {
-    backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14,
-    color: COLORS.text, fontSize: 15, borderWidth: 1,
-    borderColor: COLORS.border, marginBottom: 16,
-  },
-  datePicker: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14,
-    borderWidth: 1, borderColor: COLORS.border, marginBottom: 16,
-  },
+  input: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  datePicker: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
   datePickerText: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
-  categoryBtn: {
-    width: '22%', alignItems: 'center',
-    paddingVertical: 12, borderRadius: 14,
-    borderWidth: 1, borderColor: COLORS.border,
-    backgroundColor: COLORS.cardAlt, gap: 8,
-  },
-  categoryIconBox: {
-    width: 40, height: 40, borderRadius: 12,
-    justifyContent: 'center', alignItems: 'center',
-  },
+  categoryBtn: { width: '22%', alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt, gap: 8 },
+  categoryIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   categoryIcon: { fontSize: 20 },
   categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
   modalBtns: { flexDirection: 'row', gap: 12, marginTop: 8, marginBottom: 20 },

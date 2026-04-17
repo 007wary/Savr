@@ -1,24 +1,26 @@
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import { getSpendingGoal, saveSpendingGoal, deleteSpendingGoal } from '../services/sqliteService'
 
-const GOAL_KEY = 'savr_spending_goal'
-
-export async function saveGoal(amount) {
+export async function saveGoal(userId, amount) {
   try {
-    await AsyncStorage.setItem(GOAL_KEY, String(amount))
+    await saveSpendingGoal(userId, {
+      title: 'Monthly Spending Goal',
+      target_amount: amount,
+      deadline: null,
+    })
   } catch {}
 }
 
-export async function loadGoal() {
+export async function loadGoal(userId) {
   try {
-    const val = await AsyncStorage.getItem(GOAL_KEY)
-    return val ? parseFloat(val) : null
+    const goal = await getSpendingGoal(userId)
+    return goal ? goal.target_amount : null
   } catch {
     return null
   }
 }
 
-export async function clearGoal() {
+export async function clearGoal(userId) {
   try {
-    await AsyncStorage.removeItem(GOAL_KEY)
+    await deleteSpendingGoal(userId)
   } catch {}
 }
