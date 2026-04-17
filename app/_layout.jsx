@@ -25,6 +25,15 @@ export default function RootLayout() {
       clearExpiredCache().catch(() => {})
       initializeDatabase().catch(() => {})
 
+      // Update last active in background
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          import('../src/lib/userProfile').then(({ updateLastActive }) => {
+            updateLastActive(session.user.id)
+          }).catch(() => {})
+        }
+      }).catch(() => {})
+
       const done = await AsyncStorage.getItem('savr_onboarding_done')
       setOnboardingDone(done === 'true')
 
@@ -82,14 +91,19 @@ export default function RootLayout() {
           requestNotificationPermission()
           if (session?.user) {
             processDueRecurring(session.user.id)
+
+            // Sync user profile to Supabase
+            import('../src/lib/userProfile').then(({ syncUserProfile }) => {
+              syncUserProfile(session.user)
+            }).catch(() => {})
           }
           import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
-        
-        // Register daily background backup
-registerBackupTask().catch(() => {})
 
-// Auto backup / restore logic
-setTimeout(async () => {
+          // Register daily background backup
+          registerBackupTask().catch(() => {})
+
+          // Auto backup / restore logic
+          setTimeout(async () => {
             try {
               const { backupToDrive, checkBackupExists } = await import('../src/services/driveBackupService')
               const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
@@ -117,10 +131,10 @@ setTimeout(async () => {
       }
 
       if (event === 'SIGNED_OUT') {
-  await clearAllCache()
-  AsyncStorage.removeItem('savr_google_token').catch(() => {})
-  router.replace('/(auth)/login')
-}
+        await clearAllCache()
+        AsyncStorage.removeItem('savr_google_token').catch(() => {})
+        router.replace('/(auth)/login')
+      }
 
       if (event === 'TOKEN_REFRESHED') {
         setSession(session)
