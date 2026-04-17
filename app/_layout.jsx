@@ -22,10 +22,11 @@ export default function RootLayout() {
 
   useEffect(() => {
     async function init() {
+      // Run non-blocking tasks in background immediately
       clearExpiredCache().catch(() => {})
       initializeDatabase().catch(() => {})
 
-      // Update last active in background
+      // Update last active in background — no await
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
           import('../src/lib/userProfile').then(({ updateLastActive }) => {
@@ -37,12 +38,13 @@ export default function RootLayout() {
       const done = await AsyncStorage.getItem('savr_onboarding_done')
       setOnboardingDone(done === 'true')
 
+      // Reduced from 2000ms to 500ms
       const timeout = setTimeout(() => {
         if (session === undefined) {
           setSession(null)
-          SplashScreen.hideAsync()
+          SplashScreen.hideAsync().catch(() => {})
         }
-      }, 2000)
+      }, 500)
 
       try {
         const { data: { session: cachedSession } } = await supabase.auth.getSession()
@@ -57,7 +59,7 @@ export default function RootLayout() {
               await supabase.auth.signOut()
               await clearAllCache()
               setSession(null)
-              SplashScreen.hideAsync()
+              SplashScreen.hideAsync().catch(() => {})
               return
             }
             setSession(refreshed.session)
@@ -65,17 +67,23 @@ export default function RootLayout() {
             setSession(cachedSession)
           }
 
-          SplashScreen.hideAsync()
-          import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+          // Hide splash immediately — don't wait for anything else
+          SplashScreen.hideAsync().catch(() => {})
+
+          // Defer ads init so it doesn't block UI
+          setTimeout(() => {
+            import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+          }, 2000)
+
         } else {
           clearTimeout(timeout)
           setSession(null)
-          SplashScreen.hideAsync()
+          SplashScreen.hideAsync().catch(() => {})
         }
       } catch {
         clearTimeout(timeout)
         setSession(null)
-        SplashScreen.hideAsync()
+        SplashScreen.hideAsync().catch(() => {})
       }
     }
 
@@ -87,47 +95,48 @@ export default function RootLayout() {
       if (event === 'SIGNED_IN') {
         router.replace('/(tabs)/dashboard')
 
-        try {
-          requestNotificationPermission()
-          if (session?.user) {
-            processDueRecurring(session.user.id)
+        // Defer ALL heavy operations so dashboard loads first
+        setTimeout(() => {
+          try {
+            requestNotificationPermission()
+            if (session?.user) {
+              processDueRecurring(session.user.id)
 
-            // Sync user profile to Supabase
-            import('../src/lib/userProfile').then(({ syncUserProfile }) => {
-              syncUserProfile(session.user)
-            }).catch(() => {})
-          }
-          import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+              // Sync user profile to Supabase
+              import('../src/lib/userProfile').then(({ syncUserProfile }) => {
+                syncUserProfile(session.user)
+              }).catch(() => {})
+            }
+            import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+            registerBackupTask().catch(() => {})
+          } catch {}
+        }, 3000)
 
-          // Register daily background backup
-          registerBackupTask().catch(() => {})
+        // Auto backup / restore logic — defer further so dashboard loads first
+        setTimeout(async () => {
+          try {
+            const { backupToDrive, checkBackupExists } = await import('../src/services/driveBackupService')
+            const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
+            const { getExpenses } = await import('../src/services/sqliteService')
 
-          // Auto backup / restore logic
-          setTimeout(async () => {
-            try {
-              const { backupToDrive, checkBackupExists } = await import('../src/services/driveBackupService')
-              const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
-              const { getExpenses } = await import('../src/services/sqliteService')
+            const user = session?.user
+            if (!user) return
 
-              const user = session?.user
-              if (!user) return
+            const localExpenses = await getExpenses(user.id)
+            const hasLocalData = localExpenses.length > 0
+            const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
 
-              const localExpenses = await getExpenses(user.id)
-              const hasLocalData = localExpenses.length > 0
-              const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
-
-              if (!hasLocalData && !restoreOffered) {
-                const backupInfo = await checkBackupExists()
-                if (backupInfo?.exists) {
-                  await AsyncStorageModule.setItem('savr_restore_offered', 'true')
-                  await AsyncStorageModule.setItem('savr_pending_restore', 'true')
-                }
-              } else {
-                backupToDrive().catch(() => {})
+            if (!hasLocalData && !restoreOffered) {
+              const backupInfo = await checkBackupExists()
+              if (backupInfo?.exists) {
+                await AsyncStorageModule.setItem('savr_restore_offered', 'true')
+                await AsyncStorageModule.setItem('savr_pending_restore', 'true')
               }
-            } catch {}
-          }, 2000)
-        } catch {}
+            } else {
+              backupToDrive().catch(() => {})
+            }
+          } catch {}
+        }, 5000)
       }
 
       if (event === 'SIGNED_OUT') {

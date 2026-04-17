@@ -104,7 +104,8 @@ export default function Dashboard() {
         setCurrencyCode(cached.currencyCode || 'INR')
         setLoading(false)
         setMonthLoading(false)
-        syncFromSQLite(cacheKey)
+        // Sync in background AFTER UI renders — key fix for fast load
+        setTimeout(() => syncFromSQLite(cacheKey), 100)
         return
       }
     }
