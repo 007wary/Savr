@@ -3,67 +3,172 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Savr — Expense Tracker</title>
+  <title>Savr — Spend Smart, Save More</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0F0F0F; color: #fff;
-      min-height: 100vh; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; padding: 40px 20px;
+    /* Reset and Core Layout */
+    * { 
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
     }
-    .logo { font-size: 72px; font-weight: 900; color: #6C63FF; letter-spacing: -4px; margin-bottom: 8px; }
-    .tagline { color: #888; font-size: 18px; margin-bottom: 16px; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: #0F0F0F;
+      /* Modern purple radial glow */
+      background: radial-gradient(circle at top, #1a152e 0%, #0F0F0F 60%);
+      color: #FFFFFF;
+      min-height: 100vh; 
+      display: flex; 
+      flex-direction: column;
+      align-items: center; 
+      justify-content: center; /* Centered layout since images are gone */
+      padding: 40px 20px;
+      overflow-x: hidden;
+    }
+
+    /* Logo and Tagline */
+    .logo { 
+      font-size: 84px; /* Slightly larger for presence */
+      font-weight: 900; 
+      color: #6C63FF; 
+      letter-spacing: -4px; 
+      margin-bottom: 8px;
+      text-shadow: 0 10px 40px rgba(108, 99, 255, 0.4);
+    }
+    .tagline { 
+      color: #999; 
+      font-size: 20px; 
+      margin-bottom: 24px; 
+      font-weight: 400;
+    }
+
+    /* Availability Badge */
     .badge {
-      background: #6C63FF22; color: #6C63FF;
-      border: 1px solid #6C63FF44; border-radius: 20px;
-      padding: 6px 16px; font-size: 13px; font-weight: 600;
+      background: rgba(108, 99, 255, 0.1); 
+      color: #fff;
+      border: 1px solid rgba(108, 99, 255, 0.3); 
+      border-radius: 20px;
+      padding: 10px 20px; 
+      font-size: 14px; 
+      font-weight: 600;
       margin-bottom: 48px;
     }
+
+    /* Features Grid */
     .features {
-      display: flex; flex-wrap: wrap; gap: 12px;
-      justify-content: center; max-width: 600px; margin-bottom: 48px;
+      display: flex; 
+      flex-wrap: wrap; 
+      gap: 12px;
+      justify-content: center; 
+      max-width: 700px; 
+      margin-bottom: 60px;
     }
+    
     .feature {
-      background: #1A1A1A; border: 1px solid #2A2A2A;
-      border-radius: 12px; padding: 12px 16px;
-      font-size: 14px; color: #ccc;
-      display: flex; align-items: center; gap: 8px;
+      background: rgba(26, 26, 26, 0.6);
+      border: 1px solid #2A2A2A; 
+      border-radius: 12px; 
+      padding: 14px 20px;
+      font-size: 15px; 
+      color: #ccc;
+      backdrop-filter: blur(10px);
+      transition: all 0.3s ease;
     }
-    .links { display: flex; gap: 16px; margin-bottom: 48px; flex-wrap: wrap; justify-content: center; }
+    
+    .feature:hover {
+      transform: translateY(-5px);
+      border-color: #6C63FF;
+      background: rgba(108, 99, 255, 0.05);
+    }
+
+    /* Links and Buttons Container */
+    .links { 
+      display: flex; 
+      gap: 16px; 
+      margin-bottom: 80px; 
+      flex-wrap: wrap; 
+      justify-content: center; 
+    }
+
     .link {
-      color: #6C63FF; font-size: 14px; text-decoration: none;
-      padding: 10px 20px; border: 1px solid #6C63FF44;
-      border-radius: 10px; transition: background 0.2s;
+      text-decoration: none;
+      padding: 16px 32px; 
+      font-size: 15px; 
+      color: #6C63FF; 
+      border: 1px solid rgba(108, 99, 255, 0.3); 
+      border-radius: 14px; 
+      transition: all 0.3s ease;
+      font-weight: 600;
     }
-    .link:hover { background: #6C63FF22; }
-    .footer { color: #444; font-size: 13px; text-align: center; line-height: 2; }
+
+    .link:hover { 
+      background: rgba(108, 99, 255, 0.1); 
+      transform: translateY(-3px);
+      border-color: rgba(108, 99, 255, 0.6);
+    }
+
+    /* Primary CTA Button */
+    .link-primary {
+      background: #6C63FF; 
+      color: #FFFFFF !important; 
+      border: 1px solid #6C63FF;
+      box-shadow: 0 10px 25px rgba(108, 99, 255, 0.3);
+    }
+
+    .link-primary:hover {
+      background: #5a52d4;
+      box-shadow: 0 15px 35px rgba(108, 99, 255, 0.5);
+    }
+
+    /* Footer */
+    .footer { 
+      color: #555; 
+      font-size: 14px; 
+      text-align: center; 
+      line-height: 2.2; 
+      margin-top: 40px;
+    }
+    .footer a {
+      color: #6C63FF;
+      text-decoration: none;
+    }
+    .footer a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
+
   <div class="logo">Savr</div>
   <p class="tagline">Spend smart, save more</p>
-  <div class="badge">📱 Available on Android</div>
 
   <div class="features">
     <div class="feature">💰 Track Expenses</div>
     <div class="feature">📊 Smart Reports</div>
     <div class="feature">🎯 Set Budgets</div>
-    <div class="feature">🔄 Recurring Expenses</div>
+    <div class="feature">🔄 Recurring</div>
     <div class="feature">📤 CSV Export</div>
     <div class="feature">☁️ Cloud Sync</div>
-    <div class="feature">📵 Works Offline</div>
-    <div class="feature">🌍 30 Currencies</div>
+    <div class="feature">📵 Offline</div>
+    <div class="feature">🌍 30+ Currencies</div>
   </div>
 
   <div class="links">
-    <a class="link" href="privacy-policy.html">Privacy Policy</a>
-    <a class="link" href="terms-of-service.html">Terms of Service</a>
+    <a class="link" href="https://007wary.github.io/Savr/privacy-policy.html">Privacy Policy</a>
+    <a class="link" href="https://007wary.github.io/Savr/terms-of-service.html">Terms of Service</a>
+    <a class="link" href="https://007wary.github.io/Savr/delete-account.html">Request Account Deletion</a>
   </div>
 
   <div class="footer">
-    <p>© 2026 Savr · Developed by Mwnswrang Wary</p>
-    <p>Contact: <a href="mailto:007mwnswrangwary@gmail.com" style="color:#6C63FF">007mwnswrangwary@gmail.com</a></p>
+    <p>© <span id="year">2026</span> Savr · Developed by Wary Dev.</p>
+    <p>Built with React Native & Supabase</p>
+    <p>Contact: <a href="mailto:007mwnswrangwary@gmail.com">007mwnswrangwary@gmail.com</a></p>
   </div>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear() >= 2026 ? new Date().getFullYear() : '2026';
+  </script>
+
 </body>
 </html>
