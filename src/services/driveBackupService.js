@@ -29,20 +29,21 @@ async function getAccessToken() {
       if (age < fiftyFiveMinutes) return storedToken
     }
 
-    // Try using refresh token to get a new access token
+    // Try using refresh token via secure Edge Function (client secret never in app)
     const refreshToken = await AsyncStorage.getItem('savr_google_refresh_token')
     if (refreshToken) {
       try {
-        const response = await fetch('https://oauth2.googleapis.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            client_id: '797987092497-969p0n5h88q654mbjtseb5qmdcb79vvt.apps.googleusercontent.com',
-            client_secret: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_SECRET,
-            grant_type: 'refresh_token',
-            refresh_token: refreshToken,
-          }).toString(),
-        })
+        const response = await fetch(
+          'https://fsrbsqhlgfdqugixqtxc.supabase.co/functions/v1/google-token-refresh',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'apikey': 'sb_publishable_fTC_70PzCNPOs0_sNh1nEQ_Boj4EjqC',
+            },
+            body: JSON.stringify({ refresh_token: refreshToken }),
+          }
+        )
         const data = await response.json()
         if (data.access_token) {
           await AsyncStorage.setItem('savr_google_token', data.access_token)
@@ -52,7 +53,7 @@ async function getAccessToken() {
       } catch {}
     }
 
-    // Final fallback — return stored token even if possibly expired
+    // Final fallback � return stored token even if possibly expired
     if (storedToken) return storedToken
 
     return null
@@ -61,7 +62,6 @@ async function getAccessToken() {
   }
 }
 
-// ─── VERIFY TOKEN IS VALID ────────────────────────────────────
 async function verifyToken(accessToken) {
   try {
     const response = await fetch(
@@ -317,3 +317,4 @@ export async function checkBackupExists() {
     return null
   }
 }
+
