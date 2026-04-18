@@ -30,6 +30,9 @@ export default function Login() {
     }
     try {
       setGoogleLoading(true)
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+      const existingRefreshToken = await AsyncStorage.getItem('savr_google_refresh_token')
+
       const redirectUrl = AuthSession.makeRedirectUri({ scheme: 'savr' })
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -37,7 +40,7 @@ export default function Login() {
           redirectTo: redirectUrl,
           skipBrowserRedirect: true,
           queryParams: {
-            prompt: 'consent',
+            prompt: existingRefreshToken ? 'select_account' : 'consent',
             access_type: 'offline',
             scope: [
               'openid',
@@ -65,16 +68,11 @@ export default function Login() {
         if (access_token) {
           await supabase.auth.setSession({ access_token, refresh_token })
 
-          const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
-
-          // Store Google provider token
           if (provider_token) {
             await AsyncStorage.setItem('savr_google_token', provider_token)
-            // Store when it was saved so we know when it expires (1 hour)
             await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
           }
 
-          // Store Google refresh token — this lets us get new tokens without re-login
           if (provider_refresh_token) {
             await AsyncStorage.setItem('savr_google_refresh_token', provider_refresh_token)
           }
