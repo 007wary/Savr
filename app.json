@@ -1,68 +1,77 @@
 {
-  "expo": {
-    "name": "Savr",
-    "slug": "savr",
-    "version": "1.1.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
-    "scheme": "savr",
-    "description": "Track expenses, set budgets, get insights. Smart, fast, beautiful.",
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.saver.savr"
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
-      },
-      "package": "com.saver.savr",
-      "backgroundColor": "#0F0F0F",
-      "versionCode": 2,
-      "targetSdkVersion": 35,
-      "googleMobileAdsAppId": "ca-app-pub-6010190127310138~6262367655",
-      "permissions": [
-        "android.permission.INTERNET",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.VIBRATE",
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.SCHEDULE_EXACT_ALARM"
-      ]
-    },
-    "plugins": [
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-6010190127310138~6262367655"
-        }
-      ],
-      "expo-router",
-      "expo-notifications",
-      "expo-secure-store",
-      "expo-font",
-      [
-        "expo-splash-screen",
-        {
-          "backgroundColor": "#0F0F0F",
-          "image": "./assets/icon.png",
-          "imageWidth": 80
-        }
-      ],
-      "expo-web-browser",
-      "expo-sqlite",
-      ["@react-native-firebase/app", {"android": {"googleServicesFile": "./google-services.json"}}]
-    ],
-    "experiments": {
-      "typedRoutes": true
-    },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "06661bbd-b3e6-4e14-8480-9d3cd0ecda34"
-      }
-    },
-    "owner": "mwnswrang"
-  }
-}
+    "expo":  {
+                 "name":  "Savr",
+                 "slug":  "savr",
+                 "version":  "1.1.0",
+                 "orientation":  "portrait",
+                 "icon":  "./assets/icon.png",
+                 "userInterfaceStyle":  "dark",
+                 "scheme":  "savr",
+                 "description":  "Track expenses, set budgets, get insights. Smart, fast, beautiful.",
+                 "ios":  {
+                             "supportsTablet":  true,
+                             "bundleIdentifier":  "com.saver.savr"
+                         },
+                 "android":  {
+                                 "adaptiveIcon":  {
+                                                      "foregroundImage":  "./assets/adaptive-icon.png",
+                                                      "backgroundColor":  "#FFFFFF"
+                                                  },
+                                 "package":  "com.saver.savr",
+                                 "backgroundColor":  "#0F0F0F",
+                                 "versionCode":  2,
+                                 "targetSdkVersion":  35,
+                                 "googleMobileAdsAppId":  "ca-app-pub-6010190127310138~6262367655",
+                                 "permissions":  [
+                                                     "android.permission.INTERNET",
+                                                     "android.permission.RECEIVE_BOOT_COMPLETED",
+                                                     "android.permission.VIBRATE",
+                                                     "android.permission.POST_NOTIFICATIONS",
+                                                     "android.permission.SCHEDULE_EXACT_ALARM"
+                                                 ],
+                                 "googleServicesFile":  "./google-services.json"
+                             },
+                 "plugins":  [
+                                 [
+                                     "react-native-google-mobile-ads",
+                                     {
+                                         "androidAppId":  "ca-app-pub-6010190127310138~6262367655"
+                                     }
+                                 ],
+                                 "expo-router",
+                                 "expo-notifications",
+                                 "expo-secure-store",
+                                 "expo-font",
+                                 [
+                                     "expo-splash-screen",
+                                     {
+                                         "backgroundColor":  "#0F0F0F",
+                                         "image":  "./assets/icon.png",
+                                         "imageWidth":  80
+                                     }
+                                 ],
+                                 "expo-web-browser",
+                                 "expo-sqlite",
+                                 [
+                                     "@react-native-firebase/app",
+                                     {
+                                         "android":  {
+                                                         "googleServicesFile":  "./google-services.json"
+                                                     }
+                                     }
+                                 ]
+                             ],
+                 "experiments":  {
+                                     "typedRoutes":  true
+                                 },
+                 "extra":  {
+                               "router":  {
 
+                                          },
+                               "eas":  {
+                                           "projectId":  "06661bbd-b3e6-4e14-8480-9d3cd0ecda34"
+                                       }
+                           },
+                 "owner":  "mwnswrang"
+             }
+}
