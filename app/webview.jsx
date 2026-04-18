@@ -29,7 +29,7 @@ export default function WebViewScreen() {
       )}
       <WebView
         source={{ html }}
-        onLoadEnd={() => setLoading(false)}
+        onLoadEnd={() => setLoading(false)} onError={() => setLoading(false)}
         style={{ flex: 1, backgroundColor: COLORS.bg }}
         scrollEnabled
       />

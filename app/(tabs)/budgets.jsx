@@ -68,10 +68,11 @@ export default function Budgets() {
       setBudgets(budgetData)
       setExpenses(filtered)
       setAllExpenses(allExp)
-      setRecommendations(generateBudgetRecommendations(allExp, CATEGORIES))
+      const threeMonthsAgo = new Date(); threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+      const recentExp = allExp.filter(e => new Date(e.date + 'T00:00:00') >= threeMonthsAgo)
+      setRecommendations(generateBudgetRecommendations(recentExp, CATEGORIES))
       await saveCache(CACHE_KEY, { budgets: budgetData, expenses: filtered, allExpenses: allExp })
     } catch (e) {
-      console.error('Budgets load error:', e)
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -100,7 +101,6 @@ export default function Budgets() {
       const user = await getUser()
       await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth })
     } catch (e) {
-      console.error('Save budget error:', e)
     }
   }
 
@@ -112,7 +112,6 @@ export default function Budgets() {
     await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses, allExpenses })
     setEditing(null)
     setInputValue('')
-    try { await deleteBudget(existing.id) } catch (e) { console.error('Delete budget error:', e) }
   }
 
   async function applyAllRecommendations() {

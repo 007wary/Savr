@@ -179,7 +179,6 @@ export default function Dashboard() {
         }
       } catch {}
     } catch (e) {
-      console.error('Dashboard sync error:', e)
     } finally {
       setLoading(false)
       setRefreshing(false)

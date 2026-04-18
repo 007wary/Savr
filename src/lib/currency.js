@@ -6,6 +6,10 @@ const CURRENCY_KEY = 'savr_currency'
 // In-memory cache so we don't hit AsyncStorage every render
 let _cachedCode = null
 
+export function clearCurrencyCache() {
+  _cachedCode = null
+}
+
 export async function saveCurrency(currencyCode) {
   try {
     _cachedCode = currencyCode

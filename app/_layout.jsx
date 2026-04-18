@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { initializeDatabase } from '../src/services/sqliteService'
 import { registerBackupTask, unregisterBackupTask } from '../src/services/backgroundBackup'
 import { Analytics, setUserId } from '../src/lib/analytics'
+import { clearCurrencyCache } from '../src/lib/currency'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -151,6 +152,7 @@ export default function RootLayout() {
         Analytics.logout()
         await clearAllCache()
         AsyncStorage.removeItem('savr_google_token').catch(() => {})
+        clearCurrencyCache()
         unregisterBackupTask().catch(() => {})
         router.replace('/(auth)/login')
       }

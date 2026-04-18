@@ -69,7 +69,6 @@ export default function History() {
       setExpenses(sorted)
       await saveCache(CACHE_KEY, sorted)
     } catch (e) {
-      console.error('History load error:', e)
     } finally {
       setRefreshing(false)
     }
@@ -155,7 +154,6 @@ export default function History() {
           const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
           await clearCache(`savr_cache_budgets_${currentMonth}`)
           await clearCache(`savr_cache_reports_${currentMonth}`)
-          try { await deleteExpense(id) } catch (e) { console.error('Delete error:', e) }
         }
       }
     ])
@@ -200,7 +198,6 @@ export default function History() {
         note: editNote.trim(),
         date: editDate,
       })
-    } catch (e) { console.error('Edit error:', e) }
     setSaving(false)
   }
 

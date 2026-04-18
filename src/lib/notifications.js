@@ -4,8 +4,8 @@ import { getCurrencySymbol } from './currency'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const WEEKLY_NOTIF_KEY = 'savr_last_weekly_notif'
+const BUDGET_NOTIF_KEY = 'savr_budget_notifs_sent'
 
-// How notifications appear when app is open
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -35,14 +35,16 @@ export async function sendNotification(title, body) {
       content: { title, body, sound: true },
       trigger: null,
     })
-  } catch {
-    // Silently fail
-  }
+  } catch {}
 }
 
 export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
   try {
     const symbol = await getCurrencySymbol()
+    const sentRaw = await AsyncStorage.getItem(BUDGET_NOTIF_KEY)
+    const sent = sentRaw ? JSON.parse(sentRaw) : {}
+    let updated = false
+
     for (const budget of budgets) {
       const spent = expenses
         .filter(e => e.category === budget.category && e.date.startsWith(currentMonth))
@@ -51,47 +53,51 @@ export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
       const limit = parseFloat(budget.limit_amount)
       const percentage = (spent / limit) * 100
 
-      if (percentage >= 100) {
+      const key100 = `${currentMonth}_${budget.category}_100`
+      const key80 = `${currentMonth}_${budget.category}_80`
+
+      if (percentage >= 100 && !sent[key100]) {
         await sendNotification(
-          `🚨 Budget Exceeded — ${budget.category}`,
-          `You've spent ${symbol}${spent.toFixed(0)} of your ${symbol}${limit.toFixed(0)} budget`
+          `Budget Exceeded - ${budget.category}`,
+          `You have spent ${symbol}${spent.toFixed(0)} of your ${symbol}${limit.toFixed(0)} budget`
         )
-      } else if (percentage >= 80) {
+        sent[key100] = true
+        updated = true
+      } else if (percentage >= 80 && !sent[key80]) {
         await sendNotification(
-          `⚠️ Budget Warning — ${budget.category}`,
-          `You've used ${percentage.toFixed(0)}% of your ${symbol}${limit.toFixed(0)} budget`
+          `Budget Warning - ${budget.category}`,
+          `You have used ${percentage.toFixed(0)}% of your ${symbol}${limit.toFixed(0)} budget`
         )
+        sent[key80] = true
+        updated = true
       }
     }
-  } catch {
-    // Silently fail
-  }
+
+    if (updated) {
+      await AsyncStorage.setItem(BUDGET_NOTIF_KEY, JSON.stringify(sent))
+    }
+  } catch {}
 }
 
-// Check and send weekly summary if due
 export async function checkWeeklySummary(expenses) {
   try {
     const granted = await requestNotificationPermission()
     if (!granted) return
 
-    // Only send on Sundays
     const today = new Date()
-    const dayOfWeek = today.getDay() // 0 = Sunday
+    const dayOfWeek = today.getDay()
     if (dayOfWeek !== 0) return
 
-    // Only send once per week — check last sent date
     const lastSent = await AsyncStorage.getItem(WEEKLY_NOTIF_KEY)
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
     if (lastSent === todayStr) return
 
-    // Get last 7 days expenses
     const weekExpenses = []
     for (let i = 0; i < 7; i++) {
       const d = new Date()
       d.setDate(d.getDate() - i)
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      const dayExpenses = expenses.filter(e => e.date === dateStr)
-      weekExpenses.push(...dayExpenses)
+      weekExpenses.push(...expenses.filter(e => e.date === dateStr))
     }
 
     if (weekExpenses.length === 0) return
@@ -99,29 +105,21 @@ export async function checkWeeklySummary(expenses) {
     const weekTotal = weekExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
     const symbol = await getCurrencySymbol()
 
-    // Find top category
     const catTotals = {}
     weekExpenses.forEach(e => {
       catTotals[e.category] = (catTotals[e.category] || 0) + parseFloat(e.amount)
     })
     const topCat = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0]
 
-    // Build motivational message
     const dailyAvg = weekTotal / 7
     let message = `You spent ${symbol}${weekTotal.toFixed(0)} this week`
-    if (topCat) {
-      message += ` · Top: ${topCat[0]} (${symbol}${topCat[1].toFixed(0)})`
-    }
+    if (topCat) message += ` - Top: ${topCat[0]} (${symbol}${topCat[1].toFixed(0)})`
 
-    let title = '📊 Weekly Spending Summary'
-    if (dailyAvg < 500) title = '🎉 Great week! Spending looks good'
-    else if (dailyAvg > 2000) title = '📈 High spending week — review your expenses'
+    let title = 'Weekly Spending Summary'
+    if (dailyAvg < 200) title = 'Great week! Spending looks good'
+    else if (dailyAvg > 1000) title = 'High spending week - review your expenses'
 
     await sendNotification(title, message)
-
-    // Save today as last sent
     await AsyncStorage.setItem(WEEKLY_NOTIF_KEY, todayStr)
-  } catch {
-    // Silently fail
-  }
+  } catch {}
 }

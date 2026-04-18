@@ -99,7 +99,7 @@ export function detectCategory(note) {
   if (!note || !note.trim()) return null
   const lower = note.toLowerCase()
   for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-    if (keywords.some(k => lower.includes(k))) {
+    if (keywords.some(k => new RegExp('(?:^|\\s|[^a-zA-Z])' + k + '(?:[^a-zA-Z]|$)', 'i').test(lower))) {
       return category
     }
   }

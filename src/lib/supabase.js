@@ -8,7 +8,6 @@ import Constants from 'expo-constants'
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://fsrbsqhlgfdqugixqtxc.supabase.co'
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_fTC_70PzCNPOs0_sNh1nEQ_Boj4EjqC'
 
-// Use SecureStore in real APK, AsyncStorage in Expo Go
 const isExpoGo = Constants.appOwnership === 'expo'
 
 const storage = isExpoGo ? AsyncStorage : {
@@ -45,6 +44,15 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     lock: processLock,
   },
 })
+
+  if (state === 'active') {
+    supabase.auth.startAutoRefresh()
+  } else {
+    supabase.auth.stopAutoRefresh()
+  }
+})
+
+}
 
 AppState.addEventListener('change', (state) => {
   if (state === 'active') {

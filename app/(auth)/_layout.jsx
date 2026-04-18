@@ -8,9 +8,7 @@ export default function AuthLayout() {
       contentStyle: { backgroundColor: COLORS.bg }
     }}>
       <Stack.Screen name="login" />
-      <Stack.Screen name="register" />
       <Stack.Screen name="webview" />
-      <Stack.Screen name="forgot-password" />
     </Stack>
   )
 }

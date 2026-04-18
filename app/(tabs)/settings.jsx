@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import Constants from 'expo-constants'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Switch, TextInput,
@@ -20,7 +21,7 @@ import { getUser, clearUserCache } from '../../src/lib/auth'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { backupToDrive, checkBackupExists } from '../../src/services/driveBackupService'
 
-const APP_VERSION = '1.0'
+const APP_VERSION = Constants.expoConfig?.version || '1.0'
 const CACHE_KEY = 'savr_cache_settings'
 
 export default function Settings() {

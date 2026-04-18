@@ -12,11 +12,19 @@ export function generateBudgetRecommendations(allExpenses, categories) {
     )
   }
 
+  // Pre-group expenses by category for O(n) lookup instead of O(n*m)
+  const expensesByCategory = {}
+  allExpenses.forEach(e => {
+    if (!expensesByCategory[e.category]) expensesByCategory[e.category] = []
+    expensesByCategory[e.category].push(e)
+  })
+
   categories.forEach(cat => {
     // Get expenses for this category in last 3 months
     const monthlyTotals = last3Months.map(month => {
-      const monthExpenses = allExpenses.filter(
-        e => e.category === cat.label && e.date.startsWith(month)
+      const catExpenses = expensesByCategory[cat.label] || []
+      const monthExpenses = catExpenses.filter(
+        e => e.date.startsWith(month)
       )
       return monthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
     })

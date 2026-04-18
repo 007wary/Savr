@@ -118,7 +118,6 @@ export default function Reports() {
       setAllExpenses(sixMonthData)
       await saveCache(CACHE_KEY, { expenses: currentData, lastMonthExpenses: lastMonthData, allExpenses: sixMonthData })
     } catch (e) {
-      console.error('Reports load error:', e)
     } finally {
       setLoading(false)
       setRefreshing(false)

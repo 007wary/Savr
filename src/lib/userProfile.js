@@ -1,6 +1,10 @@
 import { supabase } from './supabase'
 import * as Device from 'expo-device'
 import Constants from 'expo-constants'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+
+const LAST_ACTIVE_KEY = 'savr_last_active_sync'
+
 
 export async function syncUserProfile(user) {
   try {
@@ -41,7 +45,7 @@ export async function updateUserProfile(userId, updates) {
       .eq('id', userId)
     return { error: null }
   } catch {
-    return { error: null }
+    return { error: 'Unknown error' }
   }
 }
 
@@ -59,10 +63,14 @@ export async function getUserProfile(userId) {
   }
 }
 
-// Call this on every app open to keep last_active fresh
+
 export async function updateLastActive(userId) {
   try {
     if (!userId) return
+    // Throttle to once per hour to avoid hitting Supabase on every app open
+    const lastSync = await AsyncStorage.getItem(LAST_ACTIVE_KEY)
+    if (lastSync && Date.now() - parseInt(lastSync) < 60 * 60 * 1000) return
+    await AsyncStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString())
     await supabase
       .from('user_profiles')
       .update({

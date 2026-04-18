@@ -21,7 +21,6 @@ export function detectAnomaly(newAmount, category, allExpenses) {
 
     const amounts = historicalExpenses.map(e => parseFloat(e.amount))
     const avg = amounts.reduce((sum, a) => sum + a, 0) / amounts.length
-    const max = Math.max(...amounts)
 
     // Only flag if new amount is more than 2.5x the average
     if (newAmount < avg * 2.5) return null
@@ -30,7 +29,6 @@ export function detectAnomaly(newAmount, category, allExpenses) {
 
     return {
       avg: Math.round(avg),
-      max: Math.round(max),
       multiplier,
       count: historicalExpenses.length,
     }

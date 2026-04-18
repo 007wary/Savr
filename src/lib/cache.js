@@ -79,20 +79,19 @@ export async function clearExpiredCache() {
   try {
     const keys = await AsyncStorage.getAllKeys()
     const cacheKeys = keys.filter(k => k.startsWith('savr_cache_'))
+    if (cacheKeys.length === 0) return
+    const pairs = await AsyncStorage.multiGet(cacheKeys)
     const expiredKeys = []
-
-    for (const key of cacheKeys) {
-      const raw = await AsyncStorage.getItem(key)
-      if (!raw) continue
-      const { timestamp } = JSON.parse(raw)
-      const expiry = getExpiry(key)
-      const age = Date.now() - (timestamp || 0)
-      if (age > expiry) expiredKeys.push(key)
+    for (const [key, raw] of pairs) {
+      if (!raw) { expiredKeys.push(key); continue }
+      try {
+        const { timestamp } = JSON.parse(raw)
+        const expiry = getExpiry(key)
+        const age = Date.now() - (timestamp || 0)
+        if (age > expiry) expiredKeys.push(key)
+      } catch { expiredKeys.push(key) }
     }
-
-    if (expiredKeys.length > 0) {
-      await AsyncStorage.multiRemove(expiredKeys)
-    }
+    if (expiredKeys.length > 0) await AsyncStorage.multiRemove(expiredKeys)
   } catch {}
 }
 
