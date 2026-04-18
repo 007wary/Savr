@@ -9,7 +9,6 @@ TaskManager.defineTask(BACKUP_TASK_NAME, async () => {
     const { backupToDrive } = await import('./driveBackupService')
     const result = await backupToDrive()
     if (result.success) {
-      console.log('Background backup successful:', result.backedUpAt)
       return BackgroundFetch.BackgroundFetchResult.NewData
     }
     return BackgroundFetch.BackgroundFetchResult.NoData

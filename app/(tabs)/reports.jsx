@@ -36,6 +36,7 @@ function AnimatedBar({ percentage, color, delay = 0 }) {
 
 // Module-level variable — persists across component unmounts/remounts
 let adShownOnce = false
+let adShownDate = ''
 
 export default function Reports() {
   const [expenses, setExpenses] = useState([])
@@ -55,8 +56,10 @@ export default function Reports() {
   useFocusEffect(useCallback(() => {
     fetchData()
 
-    if (adShownOnce) return
+    const today = new Date().toISOString().split('T')[0]
+    if (adShownOnce && adShownDate === today) return
     adShownOnce = true
+    adShownDate = today
 
     let interstitial = null
     let unsubLoaded = null

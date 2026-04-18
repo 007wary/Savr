@@ -69,6 +69,13 @@ export const initializeDatabase = async () => {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS idx_expenses_user_id ON expenses(user_id);
+    CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
+    CREATE INDEX IF NOT EXISTS idx_expenses_user_date ON expenses(user_id, date);
+    CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(user_id, category);
+    CREATE INDEX IF NOT EXISTS idx_budgets_user_month ON budgets(user_id, month);
+    CREATE INDEX IF NOT EXISTS idx_recurring_user ON recurring_expenses(user_id, is_active);
+    CREATE INDEX IF NOT EXISTS idx_goals_user ON spending_goals(user_id);
   `)
 
   return database

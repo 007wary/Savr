@@ -13,5 +13,10 @@ export const INTERSTITIAL_AD_UNIT_ID = isDev
 export async function initializeAds() {
   try {
     await mobileAds().initialize()
+    await mobileAds().setRequestConfiguration({
+      maxAdContentRating: 'T',
+      tagForChildDirectedTreatment: false,
+      tagForUnderAgeOfConsent: false,
+    })
   } catch {}
 }

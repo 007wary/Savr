@@ -10,7 +10,7 @@ import { processDueRecurring } from '../src/lib/recurring'
 import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { initializeDatabase } from '../src/services/sqliteService'
-import { registerBackupTask } from '../src/services/backgroundBackup'
+import { registerBackupTask, unregisterBackupTask } from '../src/services/backgroundBackup'
 import { Analytics, setUserId } from '../src/lib/analytics'
 
 SplashScreen.preventAutoHideAsync()
@@ -151,6 +151,7 @@ export default function RootLayout() {
         Analytics.logout()
         await clearAllCache()
         AsyncStorage.removeItem('savr_google_token').catch(() => {})
+        unregisterBackupTask().catch(() => {})
         router.replace('/(auth)/login')
       }
 
