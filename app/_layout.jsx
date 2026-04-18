@@ -98,6 +98,7 @@ export default function RootLayout() {
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
+        setOnboardingDone(true)
         // Set Firebase user ID for analytics
         if (session?.user?.id) {
           setUserId(session.user.id).catch(() => {})
