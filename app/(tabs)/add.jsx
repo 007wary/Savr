@@ -17,6 +17,7 @@ import { detectCategory } from '../../src/lib/categoryDetector'
 import { detectAnomaly } from '../../src/lib/anomalyDetector'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
 import { addExpense, addRecurring, getExpenses, getBudgets } from '../../src/services/sqliteService'
+import { Analytics } from '../../src/lib/analytics'
 
 const FREQUENCIES = [
   { label: 'Daily', value: 'daily', icon: 'sunny-outline' },
@@ -107,6 +108,7 @@ export default function AddExpense() {
     } else {
       await addExpense(user.id, expenseData)
     }
+    Analytics.addExpense(expenseData.category, expenseData.amount)
 
     await clearCache(`savr_cache_dashboard_${expenseMonth}`)
     await clearCache('savr_cache_history')

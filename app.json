@@ -50,7 +50,8 @@
         }
       ],
       "expo-web-browser",
-      "expo-sqlite"
+      "expo-sqlite",
+      ["@react-native-firebase/app", {"android": {"googleServicesFile": "./google-services.json"}}]
     ],
     "experiments": {
       "typedRoutes": true
@@ -64,3 +65,4 @@
     "owner": "mwnswrang"
   }
 }
+

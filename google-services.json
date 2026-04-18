@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "186858779565",
+    "project_id": "savr-b6c11",
+    "storage_bucket": "savr-b6c11.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:186858779565:android:496cbd04149d6abb1a2724",
+        "android_client_info": {
+          "package_name": "com.saver.savr"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyByB6ujMD0FViyYZR-n_RKhqoH4FayGfvs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -11,23 +11,29 @@ import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { initializeDatabase } from '../src/services/sqliteService'
 import { registerBackupTask } from '../src/services/backgroundBackup'
+import { Analytics, setUserId } from '../src/lib/analytics'
 
 SplashScreen.preventAutoHideAsync()
 
 export default function RootLayout() {
   const [session, setSession] = useState(undefined)
   const [onboardingDone, setOnboardingDone] = useState(undefined)
-const recurringProcessedRef = useRef(false)
+  const recurringProcessedRef = useRef(false)
   const router = useRouter()
   const segments = useSegments()
 
+  // Track screen views when segments change
+  useEffect(() => {
+    if (!segments || segments.length === 0) return
+    const screen = segments.join('/')
+    Analytics.screen(screen)
+  }, [segments])
+
   useEffect(() => {
     async function init() {
-      // Run non-blocking tasks in background immediately
       clearExpiredCache().catch(() => {})
       initializeDatabase().catch(() => {})
 
-      // Update last active in background — no await
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user) {
           import('../src/lib/userProfile').then(({ updateLastActive }) => {
@@ -39,7 +45,6 @@ const recurringProcessedRef = useRef(false)
       const done = await AsyncStorage.getItem('savr_onboarding_done')
       setOnboardingDone(done === 'true')
 
-      // Reduced from 2000ms to 500ms
       const timeout = setTimeout(() => {
         if (session === undefined) {
           setSession(null)
@@ -68,10 +73,8 @@ const recurringProcessedRef = useRef(false)
             setSession(cachedSession)
           }
 
-          // Hide splash immediately — don't wait for anything else
           SplashScreen.hideAsync().catch(() => {})
 
-          // Defer ads init so it doesn't block UI
           setTimeout(() => {
             import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
           }, 2000)
@@ -94,20 +97,21 @@ const recurringProcessedRef = useRef(false)
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
+        // Set Firebase user ID for analytics
+        if (session?.user?.id) {
+          setUserId(session.user.id).catch(() => {})
+        }
+        Analytics.login()
         router.replace('/(tabs)/dashboard')
 
-        // Defer ALL heavy operations so dashboard loads first
         setTimeout(() => {
           try {
             requestNotificationPermission()
             if (session?.user) {
-  // Guard against duplicate processing on multiple SIGNED_IN events
-  if (!recurringProcessedRef.current) {
-    recurringProcessedRef.current = true
-    processDueRecurring(session.user.id)
-  }
-
-              // Sync user profile to Supabase
+              if (!recurringProcessedRef.current) {
+                recurringProcessedRef.current = true
+                processDueRecurring(session.user.id)
+              }
               import('../src/lib/userProfile').then(({ syncUserProfile }) => {
                 syncUserProfile(session.user)
               }).catch(() => {})
@@ -117,7 +121,6 @@ const recurringProcessedRef = useRef(false)
           } catch {}
         }, 3000)
 
-        // Auto backup / restore logic — defer further so dashboard loads first
         setTimeout(async () => {
           try {
             const { backupToDrive, checkBackupExists } = await import('../src/services/driveBackupService')
@@ -145,6 +148,7 @@ const recurringProcessedRef = useRef(false)
       }
 
       if (event === 'SIGNED_OUT') {
+        Analytics.logout()
         await clearAllCache()
         AsyncStorage.removeItem('savr_google_token').catch(() => {})
         router.replace('/(auth)/login')
@@ -210,36 +214,35 @@ const recurringProcessedRef = useRef(false)
   }, [segments])
 
   useEffect(() => {
-  if (session === undefined || onboardingDone === undefined) return
+    if (session === undefined || onboardingDone === undefined) return
 
-  const inOnboarding = segments[0] === 'onboarding'
-  const inAuth = segments[0] === '(auth)'
-  const inTabs = segments[0] === '(tabs)'
+    const inOnboarding = segments[0] === 'onboarding'
+    const inAuth = segments[0] === '(auth)'
+    const inTabs = segments[0] === '(tabs)'
 
-  if (!onboardingDone && !inOnboarding) {
-    router.replace('/onboarding')
-    return
-  }
-
-  if (onboardingDone) {
-    // Already on correct screen - don't navigate
-    if (session && inTabs) return
-    if (!session && inAuth) return
-
-    if (!session && !inAuth && !inOnboarding) {
-      router.replace('/(auth)/login')
+    if (!onboardingDone && !inOnboarding) {
+      router.replace('/onboarding')
       return
     }
-    if (session && inAuth) {
-      router.replace('/(tabs)/dashboard')
-      return
+
+    if (onboardingDone) {
+      if (session && inTabs) return
+      if (!session && inAuth) return
+
+      if (!session && !inAuth && !inOnboarding) {
+        router.replace('/(auth)/login')
+        return
+      }
+      if (session && inAuth) {
+        router.replace('/(tabs)/dashboard')
+        return
+      }
+      if (inOnboarding) {
+        router.replace('/(auth)/login')
+        return
+      }
     }
-    if (inOnboarding) {
-      router.replace('/(auth)/login')
-      return
-    }
-  }
-}, [session, segments, onboardingDone])
+  }, [session, segments, onboardingDone])
 
   if (session === undefined || onboardingDone === undefined) {
     return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />
