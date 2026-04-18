@@ -210,31 +210,36 @@ const recurringProcessedRef = useRef(false)
   }, [segments])
 
   useEffect(() => {
-    if (session === undefined || onboardingDone === undefined) return
+  if (session === undefined || onboardingDone === undefined) return
 
-    const inOnboarding = segments[0] === 'onboarding'
-    const inAuth = segments[0] === '(auth)'
+  const inOnboarding = segments[0] === 'onboarding'
+  const inAuth = segments[0] === '(auth)'
+  const inTabs = segments[0] === '(tabs)'
 
-    if (!onboardingDone && !inOnboarding) {
-      router.replace('/onboarding')
+  if (!onboardingDone && !inOnboarding) {
+    router.replace('/onboarding')
+    return
+  }
+
+  if (onboardingDone) {
+    // Already on correct screen - don't navigate
+    if (session && inTabs) return
+    if (!session && inAuth) return
+
+    if (!session && !inAuth && !inOnboarding) {
+      router.replace('/(auth)/login')
       return
     }
-
-    if (onboardingDone) {
-      if (!session && !inAuth && !inOnboarding) {
-        router.replace('/(auth)/login')
-        return
-      }
-      if (session && inAuth) {
-        router.replace('/(tabs)/dashboard')
-        return
-      }
-      if (inOnboarding) {
-        router.replace('/(auth)/login')
-        return
-      }
+    if (session && inAuth) {
+      router.replace('/(tabs)/dashboard')
+      return
     }
-  }, [session, segments, onboardingDone])
+    if (inOnboarding) {
+      router.replace('/(auth)/login')
+      return
+    }
+  }
+}, [session, segments, onboardingDone])
 
   if (session === undefined || onboardingDone === undefined) {
     return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />

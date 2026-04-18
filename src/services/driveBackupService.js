@@ -10,23 +10,50 @@ const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3'
 // ─── GET GOOGLE ACCESS TOKEN ─────────────────────────────────
 async function getAccessToken() {
   try {
-    // Try refreshing the Supabase session first to get a fresh provider_token
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+
+    // Try refreshing Supabase session first
     const { data: refreshed } = await supabase.auth.refreshSession()
     if (refreshed?.session?.provider_token) {
-      // Store the fresh token
-      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
       await AsyncStorage.setItem('savr_google_token', refreshed.session.provider_token)
+      await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
       return refreshed.session.provider_token
     }
 
-    // Fallback to current session
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.provider_token) return session.provider_token
+    // Check if stored token is still fresh (under 55 minutes old)
+    const tokenTime = await AsyncStorage.getItem('savr_google_token_time')
+    const storedToken = await AsyncStorage.getItem('savr_google_token')
+    if (storedToken && tokenTime) {
+      const age = Date.now() - parseInt(tokenTime)
+      const fiftyFiveMinutes = 55 * 60 * 1000
+      if (age < fiftyFiveMinutes) return storedToken
+    }
 
-    // Fallback to stored token
-    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
-    const stored = await AsyncStorage.getItem('savr_google_token')
-    if (stored) return stored
+    // Try using refresh token to get a new access token
+    const refreshToken = await AsyncStorage.getItem('savr_google_refresh_token')
+    if (refreshToken) {
+      try {
+        const response = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: '797987092497-969p0n5h88q654mbjtseb5qmdcb79vvt.apps.googleusercontent.com',
+            client_secret: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_SECRET,
+            grant_type: 'refresh_token',
+            refresh_token: refreshToken,
+          }).toString(),
+        })
+        const data = await response.json()
+        if (data.access_token) {
+          await AsyncStorage.setItem('savr_google_token', data.access_token)
+          await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
+          return data.access_token
+        }
+      } catch {}
+    }
+
+    // Final fallback — return stored token even if possibly expired
+    if (storedToken) return storedToken
 
     return null
   } catch {
@@ -41,7 +68,6 @@ async function verifyToken(accessToken) {
       `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${accessToken}`
     )
     const data = await response.json()
-    // Token is valid if it has expires_in and no error
     return !data.error && data.expires_in > 0
   } catch {
     return false
@@ -56,11 +82,9 @@ async function getOrCreateFolder(accessToken) {
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
     const searchData = await searchResponse.json()
-
     if (searchData.files && searchData.files.length > 0) {
       return searchData.files[0].id
     }
-
     const createResponse = await fetch(
       `${DRIVE_API_BASE}/files`,
       {
@@ -88,7 +112,6 @@ async function findBackupFileId(accessToken, folderId) {
     const query = folderId
       ? `name='${BACKUP_FILE_NAME}' and '${folderId}' in parents and trashed=false`
       : `name='${BACKUP_FILE_NAME}' and trashed=false`
-
     const response = await fetch(
       `${DRIVE_API_BASE}/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime)`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -114,14 +137,11 @@ async function getAllDataFromSQLite(userId) {
 // ─── WRITE ALL DATA TO SQLITE ─────────────────────────────────
 async function restoreAllDataToSQLite(userId, data) {
   const db = await getDB()
-
   await db.runAsync('DELETE FROM expenses WHERE user_id = ?', [userId])
   await db.runAsync('DELETE FROM budgets WHERE user_id = ?', [userId])
   await db.runAsync('DELETE FROM recurring_expenses WHERE user_id = ?', [userId])
   await db.runAsync('DELETE FROM spending_goals WHERE user_id = ?', [userId])
-
   const now = new Date().toISOString()
-
   for (const e of (data.expenses || [])) {
     await db.runAsync(
       `INSERT OR REPLACE INTO expenses (id, user_id, amount, category, note, date, is_recurring, recurring_id, created_at, updated_at)
@@ -129,7 +149,6 @@ async function restoreAllDataToSQLite(userId, data) {
       [e.id, userId, e.amount, e.category, e.note, e.date, e.is_recurring || 0, e.recurring_id, e.created_at || now, e.updated_at || now]
     )
   }
-
   for (const b of (data.budgets || [])) {
     await db.runAsync(
       `INSERT OR REPLACE INTO budgets (id, user_id, category, limit_amount, month, created_at, updated_at)
@@ -137,7 +156,6 @@ async function restoreAllDataToSQLite(userId, data) {
       [b.id, userId, b.category, b.limit_amount, b.month, b.created_at || now, b.updated_at || now]
     )
   }
-
   for (const r of (data.recurring || [])) {
     await db.runAsync(
       `INSERT OR REPLACE INTO recurring_expenses (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, created_at, updated_at)
@@ -145,7 +163,6 @@ async function restoreAllDataToSQLite(userId, data) {
       [r.id, userId, r.amount, r.category, r.note, r.frequency, r.next_due, r.last_logged, r.is_active ?? 1, r.created_at || now, r.updated_at || now]
     )
   }
-
   for (const g of (data.goals || [])) {
     await db.runAsync(
       `INSERT OR REPLACE INTO spending_goals (id, user_id, title, target_amount, current_amount, deadline, created_at, updated_at)
@@ -161,20 +178,13 @@ export async function backupToDrive() {
     const accessToken = await getAccessToken()
     if (!accessToken) return { success: false, error: 'NO_TOKEN' }
 
-    // Verify token is still valid
     const isValid = await verifyToken(accessToken)
-    if (!isValid) {
-      return {
-        success: false,
-        error: 'SESSION_EXPIRED',
-      }
-    }
+    if (!isValid) return { success: false, error: 'SESSION_EXPIRED' }
 
     const user = await getUser()
     if (!user) return { success: false, error: 'No user found' }
 
     const data = await getAllDataFromSQLite(user.id)
-
     const backupPayload = {
       version: 1,
       userId: user.id,
@@ -182,9 +192,7 @@ export async function backupToDrive() {
       backedUpAt: new Date().toISOString(),
       data,
     }
-
     const jsonContent = JSON.stringify(backupPayload)
-
     const folderId = await getOrCreateFolder(accessToken)
     const existingFile = await findBackupFileId(accessToken, folderId)
 
@@ -209,7 +217,6 @@ export async function backupToDrive() {
         name: BACKUP_FILE_NAME,
         parents: folderId ? [folderId] : [],
       }
-
       const boundary = 'savr_backup_boundary'
       const multipartBody =
         `--${boundary}\r\n` +
@@ -219,7 +226,6 @@ export async function backupToDrive() {
         `Content-Type: application/json\r\n\r\n` +
         `${jsonContent}\r\n` +
         `--${boundary}--`
-
       const response = await fetch(
         `${DRIVE_UPLOAD_BASE}/files?uploadType=multipart`,
         {
@@ -264,11 +270,7 @@ export async function restoreFromDrive() {
 
     const folderId = await getOrCreateFolder(accessToken)
     let existingFile = await findBackupFileId(accessToken, folderId)
-
-    if (!existingFile) {
-      existingFile = await findBackupFileId(accessToken, null)
-    }
-
+    if (!existingFile) existingFile = await findBackupFileId(accessToken, null)
     if (!existingFile) return { success: false, error: 'NO_BACKUP' }
 
     const response = await fetch(
@@ -303,15 +305,12 @@ export async function checkBackupExists() {
     if (localTimestamp) {
       return { exists: true, modifiedTime: localTimestamp }
     }
-
     const accessToken = await getAccessToken()
     if (!accessToken) return null
-
     const folderId = await getOrCreateFolder(accessToken)
     let file = await findBackupFileId(accessToken, folderId)
     if (!file) file = await findBackupFileId(accessToken, null)
     if (!file) return null
-
     await AsyncStorage.setItem('savr_last_backup', file.modifiedTime)
     return { exists: true, modifiedTime: file.modifiedTime }
   } catch {

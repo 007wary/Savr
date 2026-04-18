@@ -37,34 +37,49 @@ export default function Login() {
           redirectTo: redirectUrl,
           skipBrowserRedirect: true,
           queryParams: {
-            prompt: 'select_account',
+            prompt: 'consent',
             access_type: 'offline',
             scope: [
-  'openid',
-  'email',
-  'profile',
-  'https://www.googleapis.com/auth/drive.file',
-].join(' '),
+              'openid',
+              'email',
+              'profile',
+              'https://www.googleapis.com/auth/drive.file',
+            ].join(' '),
           },
         },
       })
       if (error) throw error
+
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
+
       if (result.type === 'success') {
-  const url = result.url
-  const params = new URLSearchParams(url.split('#')[1] || url.split('?')[1])
-  const access_token = params.get('access_token')
-  const refresh_token = params.get('refresh_token')
-  const provider_token = params.get('provider_token')
-  if (access_token) {
-    await supabase.auth.setSession({ access_token, refresh_token })
-    // Store provider token separately since Supabase doesn't persist it
-    if (provider_token) {
-      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
-      await AsyncStorage.setItem('savr_google_token', provider_token)
-    }
-  }
-}
+        const url = result.url
+        const hashParams = new URLSearchParams(url.split('#')[1] || '')
+        const queryParams = new URLSearchParams(url.split('?')[1] || '')
+
+        const access_token = hashParams.get('access_token') || queryParams.get('access_token')
+        const refresh_token = hashParams.get('refresh_token') || queryParams.get('refresh_token')
+        const provider_token = hashParams.get('provider_token') || queryParams.get('provider_token')
+        const provider_refresh_token = hashParams.get('provider_refresh_token') || queryParams.get('provider_refresh_token')
+
+        if (access_token) {
+          await supabase.auth.setSession({ access_token, refresh_token })
+
+          const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+
+          // Store Google provider token
+          if (provider_token) {
+            await AsyncStorage.setItem('savr_google_token', provider_token)
+            // Store when it was saved so we know when it expires (1 hour)
+            await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
+          }
+
+          // Store Google refresh token — this lets us get new tokens without re-login
+          if (provider_refresh_token) {
+            await AsyncStorage.setItem('savr_google_refresh_token', provider_refresh_token)
+          }
+        }
+      }
     } catch (error) {
       showAlert('Error', error.message)
     } finally {
@@ -97,7 +112,7 @@ export default function Login() {
             end={{ x: 1, y: 1 }}
             style={styles.logoBox}
           >
-            <Text style={styles.logoEmoji}>💰</Text>
+            <Ionicons name="wallet-outline" size={36} color="#fff" />
           </LinearGradient>
           <Text style={styles.logoText}>Savr</Text>
           <Text style={styles.tagline}>Spend smart, save more</Text>
@@ -105,13 +120,13 @@ export default function Login() {
 
         <View style={styles.featureList}>
           {[
-            { icon: '⚡', text: 'Track expenses in seconds' },
-            { icon: '🎯', text: 'Smart budget management' },
-            { icon: '📊', text: 'Beautiful spending insights' },
-            { icon: '🌍', text: '30+ currencies supported' },
+            { icon: 'flash-outline', text: 'Track expenses in seconds' },
+            { icon: 'flag-outline', text: 'Smart budget management' },
+            { icon: 'bar-chart-outline', text: 'Beautiful spending insights' },
+            { icon: 'globe-outline', text: '30+ currencies supported' },
           ].map((f, i) => (
             <View key={i} style={styles.featureItem}>
-              <Text style={styles.featureIcon}>{f.icon}</Text>
+              <Ionicons name={f.icon} size={20} color={COLORS.accent} />
               <Text style={styles.featureText}>{f.text}</Text>
             </View>
           ))}
@@ -178,7 +193,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4, shadowRadius: 16, elevation: 10,
   },
-  logoEmoji: { fontSize: 36 },
   logoText: {
     fontSize: 42, fontWeight: '900', color: COLORS.text,
     letterSpacing: -2, marginBottom: 6,
@@ -190,7 +204,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card, borderRadius: 14,
     padding: 13, borderWidth: 1, borderColor: COLORS.border,
   },
-  featureIcon: { fontSize: 20 },
   featureText: { fontSize: 14, color: COLORS.text, fontWeight: '500' },
   acceptRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -223,6 +236,4 @@ const styles = StyleSheet.create({
     color: COLORS.text, fontWeight: '700',
     fontSize: 16, letterSpacing: -0.3,
   },
-  footer: { paddingBottom: 32, alignItems: 'center' },
-  footerText: { fontSize: 12, color: COLORS.border },
 })
