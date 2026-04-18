@@ -230,7 +230,7 @@ export default function RootLayout() {
       return
     }
 
-    if (onboardingDone) {
+    if (onboardingDone || session) {
       if (session && inTabs) return
       if (!session && inAuth) return
 
