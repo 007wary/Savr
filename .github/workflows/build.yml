@@ -1,37 +1,39 @@
 name: Build APK and AAB
-
 on:
   push:
     branches: [main]
-
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - name: Install dependencies
         run: npm install --legacy-peer-deps
-
       - uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-
       - name: Prebuild
         run: npx expo prebuild --platform android
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           EXPO_PUBLIC_GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: gradle-${{ hashFiles('android/build.gradle', 'android/app/build.gradle', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-
       - name: Bundle JS
         run: |
           mkdir -p android/app/src/main/assets
@@ -42,11 +44,9 @@ jobs:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           EXPO_PUBLIC_GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-
       - name: Setup keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/savr.keystore
-
       - name: Build signed APK
         run: |
           chmod +x android/gradlew
@@ -55,7 +55,6 @@ jobs:
             -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
-
       - name: Build signed AAB
         run: |
           cd android && ./gradlew bundleRelease \
@@ -63,14 +62,12 @@ jobs:
             -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: savr-release-apk
           path: android/app/build/outputs/apk/release/*.apk
           retention-days: 7
-
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
