@@ -34,6 +34,9 @@ function AnimatedBar({ percentage, color, delay = 0 }) {
   )
 }
 
+// Module-level variable — persists across component unmounts/remounts
+let adShownOnce = false
+
 export default function Reports() {
   const [expenses, setExpenses] = useState([])
   const [lastMonthExpenses, setLastMonthExpenses] = useState([])
@@ -43,7 +46,6 @@ export default function Reports() {
   const [currencyCode, setCurrencyCode] = useState('INR')
   const [loading, setLoading] = useState(true)
   const [expandedCategory, setExpandedCategory] = useState(null)
-  const adShownRef = useRef(false)
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -52,8 +54,10 @@ export default function Reports() {
 
   useFocusEffect(useCallback(() => {
     fetchData()
-    if (adShownRef.current) return
-    adShownRef.current = true
+
+    if (adShownOnce) return
+    adShownOnce = true
+
     let interstitial = null
     let unsubLoaded = null
     let unsubError = null
@@ -85,7 +89,7 @@ export default function Reports() {
         setLastMonthExpenses(cached.lastMonthExpenses || [])
         setAllExpenses(cached.allExpenses || [])
         setLoading(false)
-        loadFromSQLite()
+        setTimeout(() => loadFromSQLite(), 100)
         return
       }
     }
