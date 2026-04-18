@@ -160,13 +160,13 @@ export default function Settings() {
     const result = await backupToDrive()
     setBackingUp(false)
     if (result.success) {
-      setLastBackup(result.backedUpAt)
-      showAlert('✅ Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
-    } else if (result.error === 'NO_TOKEN') {
-      showAlert('Sign In Required', 'Please sign out and sign in again to enable Google Drive backup.')
-    } else {
-      showAlert('Backup Failed', result.error || 'Something went wrong.')
-    }
+  setLastBackup(result.backedUpAt)
+  showAlert('✅ Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
+} else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
+  showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again to re-enable backup.')
+} else {
+  showAlert('Backup Failed', result.error || 'Something went wrong.')
+}
   }
 
   function getInitials() {

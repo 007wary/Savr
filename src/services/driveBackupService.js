@@ -10,21 +10,47 @@ const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3'
 // ─── GET GOOGLE ACCESS TOKEN ─────────────────────────────────
 async function getAccessToken() {
   try {
+    // Try refreshing the Supabase session first to get a fresh provider_token
+    const { data: refreshed } = await supabase.auth.refreshSession()
+    if (refreshed?.session?.provider_token) {
+      // Store the fresh token
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
+      await AsyncStorage.setItem('savr_google_token', refreshed.session.provider_token)
+      return refreshed.session.provider_token
+    }
+
+    // Fallback to current session
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.provider_token) return session.provider_token
+
+    // Fallback to stored token
     const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
     const stored = await AsyncStorage.getItem('savr_google_token')
     if (stored) return stored
+
     return null
   } catch {
     return null
   }
 }
 
+// ─── VERIFY TOKEN IS VALID ────────────────────────────────────
+async function verifyToken(accessToken) {
+  try {
+    const response = await fetch(
+      `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${accessToken}`
+    )
+    const data = await response.json()
+    // Token is valid if it has expires_in and no error
+    return !data.error && data.expires_in > 0
+  } catch {
+    return false
+  }
+}
+
 // ─── FIND OR CREATE SAVR FOLDER ──────────────────────────────
 async function getOrCreateFolder(accessToken) {
   try {
-    // Search for existing Savr folder
     const searchResponse = await fetch(
       `${DRIVE_API_BASE}/files?q=name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -35,7 +61,6 @@ async function getOrCreateFolder(accessToken) {
       return searchData.files[0].id
     }
 
-    // Create new Savr folder
     const createResponse = await fetch(
       `${DRIVE_API_BASE}/files`,
       {
@@ -136,6 +161,15 @@ export async function backupToDrive() {
     const accessToken = await getAccessToken()
     if (!accessToken) return { success: false, error: 'NO_TOKEN' }
 
+    // Verify token is still valid
+    const isValid = await verifyToken(accessToken)
+    if (!isValid) {
+      return {
+        success: false,
+        error: 'SESSION_EXPIRED',
+      }
+    }
+
     const user = await getUser()
     if (!user) return { success: false, error: 'No user found' }
 
@@ -151,14 +185,10 @@ export async function backupToDrive() {
 
     const jsonContent = JSON.stringify(backupPayload)
 
-    // Get or create Savr folder
     const folderId = await getOrCreateFolder(accessToken)
-
-    // Find existing backup file inside Savr folder
     const existingFile = await findBackupFileId(accessToken, folderId)
 
     if (existingFile) {
-      // Update existing file content
       const response = await fetch(
         `${DRIVE_UPLOAD_BASE}/files/${existingFile.id}?uploadType=media`,
         {
@@ -175,7 +205,6 @@ export async function backupToDrive() {
         return { success: false, error: err.error?.message || 'Upload failed' }
       }
     } else {
-      // Create new file inside Savr folder
       const metadata = {
         name: BACKUP_FILE_NAME,
         parents: folderId ? [folderId] : [],
@@ -208,7 +237,6 @@ export async function backupToDrive() {
       }
     }
 
-    // Save last backup time locally
     const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
     await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
 
@@ -228,14 +256,15 @@ export async function restoreFromDrive() {
     const accessToken = await getAccessToken()
     if (!accessToken) return { success: false, error: 'NO_TOKEN' }
 
+    const isValid = await verifyToken(accessToken)
+    if (!isValid) return { success: false, error: 'SESSION_EXPIRED' }
+
     const user = await getUser()
     if (!user) return { success: false, error: 'No user found' }
 
-    // Search in Savr folder first, then anywhere
     const folderId = await getOrCreateFolder(accessToken)
     let existingFile = await findBackupFileId(accessToken, folderId)
 
-    // Fallback — search anywhere in Drive (in case old backup exists outside folder)
     if (!existingFile) {
       existingFile = await findBackupFileId(accessToken, null)
     }
@@ -253,7 +282,6 @@ export async function restoreFromDrive() {
 
     await restoreAllDataToSQLite(user.id, backupPayload.data)
 
-    // Save restore timestamp
     const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
     await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
 
@@ -270,14 +298,12 @@ export async function restoreFromDrive() {
 // ─── CHECK IF BACKUP EXISTS ───────────────────────────────────
 export async function checkBackupExists() {
   try {
-    // Check local cache first for speed
     const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
     const localTimestamp = await AsyncStorage.getItem('savr_last_backup')
     if (localTimestamp) {
       return { exists: true, modifiedTime: localTimestamp }
     }
 
-    // Fallback to Drive API
     const accessToken = await getAccessToken()
     if (!accessToken) return null
 
