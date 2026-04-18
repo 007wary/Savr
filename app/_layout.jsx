@@ -104,6 +104,7 @@ export default function RootLayout() {
           setUserId(session.user.id).catch(() => {})
         }
         Analytics.login()
+        await AsyncStorage.setItem('savr_onboarding_done', 'true')
         router.replace('/(tabs)/dashboard')
 
         setTimeout(() => {
@@ -224,7 +225,7 @@ export default function RootLayout() {
     const inAuth = segments[0] === '(auth)'
     const inTabs = segments[0] === '(tabs)'
 
-    if (!onboardingDone && !inOnboarding) {
+    if (!onboardingDone && !inOnboarding && !session) {
       router.replace('/onboarding')
       return
     }
