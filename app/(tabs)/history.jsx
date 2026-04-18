@@ -198,6 +198,7 @@ export default function History() {
         note: editNote.trim(),
         date: editDate,
       })
+    } catch {}
     setSaving(false)
   }
 
