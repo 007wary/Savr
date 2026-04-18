@@ -18,3 +18,4 @@ web-build/
 # Keystore
 savr.keystore
 *.keystore
+supabase/.temp/
