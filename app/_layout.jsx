@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../src/lib/supabase'
-import { View } from 'react-native'
+import { View, Alert } from 'react-native'
 import { COLORS } from '../src/constants/theme'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
@@ -98,6 +98,7 @@ export default function RootLayout() {
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
+        Alert.alert('DEBUG', 'SIGNED_IN fired! session: ' + !!session + ' onboardingDone: ' + onboardingDone)
         setOnboardingDone(true)
         // Set Firebase user ID for analytics
         if (session?.user?.id) {
@@ -105,7 +106,6 @@ export default function RootLayout() {
         }
         Analytics.login()
         await AsyncStorage.setItem('savr_onboarding_done', 'true')
-        router.replace('/(tabs)/dashboard')
 
         setTimeout(() => {
           try {
@@ -227,7 +227,6 @@ export default function RootLayout() {
     if (session) {
       if (inTabs) return
       if (inAuth || inOnboarding) {
-        router.replace('/(tabs)/dashboard')
         return
       }
       return
