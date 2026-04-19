@@ -219,34 +219,27 @@ export default function RootLayout() {
   }, [segments])
 
   useEffect(() => {
-    if (session === undefined) return
-    if (onboardingDone === undefined && !session) return
-
+    if (session === undefined || onboardingDone === undefined) return
     const inOnboarding = segments[0] === 'onboarding'
     const inAuth = segments[0] === '(auth)'
     const inTabs = segments[0] === '(tabs)'
-
-    if (!onboardingDone && !inOnboarding && !session) {
-      router.replace('/onboarding')
-      return
-    }
-
-    if (onboardingDone || session) {
-      if (session && inTabs) return
-      if (!session && inAuth) return
-
-      if (!session && !inAuth && !inOnboarding) {
-        router.replace('/(auth)/login')
-        return
-      }
-      if (session && inAuth) {
+    // Session exists - handle navigation
+    if (session) {
+      if (inTabs) return
+      if (inAuth || inOnboarding) {
         router.replace('/(tabs)/dashboard')
         return
       }
-      if (inOnboarding) {
-        router.replace('/(auth)/login')
-        return
-      }
+      return
+    }
+    // No session
+    if (!onboardingDone && !inOnboarding) {
+      router.replace('/onboarding')
+      return
+    }
+    if (onboardingDone && !inAuth) {
+      router.replace('/(auth)/login')
+      return
     }
   }, [session, segments, onboardingDone])
 
