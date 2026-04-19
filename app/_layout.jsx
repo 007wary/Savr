@@ -219,7 +219,8 @@ export default function RootLayout() {
   }, [segments])
 
   useEffect(() => {
-    if (session === undefined || onboardingDone === undefined) return
+    if (session === undefined) return
+    if (onboardingDone === undefined && !session) return
 
     const inOnboarding = segments[0] === 'onboarding'
     const inAuth = segments[0] === '(auth)'
@@ -249,7 +250,7 @@ export default function RootLayout() {
     }
   }, [session, segments, onboardingDone])
 
-  if (session === undefined || onboardingDone === undefined) {
+  if (session === undefined) {
     return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />
   }
 
