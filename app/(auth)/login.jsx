@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { Alert } from 'react-native'
+import { Alert } from 'react-native'
 import {
   View, Text, TouchableOpacity,
   StyleSheet, ActivityIndicator
@@ -67,6 +69,8 @@ export default function Login() {
 
         if (access_token) {
           await supabase.auth.setSession({ access_token, refresh_token })
+          Alert.alert('DEBUG LOGIN', 'setSession called! access_token: ' + !!access_token)
+          Alert.alert('DEBUG LOGIN', 'setSession called! access_token: ' + !!access_token)
 
           if (provider_token) {
             await AsyncStorage.setItem('savr_google_token', provider_token)
