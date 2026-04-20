@@ -19,9 +19,9 @@ const SLIDES = [
     title: 'Track Every Expense',
     subtitle: 'Add expenses in seconds with smart auto-detection. Know exactly where your money goes.',
     features: [
-      { icon: '⚡', text: 'Auto category detection from notes' },
-      { icon: '📊', text: 'Daily & monthly spending totals' },
-      { icon: '🔄', text: 'Recurring expense automation' },
+      { icon: 'flash-outline', text: 'Auto category detection from notes' },
+      { icon: 'bar-chart-outline', text: 'Daily & monthly spending totals' },
+      { icon: 'repeat-outline', text: 'Recurring expense automation' },
     ],
   },
   {
@@ -31,9 +31,9 @@ const SLIDES = [
     title: 'Smart Budgets',
     subtitle: 'Set monthly budgets for each category. Get alerts before you overspend.',
     features: [
-      { icon: '🎯', text: 'Per category budget limits' },
-      { icon: '⚠️', text: 'Over-budget alerts instantly' },
-      { icon: '🤖', text: 'AI-powered budget recommendations' },
+      { icon: 'flag-outline', text: 'Per category budget limits' },
+      { icon: 'notifications-outline', text: 'Over-budget alerts instantly' },
+      { icon: 'bulb-outline', text: 'AI-powered budget recommendations' },
     ],
   },
   {
@@ -43,9 +43,9 @@ const SLIDES = [
     title: 'Powerful Insights',
     subtitle: 'Beautiful reports and charts to understand and improve your spending habits.',
     features: [
-      { icon: '📈', text: '6 month spending trends' },
-      { icon: '🗓️', text: 'Visual spending heatmap' },
-      { icon: '🌍', text: '30+ currencies supported' },
+      { icon: 'trending-up-outline', text: '6 month spending trends' },
+      { icon: 'calendar-outline', text: 'Visual spending heatmap' },
+      { icon: 'globe-outline', text: '30+ currencies supported' },
     ],
   },
 ]
@@ -85,14 +85,12 @@ export default function Onboarding() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* Skip button */}
       {currentIndex < SLIDES.length - 1 && (
         <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}>
           <Text style={styles.skipText}>Skip</Text>
         </TouchableOpacity>
       )}
 
-      {/* Horizontal slides */}
       <ScrollView
         ref={scrollRef}
         horizontal
@@ -123,7 +121,9 @@ export default function Onboarding() {
             <View style={styles.featureList}>
               {s.features.map((feature, i) => (
                 <View key={i} style={[styles.featureItem, { borderColor: s.color + '33' }]}>
-                  <Text style={styles.featureIcon}>{feature.icon}</Text>
+                  <View style={[styles.featureIconBox, { backgroundColor: s.color + '22' }]}>
+                    <Ionicons name={feature.icon} size={20} color={s.color} />
+                  </View>
                   <Text style={styles.featureText}>{feature.text}</Text>
                 </View>
               ))}
@@ -132,7 +132,6 @@ export default function Onboarding() {
         ))}
       </ScrollView>
 
-      {/* Bottom controls */}
       <View style={styles.bottom}>
         <View style={styles.dots}>
           {SLIDES.map((s, i) => (
@@ -166,11 +165,13 @@ export default function Onboarding() {
             activeOpacity={0.85}
           >
             <Text style={styles.nextText}>
-              {currentIndex === SLIDES.length - 1 ? 'Get Started 🚀' : 'Next'}
+              {currentIndex === SLIDES.length - 1 ? 'Get Started' : 'Next'}
             </Text>
-            {currentIndex < SLIDES.length - 1 && (
-              <Ionicons name="arrow-forward" size={20} color="#fff" />
-            )}
+            <Ionicons
+              name={currentIndex === SLIDES.length - 1 ? 'rocket-outline' : 'arrow-forward'}
+              size={20}
+              color="#fff"
+            />
           </TouchableOpacity>
         </LinearGradient>
 
@@ -225,7 +226,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card, borderRadius: 14,
     padding: 14, borderWidth: 1,
   },
-  featureIcon: { fontSize: 20 },
+  featureIconBox: {
+    width: 36, height: 36, borderRadius: 10,
+    justifyContent: 'center', alignItems: 'center',
+  },
   featureText: { fontSize: 14, color: COLORS.text, fontWeight: '500', flex: 1 },
   bottom: {
     paddingHorizontal: 24, paddingBottom: 44, paddingTop: 16,

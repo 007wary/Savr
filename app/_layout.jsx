@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../src/lib/supabase'
-import { View, Alert } from 'react-native'
+import { View } from 'react-native'
 import { COLORS } from '../src/constants/theme'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
@@ -23,7 +23,6 @@ export default function RootLayout() {
   const router = useRouter()
   const segments = useSegments()
 
-  // Track screen views when segments change
   useEffect(() => {
     if (!segments || segments.length === 0) return
     const screen = segments.join('/')
@@ -57,7 +56,6 @@ export default function RootLayout() {
         const { data: { session: cachedSession } } = await supabase.auth.getSession()
         if (cachedSession) {
           clearTimeout(timeout)
-
           const expiresAt = cachedSession.expires_at
           const now = Math.floor(Date.now() / 1000)
           if (expiresAt && expiresAt < now) {
@@ -73,13 +71,10 @@ export default function RootLayout() {
           } else {
             setSession(cachedSession)
           }
-
           SplashScreen.hideAsync().catch(() => {})
-
           setTimeout(() => {
             import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
           }, 2000)
-
         } else {
           clearTimeout(timeout)
           setSession(null)
@@ -98,9 +93,7 @@ export default function RootLayout() {
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
-        Alert.alert('DEBUG', 'SIGNED_IN fired! session: ' + !!session + ' onboardingDone: ' + onboardingDone)
         setOnboardingDone(true)
-        // Set Firebase user ID for analytics
         if (session?.user?.id) {
           setUserId(session.user.id).catch(() => {})
         }
@@ -129,14 +122,11 @@ export default function RootLayout() {
             const { backupToDrive, checkBackupExists } = await import('../src/services/driveBackupService')
             const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
             const { getExpenses } = await import('../src/services/sqliteService')
-
             const user = session?.user
             if (!user) return
-
             const localExpenses = await getExpenses(user.id)
             const hasLocalData = localExpenses.length > 0
             const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
-
             if (!hasLocalData && !restoreOffered) {
               const backupInfo = await checkBackupExists()
               if (backupInfo?.exists) {
@@ -172,11 +162,9 @@ export default function RootLayout() {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession()
         if (!currentSession) return
-
         const expiresAt = currentSession.expires_at
         const now = Math.floor(Date.now() / 1000)
         const fiveMinutes = 5 * 60
-
         if (expiresAt && expiresAt - now < fiveMinutes) {
           const { data, error } = await supabase.auth.refreshSession()
           if (error || !data.session) {
@@ -223,19 +211,18 @@ export default function RootLayout() {
     const inOnboarding = segments[0] === 'onboarding'
     const inAuth = segments[0] === '(auth)'
     const inTabs = segments[0] === '(tabs)'
-    // Session exists - handle navigation
+
     if (session) {
       if (inTabs) return
-      if (inAuth || inOnboarding) {
-        return
-      }
+      router.replace('/(tabs)/dashboard')
       return
     }
-    // No session
+
     if (!onboardingDone && !inOnboarding) {
       router.replace('/onboarding')
       return
     }
+
     if (onboardingDone && !inAuth) {
       router.replace('/(auth)/login')
       return
