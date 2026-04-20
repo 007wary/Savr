@@ -64,10 +64,11 @@ jobs:
         with:
           name: savr-release-apk
           path: android/app/build/outputs/apk/release/*.apk
-          retention-days: 7
+          retention-days: 3
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: savr-release-aab
           path: android/app/build/outputs/bundle/release/*.aab
-          retention-days: 7
+          retention-days: 3
+
