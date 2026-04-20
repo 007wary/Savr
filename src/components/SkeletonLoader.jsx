@@ -11,7 +11,8 @@ function SkeletonBox({ width, height, borderRadius = 8, style }) {
         Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver: true }),
         Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
       ])
-    ).start()
+    )
+    anim.start()
     return () => anim.stop()
   }, [])
 

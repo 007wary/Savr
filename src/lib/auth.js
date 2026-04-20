@@ -14,7 +14,12 @@ export function clearUserCache() {
 }
 
 supabase.auth.onAuthStateChange((event) => {
-  if (event === 'SIGNED_OUT' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
+  if (
+    event === 'SIGNED_OUT' ||
+    event === 'SIGNED_IN' ||
+    event === 'USER_UPDATED' ||
+    event === 'TOKEN_REFRESHED'
+  ) {
     cachedUser = null
   }
 })

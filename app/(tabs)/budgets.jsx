@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, TextInput, RefreshControl, KeyboardAvoidingView, Platform
@@ -29,6 +29,7 @@ export default function Budgets() {
   const [recommendations, setRecommendations] = useState({})
   const [showRecommendations, setShowRecommendations] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
+  const userRef = useRef(null)
 
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -59,7 +60,8 @@ export default function Budgets() {
 
   async function loadFromSQLite() {
     try {
-      const user = await getUser()
+      const user = userRef.current || await getUser()
+      if (!userRef.current) userRef.current = user
       const [budgetData, allExp] = await Promise.all([
         getBudgets(user.id, currentMonth),
         getExpenses(user.id),
@@ -68,11 +70,12 @@ export default function Budgets() {
       setBudgets(budgetData)
       setExpenses(filtered)
       setAllExpenses(allExp)
-      const threeMonthsAgo = new Date(); threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
+      const threeMonthsAgo = new Date()
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
       const recentExp = allExp.filter(e => new Date(e.date + 'T00:00:00') >= threeMonthsAgo)
       setRecommendations(generateBudgetRecommendations(recentExp, CATEGORIES))
       await saveCache(CACHE_KEY, { budgets: budgetData, expenses: filtered, allExpenses: allExp })
-    } catch (e) {
+    } catch {
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -80,6 +83,23 @@ export default function Budgets() {
   }
 
   useFocusEffect(useCallback(() => { fetchData() }, []))
+
+  // Pre-compute spent and limit per category for performance
+  const spentByCategory = useMemo(() => {
+    const map = {}
+    CATEGORIES.forEach(cat => {
+      map[cat.label] = expenses
+        .filter(e => e.category === cat.label)
+        .reduce((sum, e) => sum + parseFloat(e.amount), 0)
+    })
+    return map
+  }, [expenses])
+
+  const limitByCategory = useMemo(() => {
+    const map = {}
+    budgets.forEach(b => { map[b.category] = parseFloat(b.limit_amount) })
+    return map
+  }, [budgets])
 
   async function handleSaveBudget(category, customLimit = null) {
     const limitValue = customLimit !== null ? String(customLimit) : inputValue
@@ -98,10 +118,10 @@ export default function Budgets() {
     setInputValue('')
     setSavingBudget(false)
     try {
-      const user = await getUser()
+      const user = userRef.current || await getUser()
+      if (!userRef.current) userRef.current = user
       await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth })
-    } catch (e) {
-    }
+    } catch {}
   }
 
   async function handleDeleteBudget(category) {
@@ -112,6 +132,11 @@ export default function Budgets() {
     await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses, allExpenses })
     setEditing(null)
     setInputValue('')
+    try {
+      if (existing.id && !existing.id.startsWith('temp_')) {
+        await deleteBudget(existing.id)
+      }
+    } catch {}
   }
 
   async function applyAllRecommendations() {
@@ -123,25 +148,19 @@ export default function Budgets() {
         {
           text: 'Apply All',
           onPress: async () => {
-            const user = await getUser()
-            for (const [category, rec] of Object.entries(recommendations)) {
-              await saveBudget(user.id, { category, limit_amount: rec.recommended, month: currentMonth })
-            }
-            setShowRecommendations(false)
-            fetchData(true)
+            try {
+              const user = userRef.current || await getUser()
+              if (!userRef.current) userRef.current = user
+              for (const [category, rec] of Object.entries(recommendations)) {
+                await saveBudget(user.id, { category, limit_amount: rec.recommended, month: currentMonth })
+              }
+              setShowRecommendations(false)
+              fetchData(true)
+            } catch {}
           }
         }
       ]
     )
-  }
-
-  function getSpent(category) {
-    return expenses.filter(e => e.category === category).reduce((sum, e) => sum + parseFloat(e.amount), 0)
-  }
-
-  function getBudgetLimit(category) {
-    const b = budgets.find(b => b.category === category)
-    return b ? parseFloat(b.limit_amount) : null
   }
 
   const hasRecommendations = Object.keys(recommendations).length > 0
@@ -216,8 +235,8 @@ export default function Budgets() {
         )}
 
         {CATEGORIES.map(cat => {
-          const spent = getSpent(cat.label)
-          const limit = getBudgetLimit(cat.label)
+          const spent = spentByCategory[cat.label] || 0
+          const limit = limitByCategory[cat.label] || null
           const percentage = limit ? Math.min((spent / limit) * 100, 100) : 0
           const isOver = limit && spent > limit
           const isWarning = limit && !isOver && percentage >= 80

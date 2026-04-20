@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getDB } from './sqliteService'
 import { getUser } from '../lib/auth'
 import { supabase } from '../lib/supabase'
@@ -10,8 +11,6 @@ const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3'
 // ─── GET GOOGLE ACCESS TOKEN ─────────────────────────────────
 async function getAccessToken() {
   try {
-    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
-
     // Try refreshing Supabase session first
     const { data: refreshed } = await supabase.auth.refreshSession()
     if (refreshed?.session?.provider_token) {
@@ -39,7 +38,7 @@ async function getAccessToken() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'apikey': 'sb_publishable_fTC_70PzCNPOs0_sNh1nEQ_Boj4EjqC',
+              'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
             },
             body: JSON.stringify({ refresh_token: refreshToken }),
           }
@@ -53,24 +52,12 @@ async function getAccessToken() {
       } catch {}
     }
 
-    // Final fallback � return stored token even if possibly expired
+    // Final fallback — return stored token even if possibly expired
     if (storedToken) return storedToken
 
     return null
   } catch {
     return null
-  }
-}
-
-async function verifyToken(accessToken) {
-  try {
-    const response = await fetch(
-      `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${accessToken}`
-    )
-    const data = await response.json()
-    return !data.error && data.expires_in > 0
-  } catch {
-    return false
   }
 }
 
@@ -137,39 +124,46 @@ async function getAllDataFromSQLite(userId) {
 // ─── WRITE ALL DATA TO SQLITE ─────────────────────────────────
 async function restoreAllDataToSQLite(userId, data) {
   const db = await getDB()
-  await db.runAsync('DELETE FROM expenses WHERE user_id = ?', [userId])
-  await db.runAsync('DELETE FROM budgets WHERE user_id = ?', [userId])
-  await db.runAsync('DELETE FROM recurring_expenses WHERE user_id = ?', [userId])
-  await db.runAsync('DELETE FROM spending_goals WHERE user_id = ?', [userId])
   const now = new Date().toISOString()
-  for (const e of (data.expenses || [])) {
-    await db.runAsync(
-      `INSERT OR REPLACE INTO expenses (id, user_id, amount, category, note, date, is_recurring, recurring_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [e.id, userId, e.amount, e.category, e.note, e.date, e.is_recurring || 0, e.recurring_id, e.created_at || now, e.updated_at || now]
-    )
-  }
-  for (const b of (data.budgets || [])) {
-    await db.runAsync(
-      `INSERT OR REPLACE INTO budgets (id, user_id, category, limit_amount, month, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [b.id, userId, b.category, b.limit_amount, b.month, b.created_at || now, b.updated_at || now]
-    )
-  }
-  for (const r of (data.recurring || [])) {
-    await db.runAsync(
-      `INSERT OR REPLACE INTO recurring_expenses (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [r.id, userId, r.amount, r.category, r.note, r.frequency, r.next_due, r.last_logged, r.is_active ?? 1, r.created_at || now, r.updated_at || now]
-    )
-  }
-  for (const g of (data.goals || [])) {
-    await db.runAsync(
-      `INSERT OR REPLACE INTO spending_goals (id, user_id, title, target_amount, current_amount, deadline, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [g.id, userId, g.title, g.target_amount, g.current_amount || 0, g.deadline, g.created_at || now, g.updated_at || now]
-    )
-  }
+
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM expenses WHERE user_id = ?', [userId])
+    await db.runAsync('DELETE FROM budgets WHERE user_id = ?', [userId])
+    await db.runAsync('DELETE FROM recurring_expenses WHERE user_id = ?', [userId])
+    await db.runAsync('DELETE FROM spending_goals WHERE user_id = ?', [userId])
+
+    for (const e of (data.expenses || [])) {
+      await db.runAsync(
+        `INSERT OR REPLACE INTO expenses (id, user_id, amount, category, note, date, is_recurring, recurring_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [e.id, userId, e.amount, e.category, e.note, e.date, e.is_recurring || 0, e.recurring_id, e.created_at || now, e.updated_at || now]
+      )
+    }
+
+    for (const b of (data.budgets || [])) {
+      await db.runAsync(
+        `INSERT OR REPLACE INTO budgets (id, user_id, category, limit_amount, month, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [b.id, userId, b.category, b.limit_amount, b.month, b.created_at || now, b.updated_at || now]
+      )
+    }
+
+    for (const r of (data.recurring || [])) {
+      await db.runAsync(
+        `INSERT OR REPLACE INTO recurring_expenses (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [r.id, userId, r.amount, r.category, r.note, r.frequency, r.next_due, r.last_logged, r.is_active ?? 1, r.created_at || now, r.updated_at || now]
+      )
+    }
+
+    for (const g of (data.goals || [])) {
+      await db.runAsync(
+        `INSERT OR REPLACE INTO spending_goals (id, user_id, title, target_amount, current_amount, deadline, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [g.id, userId, g.title, g.target_amount, g.current_amount || 0, g.deadline, g.created_at || now, g.updated_at || now]
+      )
+    }
+  })
 }
 
 // ─── BACKUP TO GOOGLE DRIVE ───────────────────────────────────
@@ -177,9 +171,6 @@ export async function backupToDrive() {
   try {
     const accessToken = await getAccessToken()
     if (!accessToken) return { success: false, error: 'NO_TOKEN' }
-
-    const isValid = await verifyToken(accessToken)
-    if (!isValid) return { success: false, error: 'SESSION_EXPIRED' }
 
     const user = await getUser()
     if (!user) return { success: false, error: 'No user found' }
@@ -243,7 +234,6 @@ export async function backupToDrive() {
       }
     }
 
-    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
     await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
 
     return {
@@ -261,9 +251,6 @@ export async function restoreFromDrive() {
   try {
     const accessToken = await getAccessToken()
     if (!accessToken) return { success: false, error: 'NO_TOKEN' }
-
-    const isValid = await verifyToken(accessToken)
-    if (!isValid) return { success: false, error: 'SESSION_EXPIRED' }
 
     const user = await getUser()
     if (!user) return { success: false, error: 'No user found' }
@@ -284,7 +271,6 @@ export async function restoreFromDrive() {
 
     await restoreAllDataToSQLite(user.id, backupPayload.data)
 
-    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
     await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
 
     return {
@@ -300,21 +286,25 @@ export async function restoreFromDrive() {
 // ─── CHECK IF BACKUP EXISTS ───────────────────────────────────
 export async function checkBackupExists() {
   try {
-    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
     const localTimestamp = await AsyncStorage.getItem('savr_last_backup')
     if (localTimestamp) {
       return { exists: true, modifiedTime: localTimestamp }
     }
+
     const accessToken = await getAccessToken()
     if (!accessToken) return null
-    const folderId = await getOrCreateFolder(accessToken)
-    let file = await findBackupFileId(accessToken, folderId)
-    if (!file) file = await findBackupFileId(accessToken, null)
+
+    // Search without folder first to avoid creating unnecessary folders
+    let file = await findBackupFileId(accessToken, null)
+    if (!file) {
+      const folderId = await getOrCreateFolder(accessToken)
+      file = await findBackupFileId(accessToken, folderId)
+    }
     if (!file) return null
+
     await AsyncStorage.setItem('savr_last_backup', file.modifiedTime)
     return { exists: true, modifiedTime: file.modifiedTime }
   } catch {
     return null
   }
 }
-

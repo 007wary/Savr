@@ -8,7 +8,7 @@ export async function processDueRecurring(userId) {
 
   try {
     const today = new Date()
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const todayStr = today.toISOString().split('T')[0]
 
     const recurring = await getRecurring(userId)
     if (!recurring || recurring.length === 0) return 0
@@ -45,8 +45,17 @@ export async function processDueRecurring(userId) {
 
 function calculateNextDue(currentDue, frequency) {
   const next = new Date(currentDue + 'T00:00:00')
-  if (frequency === 'daily') next.setDate(next.getDate() + 1)
-  else if (frequency === 'weekly') next.setDate(next.getDate() + 7)
-  else if (frequency === 'monthly') next.setMonth(next.getMonth() + 1)
-  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`
+
+  if (frequency === 'daily') {
+    next.setDate(next.getDate() + 1)
+  } else if (frequency === 'weekly') {
+    next.setDate(next.getDate() + 7)
+  } else if (frequency === 'monthly') {
+    const day = next.getDate()
+    next.setMonth(next.getMonth() + 1)
+    // If month overflowed (e.g. Jan 31 → Mar 3), go to last day of intended month
+    if (next.getDate() !== day) next.setDate(0)
+  }
+
+  return next.toISOString().split('T')[0]
 }

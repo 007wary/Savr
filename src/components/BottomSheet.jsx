@@ -18,7 +18,10 @@ export default function BottomSheet({ visible, onClose, children, maxHeight = '8
           activeOpacity={1}
           onPress={onClose}
         >
-          <Pressable style={[styles.sheet, { maxHeight }]}>
+          <Pressable
+            style={[styles.sheet, { maxHeight }]}
+            onPress={e => e.stopPropagation()}
+          >
             <View style={styles.handle} />
             <ScrollView
               keyboardShouldPersistTaps="handled"

@@ -20,27 +20,23 @@ export function generateBudgetRecommendations(allExpenses, categories) {
   })
 
   categories.forEach(cat => {
-    // Get expenses for this category in last 3 months
     const monthlyTotals = last3Months.map(month => {
       const catExpenses = expensesByCategory[cat.label] || []
-      const monthExpenses = catExpenses.filter(
-        e => e.date.startsWith(month)
-      )
+      const monthExpenses = catExpenses.filter(e => e.date.startsWith(month))
       return monthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
     })
 
     // Only include months where there was spending
-    const activemonths = monthlyTotals.filter(t => t > 0)
+    const activeMonths = monthlyTotals.filter(t => t > 0)
+    if (activeMonths.length === 0) return
 
-    if (activemonths.length === 0) return // No history — skip
-
-    const avg = activemonths.reduce((sum, t) => sum + t, 0) / activemonths.length
+    const avg = activeMonths.reduce((sum, t) => sum + t, 0) / activeMonths.length
     const recommended = Math.ceil(avg * 0.9) // 10% less than average
 
     recommendations[cat.label] = {
       avg: Math.round(avg),
       recommended,
-      months: activemonths.length,
+      months: activeMonths.length,
     }
   })
 

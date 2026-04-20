@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity,
   StyleSheet, ActivityIndicator
 } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS } from '../../src/constants/theme'
 import CustomAlert from '../../src/components/CustomAlert'
@@ -30,7 +31,6 @@ export default function Login() {
     }
     try {
       setGoogleLoading(true)
-      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
       const existingRefreshToken = await AsyncStorage.getItem('savr_google_refresh_token')
 
       const redirectUrl = AuthSession.makeRedirectUri({ scheme: 'savr' })

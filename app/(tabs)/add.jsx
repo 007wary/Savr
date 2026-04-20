@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ScrollView, KeyboardAvoidingView,
@@ -40,16 +40,18 @@ export default function AddExpense() {
   const [quickAmounts, setQuickAmounts] = useState(['50', '100', '200', '500', '1000', '2000'])
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
+  const userRef = useRef(null)
 
   useEffect(() => {
-    async function loadCurrencyData() {
+    async function init() {
       const symbol = await getCurrencySymbol()
       const code = await loadCurrency()
       setCurrencySymbol(symbol)
       setCurrencyCode(code)
       setQuickAmounts(getQuickAmounts(code))
+      userRef.current = await getUser()
     }
-    loadCurrencyData()
+    init()
   }, [])
 
   function handleNoteChange(text) {
@@ -70,11 +72,15 @@ export default function AddExpense() {
   }
 
   function formatDateStr(d) {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return d.toISOString().split('T')[0]
   }
 
   function formatDisplayDate(d) {
     return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+  }
+
+  function getMonthStr(d) {
+    return d.toISOString().slice(0, 7)
   }
 
   function resetForm() {
@@ -88,7 +94,7 @@ export default function AddExpense() {
   }
 
   async function saveExpense(expenseData, expenseMonth, currentMonth) {
-    const user = await getUser()
+    const user = userRef.current || await getUser()
 
     if (isRecurring) {
       await addRecurring(user.id, {
@@ -115,17 +121,19 @@ export default function AddExpense() {
     await clearCache(`savr_cache_budgets_${expenseMonth}`)
     await clearCache(`savr_cache_reports_${expenseMonth}`)
 
+    // Build new expense object once and reuse
+    const newExpense = {
+      ...expenseData,
+      id: `temp_${Date.now()}`,
+      user_id: user.id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
     if (expenseMonth === currentMonth) {
       const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
       const dashCached = await loadCache(dashCacheKey)
       if (dashCached) {
-        const newExpense = {
-          ...expenseData,
-          id: `temp_${Date.now()}`,
-          user_id: user.id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }
         await saveCache(dashCacheKey, {
           ...dashCached,
           expenses: [newExpense, ...dashCached.expenses],
@@ -134,13 +142,6 @@ export default function AddExpense() {
     }
 
     const historyCached = await loadCache('savr_cache_history') || []
-    const newExpense = {
-      ...expenseData,
-      id: `temp_${Date.now()}`,
-      user_id: user.id,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
     await saveCache('savr_cache_history', [newExpense, ...historyCached])
 
     try {
@@ -164,9 +165,8 @@ export default function AddExpense() {
 
     setSubmitting(true)
     const expenseDate = new Date(date)
-    const expenseMonth = `${expenseDate.getFullYear()}-${String(expenseDate.getMonth() + 1).padStart(2, '0')}`
-    const now = new Date()
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const expenseMonth = getMonthStr(expenseDate)
+    const currentMonth = getMonthStr(new Date())
 
     const expenseData = {
       amount: parseFloat(amount),
@@ -180,7 +180,6 @@ export default function AddExpense() {
         const historyCached = await loadCache('savr_cache_history') || []
         const anomaly = detectAnomaly(expenseData.amount, selectedCategory, historyCached)
         if (anomaly) {
-          resetForm()
           setSubmitting(false)
           showAlert(
             '⚠️ Unusual Expense Detected',
@@ -191,6 +190,7 @@ export default function AddExpense() {
                 text: 'Yes, Add It',
                 onPress: async () => {
                   setSubmitting(true)
+                  resetForm()
                   await saveExpense(expenseData, expenseMonth, currentMonth)
                 }
               }

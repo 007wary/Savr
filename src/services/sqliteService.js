@@ -6,13 +6,23 @@ let db = null
 
 export const getDB = async () => {
   if (!db) {
-    db = await SQLite.openDatabaseAsync('savr.db')
+    try {
+      db = await SQLite.openDatabaseAsync('savr.db')
+    } catch (error) {
+      db = null
+      throw error
+    }
   }
   return db
 }
 
+export const resetDB = () => { db = null }
+
 export const initializeDatabase = async () => {
   const database = await getDB()
+
+  const version = await database.getFirstAsync(`SELECT value FROM app_meta WHERE key = 'db_version'`).catch(() => null)
+  if (version?.value === '2') return database
 
   await database.execAsync(`
     PRAGMA journal_mode = WAL;
@@ -69,6 +79,7 @@ export const initializeDatabase = async () => {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
     CREATE INDEX IF NOT EXISTS idx_expenses_user_id ON expenses(user_id);
     CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
     CREATE INDEX IF NOT EXISTS idx_expenses_user_date ON expenses(user_id, date);
@@ -77,6 +88,10 @@ export const initializeDatabase = async () => {
     CREATE INDEX IF NOT EXISTS idx_recurring_user ON recurring_expenses(user_id, is_active);
     CREATE INDEX IF NOT EXISTS idx_goals_user ON spending_goals(user_id);
   `)
+
+  await database.runAsync(
+    `INSERT OR REPLACE INTO app_meta (key, value) VALUES ('db_version', '2')`
+  )
 
   return database
 }
@@ -193,6 +208,20 @@ export async function getRecurring(userId) {
 
 export async function addRecurring(userId, { amount, category, note, frequency, next_due }) {
   const database = await getDB()
+
+  // Reactivate existing inactive recurring instead of creating duplicate
+  const existing = await database.getFirstAsync(
+    `SELECT id FROM recurring_expenses WHERE user_id = ? AND category = ? AND note = ? AND frequency = ? AND is_active = 0`,
+    [userId, category, note || null, frequency]
+  )
+  if (existing) {
+    await database.runAsync(
+      `UPDATE recurring_expenses SET amount = ?, next_due = ?, is_active = 1, updated_at = ? WHERE id = ?`,
+      [amount, next_due, now(), existing.id]
+    )
+    return existing.id
+  }
+
   const newId = id()
   const ts = now()
   await database.runAsync(

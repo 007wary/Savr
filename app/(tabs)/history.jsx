@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import {
   View, Text, StyleSheet, SectionList, TouchableOpacity,
   RefreshControl, TextInput, ScrollView, Platform
@@ -35,8 +35,14 @@ export default function History() {
   const [selectedMonth, setSelectedMonth] = useState('All')
   const [showFilters, setShowFilters] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
+  const userRef = useRef(null)
 
   const CACHE_KEY = 'savr_cache_history'
+
+  function getMonthStr() {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  }
 
   function sortExpenses(data) {
     return [...data].sort((a, b) => {
@@ -63,12 +69,13 @@ export default function History() {
 
   async function loadFromSQLite() {
     try {
-      const user = await getUser()
+      const user = userRef.current || await getUser()
+      if (!userRef.current) userRef.current = user
       const data = await getExpenses(user.id)
       const sorted = sortExpenses(data)
       setExpenses(sorted)
       await saveCache(CACHE_KEY, sorted)
-    } catch (e) {
+    } catch {
     } finally {
       setRefreshing(false)
     }
@@ -76,24 +83,24 @@ export default function History() {
 
   useFocusEffect(useCallback(() => { fetchExpenses() }, []))
 
-  function getMonths() {
+  const months = useMemo(() => {
     if (!expenses) return []
-    const months = [...new Set(expenses.map(e => e.date.slice(0, 7)))]
-    return months.sort((a, b) => b.localeCompare(a))
-  }
+    const monthSet = [...new Set(expenses.map(e => e.date.slice(0, 7)))]
+    return monthSet.sort((a, b) => b.localeCompare(a))
+  }, [expenses])
 
   function formatDate(dateStr) {
     const today = new Date()
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const todayStr = today.toISOString().split('T')[0]
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
-    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+    const yesterdayStr = yesterday.toISOString().split('T')[0]
     if (dateStr === todayStr) return 'Today'
     if (dateStr === yesterdayStr) return 'Yesterday'
     return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
-  const filtered = (expenses || []).filter(e => {
+  const filtered = useMemo(() => (expenses || []).filter(e => {
     const cleanSearch = search.replace(/[₹$€£¥₩฿₽,\s]/g, '').toLowerCase()
     const matchSearch = search === '' ||
       e.note?.toLowerCase().includes(search.toLowerCase()) ||
@@ -103,7 +110,7 @@ export default function History() {
     const matchCategory = selectedCategory === 'All' || e.category === selectedCategory
     const matchMonth = selectedMonth === 'All' || e.date.startsWith(selectedMonth)
     return matchSearch && matchCategory && matchMonth
-  })
+  }), [expenses, search, selectedCategory, selectedMonth])
 
   function groupByDate(data) {
     const groups = {}
@@ -120,7 +127,7 @@ export default function History() {
       }))
   }
 
-  const sections = groupByDate(filtered)
+  const sections = useMemo(() => groupByDate(filtered), [filtered])
   const activeFilters = (selectedCategory !== 'All' ? 1 : 0) + (selectedMonth !== 'All' ? 1 : 0)
 
   function clearFilters() {
@@ -130,8 +137,7 @@ export default function History() {
   }
 
   async function updateDashboardCache(updatedExpenses) {
-    const now = new Date()
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const currentMonth = getMonthStr()
     const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
     const dashCached = await loadCache(dashCacheKey)
     if (dashCached) {
@@ -150,10 +156,10 @@ export default function History() {
           setExpenses(updated)
           await saveCache(CACHE_KEY, updated)
           await updateDashboardCache(updated)
-          const now = new Date()
-          const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+          const currentMonth = getMonthStr()
           await clearCache(`savr_cache_budgets_${currentMonth}`)
           await clearCache(`savr_cache_reports_${currentMonth}`)
+          try { await deleteExpense(id) } catch {}
         }
       }
     ])
@@ -186,8 +192,7 @@ export default function History() {
     setExpenses(updated)
     await saveCache(CACHE_KEY, updated)
     await updateDashboardCache(updated)
-    const now = new Date()
-    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const currentMonth = getMonthStr()
     await clearCache(`savr_cache_budgets_${currentMonth}`)
     await clearCache(`savr_cache_reports_${currentMonth}`)
     setEditingExpense(null)
@@ -372,7 +377,7 @@ export default function History() {
           </View>
           <Text style={styles.filterLabel}>Month</Text>
           <View style={styles.filterGrid}>
-            {['All', ...getMonths()].map(m => (
+            {['All', ...months].map(m => (
               <TouchableOpacity
                 key={m}
                 style={[styles.filterChip, selectedMonth === m && styles.filterChipActive]}
@@ -451,8 +456,7 @@ export default function History() {
               onChange={(event, selectedDate) => {
                 setShowEditDatePicker(Platform.OS === 'ios')
                 if (selectedDate) {
-                  const formatted = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
-                  setEditDate(formatted)
+                  setEditDate(selectedDate.toISOString().split('T')[0])
                 }
               }}
             />

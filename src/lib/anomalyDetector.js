@@ -2,13 +2,10 @@
 
 export function detectAnomaly(newAmount, category, allExpenses) {
   try {
-    const now = new Date()
-
-    // Get last 90 days expenses for this category (excluding today)
     const ninetyDaysAgo = new Date()
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
-    const ninetyDaysAgoStr = `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}`
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split('T')[0]
+    const todayStr = new Date().toISOString().split('T')[0]
 
     const historicalExpenses = allExpenses.filter(e =>
       e.category === category &&
@@ -25,11 +22,9 @@ export function detectAnomaly(newAmount, category, allExpenses) {
     // Only flag if new amount is more than 2.5x the average
     if (newAmount < avg * 2.5) return null
 
-    const multiplier = (newAmount / avg).toFixed(1)
-
     return {
       avg: Math.round(avg),
-      multiplier,
+      multiplier: (newAmount / avg).toFixed(1),
       count: historicalExpenses.length,
     }
   } catch {

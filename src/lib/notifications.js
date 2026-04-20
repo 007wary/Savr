@@ -88,15 +88,15 @@ export async function checkWeeklySummary(expenses) {
     const dayOfWeek = today.getDay()
     if (dayOfWeek !== 0) return
 
+    const todayStr = today.toISOString().split('T')[0]
     const lastSent = await AsyncStorage.getItem(WEEKLY_NOTIF_KEY)
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
     if (lastSent === todayStr) return
 
     const weekExpenses = []
     for (let i = 0; i < 7; i++) {
       const d = new Date()
       d.setDate(d.getDate() - i)
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const dateStr = d.toISOString().split('T')[0]
       weekExpenses.push(...expenses.filter(e => e.date === dateStr))
     }
 
@@ -111,13 +111,14 @@ export async function checkWeeklySummary(expenses) {
     })
     const topCat = Object.entries(catTotals).sort((a, b) => b[1] - a[1])[0]
 
-    const dailyAvg = weekTotal / 7
-    let message = `You spent ${symbol}${weekTotal.toFixed(0)} this week`
+    const expenseCount = weekExpenses.length
+    let message = `You made ${expenseCount} expense${expenseCount !== 1 ? 's' : ''} totalling ${symbol}${weekTotal.toFixed(0)} this week`
     if (topCat) message += ` - Top: ${topCat[0]} (${symbol}${topCat[1].toFixed(0)})`
 
+    // Title based on expense count rather than currency-specific amounts
     let title = 'Weekly Spending Summary'
-    if (dailyAvg < 200) title = 'Great week! Spending looks good'
-    else if (dailyAvg > 1000) title = 'High spending week - review your expenses'
+    if (expenseCount <= 5) title = '🎉 Great week! Low spending activity'
+    else if (expenseCount >= 20) title = '📊 Busy week - review your expenses'
 
     await sendNotification(title, message)
     await AsyncStorage.setItem(WEEKLY_NOTIF_KEY, todayStr)

@@ -5,11 +5,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const LAST_ACTIVE_KEY = 'savr_last_active_sync'
 
-
 export async function syncUserProfile(user) {
   try {
     if (!user?.id) return
-
+    const now = new Date().toISOString()
     await supabase.from('user_profiles').upsert({
       id: user.id,
       email: user.email || '',
@@ -26,8 +25,8 @@ export async function syncUserProfile(user) {
       app_version: Constants.expoConfig?.version || '1.0',
       device_model: Device.modelName || null,
       android_version: String(Device.osVersion) || null,
-      last_active: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      last_active: now,
+      updated_at: now,
     }, { onConflict: 'id' })
   } catch {}
 }
@@ -35,12 +34,13 @@ export async function syncUserProfile(user) {
 export async function updateUserProfile(userId, updates) {
   try {
     if (!userId) return { error: null }
+    const now = new Date().toISOString()
     await supabase
       .from('user_profiles')
       .update({
         ...updates,
-        last_active: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        last_active: now,
+        updated_at: now,
       })
       .eq('id', userId)
     return { error: null }
@@ -63,11 +63,9 @@ export async function getUserProfile(userId) {
   }
 }
 
-
 export async function updateLastActive(userId) {
   try {
     if (!userId) return
-    // Throttle to once per hour to avoid hitting Supabase on every app open
     const lastSync = await AsyncStorage.getItem(LAST_ACTIVE_KEY)
     if (lastSync && Date.now() - parseInt(lastSync) < 60 * 60 * 1000) return
     await AsyncStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString())

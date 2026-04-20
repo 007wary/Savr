@@ -20,6 +20,7 @@ export default function RootLayout() {
   const [session, setSession] = useState(undefined)
   const [onboardingDone, setOnboardingDone] = useState(undefined)
   const recurringProcessedRef = useRef(false)
+  const mountedRef = useRef(true)
   const router = useRouter()
   const segments = useSegments()
 
@@ -30,32 +31,39 @@ export default function RootLayout() {
   }, [segments])
 
   useEffect(() => {
+    mountedRef.current = true
+
     async function init() {
       clearExpiredCache().catch(() => {})
       initializeDatabase().catch(() => {})
 
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) {
-          import('../src/lib/userProfile').then(({ updateLastActive }) => {
-            updateLastActive(session.user.id)
-          }).catch(() => {})
-        }
-      }).catch(() => {})
-
       const done = await AsyncStorage.getItem('savr_onboarding_done')
-      setOnboardingDone(done === 'true')
+      if (mountedRef.current) setOnboardingDone(done === 'true')
+
+      let sessionResolved = false
 
       const timeout = setTimeout(() => {
-        if (session === undefined) {
-          setSession(null)
-          SplashScreen.hideAsync().catch(() => {})
+        if (!sessionResolved) {
+          if (mountedRef.current) {
+            setSession(null)
+            SplashScreen.hideAsync().catch(() => {})
+          }
         }
       }, 500)
 
       try {
         const { data: { session: cachedSession } } = await supabase.auth.getSession()
+
+        if (cachedSession?.user) {
+          import('../src/lib/userProfile').then(({ updateLastActive }) => {
+            updateLastActive(cachedSession.user.id)
+          }).catch(() => {})
+        }
+
+        sessionResolved = true
+        clearTimeout(timeout)
+
         if (cachedSession) {
-          clearTimeout(timeout)
           const expiresAt = cachedSession.expires_at
           const now = Math.floor(Date.now() / 1000)
           if (expiresAt && expiresAt < now) {
@@ -63,37 +71,43 @@ export default function RootLayout() {
             if (error || !refreshed.session) {
               await supabase.auth.signOut()
               await clearAllCache()
-              setSession(null)
-              SplashScreen.hideAsync().catch(() => {})
+              if (mountedRef.current) {
+                setSession(null)
+                SplashScreen.hideAsync().catch(() => {})
+              }
               return
             }
-            setSession(refreshed.session)
+            if (mountedRef.current) setSession(refreshed.session)
           } else {
-            setSession(cachedSession)
+            if (mountedRef.current) setSession(cachedSession)
           }
           SplashScreen.hideAsync().catch(() => {})
           setTimeout(() => {
             import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
           }, 2000)
         } else {
-          clearTimeout(timeout)
+          if (mountedRef.current) {
+            setSession(null)
+            SplashScreen.hideAsync().catch(() => {})
+          }
+        }
+      } catch {
+        sessionResolved = true
+        clearTimeout(timeout)
+        if (mountedRef.current) {
           setSession(null)
           SplashScreen.hideAsync().catch(() => {})
         }
-      } catch {
-        clearTimeout(timeout)
-        setSession(null)
-        SplashScreen.hideAsync().catch(() => {})
       }
     }
 
     init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session ?? null)
+      if (mountedRef.current) setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
-        setOnboardingDone(true)
+        if (mountedRef.current) setOnboardingDone(true)
         if (session?.user?.id) {
           setUserId(session.user.id).catch(() => {})
         }
@@ -101,6 +115,7 @@ export default function RootLayout() {
         await AsyncStorage.setItem('savr_onboarding_done', 'true')
 
         setTimeout(() => {
+          if (!mountedRef.current) return
           try {
             requestNotificationPermission()
             if (session?.user) {
@@ -118,6 +133,7 @@ export default function RootLayout() {
         }, 3000)
 
         setTimeout(async () => {
+          if (!mountedRef.current) return
           try {
             const { backupToDrive, checkBackupExists } = await import('../src/services/driveBackupService')
             const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
@@ -146,43 +162,23 @@ export default function RootLayout() {
         AsyncStorage.removeItem('savr_google_token').catch(() => {})
         clearCurrencyCache()
         unregisterBackupTask().catch(() => {})
-        router.replace('/(auth)/login')
+        if (mountedRef.current) router.replace('/(auth)/login')
       }
 
       if (event === 'TOKEN_REFRESHED') {
-        setSession(session)
+        if (mountedRef.current) setSession(session)
       }
 
       if (event === 'USER_UPDATED') {
-        setSession(session)
+        if (mountedRef.current) setSession(session)
       }
     })
-
-    const refreshInterval = setInterval(async () => {
-      try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession()
-        if (!currentSession) return
-        const expiresAt = currentSession.expires_at
-        const now = Math.floor(Date.now() / 1000)
-        const fiveMinutes = 5 * 60
-        if (expiresAt && expiresAt - now < fiveMinutes) {
-          const { data, error } = await supabase.auth.refreshSession()
-          if (error || !data.session) {
-            await supabase.auth.signOut()
-            await clearAllCache()
-            setSession(null)
-          } else {
-            setSession(data.session)
-          }
-        }
-      } catch {}
-    }, 10 * 60 * 1000)
 
     const handleDeepLink = async (url) => {
       if (!url) return
       if (url.includes('access_token') || url.includes('confirmation')) {
         const { data } = await supabase.auth.getSessionFromUrl({ url })
-        if (data?.session) setSession(data.session)
+        if (data?.session && mountedRef.current) setSession(data.session)
       }
     }
 
@@ -190,21 +186,22 @@ export default function RootLayout() {
     const linkSub = Linking.addEventListener('url', ({ url }) => { handleDeepLink(url) })
 
     return () => {
+      mountedRef.current = false
       subscription.unsubscribe()
       linkSub.remove()
-      clearInterval(refreshInterval)
     }
   }, [])
 
   useEffect(() => {
+    if (onboardingDone) return
     async function checkOnboarding() {
       const done = await AsyncStorage.getItem('savr_onboarding_done')
-      if (done === 'true' && !onboardingDone) {
+      if (done === 'true' && mountedRef.current) {
         setOnboardingDone(true)
       }
     }
     checkOnboarding()
-  }, [segments])
+  }, [segments, onboardingDone])
 
   useEffect(() => {
     if (session === undefined || onboardingDone === undefined) return
