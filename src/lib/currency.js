@@ -14,8 +14,8 @@ export async function saveCurrency(currencyCode) {
   try {
     _cachedCode = currencyCode
     await AsyncStorage.setItem(CURRENCY_KEY, currencyCode)
-  } catch {
-    // Silently fail
+  } catch (error) {
+    if (__DEV__) console.error('[currency] saveCurrency failed:', error)
   }
 }
 

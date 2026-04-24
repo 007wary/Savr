@@ -19,7 +19,7 @@ export default function WebViewScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.title} numberOfLines={1}>{title}</Text>
         <View style={{ width: 36 }} />
       </View>
       {loading && (
@@ -29,7 +29,8 @@ export default function WebViewScreen() {
       )}
       <WebView
         source={{ html }}
-        onLoadEnd={() => setLoading(false)} onError={() => setLoading(false)}
+        onLoadEnd={() => setLoading(false)}
+        onError={() => setLoading(false)}
         style={{ flex: 1, backgroundColor: COLORS.bg }}
         scrollEnabled
       />
@@ -46,5 +47,5 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 36, height: 36, justifyContent: 'center' },
   title: { fontSize: 16, fontWeight: '700', color: COLORS.text, flex: 1, textAlign: 'center' },
-  loader: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 10 },
+  loader: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 10, backgroundColor: COLORS.bg },
 })

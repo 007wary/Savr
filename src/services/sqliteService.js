@@ -3,20 +3,30 @@ import 'react-native-get-random-values'
 import { v4 as uuidv4 } from 'uuid'
 
 let db = null
+let dbInitPromise = null
 
 export const getDB = async () => {
-  if (!db) {
-    try {
-      db = await SQLite.openDatabaseAsync('savr.db')
-    } catch (error) {
+  if (db) return db
+  // If already initializing, wait for the same promise instead of opening twice
+  if (dbInitPromise) return dbInitPromise
+  dbInitPromise = SQLite.openDatabaseAsync('savr.db')
+    .then(database => {
+      db = database
+      dbInitPromise = null
+      return db
+    })
+    .catch(error => {
       db = null
+      dbInitPromise = null
       throw error
-    }
-  }
-  return db
+    })
+  return dbInitPromise
 }
 
-export const resetDB = () => { db = null }
+export const resetDB = () => {
+  db = null
+  dbInitPromise = null
+}
 
 export const initializeDatabase = async () => {
   const database = await getDB()
@@ -96,11 +106,11 @@ export const initializeDatabase = async () => {
   return database
 }
 
-// ─── HELPERS ────────────────────────────────────────────────
+// --- HELPERS ------------------------------------------------
 const now = () => new Date().toISOString()
 const id = () => uuidv4()
 
-// ─── EXPENSES ───────────────────────────────────────────────
+// --- EXPENSES -----------------------------------------------
 export async function addExpense(userId, { amount, category, note, date, is_recurring = 0, recurring_id = null }) {
   const database = await getDB()
   const newId = id()
@@ -159,7 +169,7 @@ export async function getMonthlyTotal(userId, month) {
   return result?.total || 0
 }
 
-// ─── BUDGETS ────────────────────────────────────────────────
+// --- BUDGETS ------------------------------------------------
 export async function getBudgets(userId, month) {
   const database = await getDB()
   return await database.getAllAsync(
@@ -197,7 +207,7 @@ export async function deleteBudget(id) {
   await database.runAsync(`DELETE FROM budgets WHERE id = ?`, [id])
 }
 
-// ─── RECURRING ──────────────────────────────────────────────
+// --- RECURRING ----------------------------------------------
 export async function getRecurring(userId) {
   const database = await getDB()
   return await database.getAllAsync(
@@ -248,7 +258,7 @@ export async function deleteRecurring(id) {
   )
 }
 
-// ─── SPENDING GOALS ─────────────────────────────────────────
+// --- SPENDING GOALS -----------------------------------------
 export async function getSpendingGoal(userId) {
   const database = await getDB()
   return await database.getFirstAsync(
@@ -283,7 +293,7 @@ export async function deleteSpendingGoal(userId) {
   await database.runAsync(`DELETE FROM spending_goals WHERE user_id = ?`, [userId])
 }
 
-// ─── APP META ───────────────────────────────────────────────
+// --- APP META -----------------------------------------------
 export async function getMeta(key) {
   const database = await getDB()
   const result = await database.getFirstAsync(`SELECT value FROM app_meta WHERE key = ?`, [key])

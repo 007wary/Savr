@@ -12,7 +12,7 @@ import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/cur
 import BottomSheet from '../../src/components/BottomSheet'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
-import * as FileSystem from 'expo-file-system/legacy'
+import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
@@ -28,7 +28,7 @@ export default function History() {
   const [editDate, setEditDate] = useState('')
   const [showEditDatePicker, setShowEditDatePicker] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [currencySymbol, setCurrencySymbol] = useState('\u20B9')
   const [currencyCode, setCurrencyCode] = useState('INR')
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
@@ -75,7 +75,8 @@ export default function History() {
       const sorted = sortExpenses(data)
       setExpenses(sorted)
       await saveCache(CACHE_KEY, sorted)
-    } catch {
+    } catch (error) {
+      if (__DEV__) console.error('[history] loadFromSQLite failed:', error)
     } finally {
       setRefreshing(false)
     }
@@ -101,7 +102,7 @@ export default function History() {
   }
 
   const filtered = useMemo(() => (expenses || []).filter(e => {
-    const cleanSearch = search.replace(/[₹$€£¥₩฿₽,\s]/g, '').toLowerCase()
+    const cleanSearch = search.replace(/[\u20B9$\u20AC\u00A3\u00A5\u20A9\u0E3F\u20BD,\s]/g, '').toLowerCase()
     const matchSearch = search === '' ||
       e.note?.toLowerCase().includes(search.toLowerCase()) ||
       e.category.toLowerCase().includes(search.toLowerCase()) ||
@@ -152,14 +153,28 @@ export default function History() {
       {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
-          const updated = (expenses || []).filter(e => e.id !== id)
+          // Save original list for rollback
+          const original = expenses || []
+          const updated = original.filter(e => e.id !== id)
+
+          // Optimistic update
           setExpenses(updated)
           await saveCache(CACHE_KEY, updated)
           await updateDashboardCache(updated)
           const currentMonth = getMonthStr()
           await clearCache(`savr_cache_budgets_${currentMonth}`)
           await clearCache(`savr_cache_reports_${currentMonth}`)
-          try { await deleteExpense(id) } catch {}
+
+          try {
+            await deleteExpense(id)
+          } catch (error) {
+            if (__DEV__) console.error('[history] deleteExpense failed:', error)
+            // Revert optimistic update on failure
+            setExpenses(original)
+            await saveCache(CACHE_KEY, original)
+            await updateDashboardCache(original)
+            showAlert('Error', 'Failed to delete expense. Please try again.')
+          }
         }
       }
     ])
@@ -203,7 +218,9 @@ export default function History() {
         note: editNote.trim(),
         date: editDate,
       })
-    } catch {}
+    } catch (error) {
+      if (__DEV__) console.error('[history] updateExpense failed:', error)
+    }
     setSaving(false)
   }
 
@@ -213,7 +230,7 @@ export default function History() {
       const headers = 'Date,Category,Amount,Note\n'
       const rows = expenses.map(e => `${e.date},${e.category},${e.amount},"${e.note || ''}"`).join('\n')
       const fileUri = FileSystem.cacheDirectory + 'expenses.csv'
-      await FileSystem.writeAsStringAsync(fileUri, headers + rows, { encoding: 'utf8' })
+      await FileSystem.writeAsStringAsync(fileUri, headers + rows, { encoding: FileSystem.EncodingType.UTF8 })
       const isAvailable = await Sharing.isAvailableAsync()
       if (isAvailable) {
         await Sharing.shareAsync(fileUri, { mimeType: 'text/csv', dialogTitle: 'Export Expenses' })
@@ -300,12 +317,12 @@ export default function History() {
         <View style={styles.chipRow}>
           {selectedCategory !== 'All' && (
             <TouchableOpacity style={styles.chip} onPress={() => setSelectedCategory('All')}>
-              <Text style={styles.chipText}>{selectedCategory} ✕</Text>
+              <Text style={styles.chipText}>{selectedCategory} \u2715</Text>
             </TouchableOpacity>
           )}
           {selectedMonth !== 'All' && (
             <TouchableOpacity style={styles.chip} onPress={() => setSelectedMonth('All')}>
-              <Text style={styles.chipText}>{selectedMonth} ✕</Text>
+              <Text style={styles.chipText}>{selectedMonth} \u2715</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity onPress={clearFilters}>

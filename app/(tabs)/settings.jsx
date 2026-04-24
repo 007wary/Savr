@@ -11,7 +11,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CURRENCIES } from '../../src/constants/theme'
-import { requestNotificationPermission } from '../../src/lib/notifications'
+import { requestNotificationPermission, isNotificationGranted } from '../../src/lib/notifications'
 import { saveCurrency, loadCurrency } from '../../src/lib/currency'
 import BottomSheet from '../../src/components/BottomSheet'
 import { SettingsSkeleton } from '../../src/components/SkeletonLoader'
@@ -55,7 +55,6 @@ export default function Settings() {
         setPhone(cached.phone)
         setCurrency(cached.currency)
         setLoading(false)
-        // Load notification prefs from storage
         await loadNotificationPrefs()
         syncFromAuth()
         return
@@ -66,38 +65,41 @@ export default function Settings() {
   }
 
   async function loadNotificationPrefs() {
-    const { status } = await Notifications.getPermissionsAsync()
-    const granted = status === 'granted'
-    setNotificationsEnabled(granted)
-    if (granted) {
-      const savedBudgetAlerts = await AsyncStorage.getItem(BUDGET_ALERTS_KEY)
-      setBudgetAlerts(savedBudgetAlerts !== 'false')
-    } else {
-      setBudgetAlerts(false)
+    try {
+      const { status } = await Notifications.getPermissionsAsync()
+      const granted = status === 'granted'
+      setNotificationsEnabled(granted)
+      if (granted) {
+        const savedBudgetAlerts = await AsyncStorage.getItem(BUDGET_ALERTS_KEY)
+        setBudgetAlerts(savedBudgetAlerts !== 'false')
+      } else {
+        setBudgetAlerts(false)
+      }
+    } catch (error) {
+      if (__DEV__) console.error('[settings] loadNotificationPrefs failed:', error)
     }
   }
 
   async function syncFromAuth() {
     try {
-      const user = await getUser(true)
-      setUser(user)
-      const name = user.user_metadata?.display_name ||
-                   user.user_metadata?.full_name ||
-                   user.email.split('@')[0]
-      const ph = user.user_metadata?.phone_number || ''
+      const u = await getUser(true)
+      setUser(u)
+      const name = u.user_metadata?.display_name ||
+        u.user_metadata?.full_name ||
+        u.email.split('@')[0]
+      const ph = u.user_metadata?.phone_number || ''
       setDisplayName(name)
       setPhone(ph)
       const savedCurrency = await loadCurrency()
       setCurrency(savedCurrency)
       await saveCache(CACHE_KEY, {
-        user, displayName: name, phone: ph, currency: savedCurrency,
+        user: u, displayName: name, phone: ph, currency: savedCurrency,
       })
-
       checkBackupExists().then(info => {
         if (info?.modifiedTime) setLastBackup(info.modifiedTime)
       }).catch(() => {})
-    } catch {
-      // Silently fail
+    } catch (error) {
+      if (__DEV__) console.error('[settings] syncFromAuth failed:', error)
     } finally {
       setLoading(false)
     }
@@ -118,13 +120,10 @@ export default function Settings() {
       const { error } = await supabase.auth.updateUser({
         data: {
           display_name: editName.trim(),
-          phone_number: editPhone.trim()
+          phone_number: editPhone.trim(),
         }
       })
-      if (error) {
-        showAlert('Error', error.message)
-        return
-      }
+      if (error) { showAlert('Error', error.message); return }
 
       setDisplayName(editName.trim())
       setPhone(editPhone.trim())
@@ -138,8 +137,7 @@ export default function Settings() {
         user, displayName: editName.trim(),
         phone: editPhone.trim(), currency,
       })
-
-      showAlert('✅ Saved!', 'Your profile has been updated.')
+      showAlert('\u2705 Saved!', 'Your profile has been updated.')
     } catch {
       showAlert('Error', 'Failed to save. Please try again.')
     } finally {
@@ -153,7 +151,7 @@ export default function Settings() {
       {
         text: 'Sign Out',
         style: 'destructive',
-        onPress: () => supabase.auth.signOut()
+        onPress: () => supabase.auth.signOut(),
       }
     ])
   }
@@ -162,7 +160,7 @@ export default function Settings() {
     try {
       const { Share } = await import('react-native')
       await Share.share({
-        message: `Savr — Expense Tracker & Budget Planner\n\nTrack expenses, set budgets, and get spending insights — all stored privately on your device.\n\nDownload free on Google Play:\nhttps://play.google.com/store/apps/details?id=com.saver.savr`,
+        message: `Savr \u2014 Expense Tracker & Budget Planner\n\nTrack expenses, set budgets, and get spending insights \u2014 all stored privately on your device.\n\nDownload free on Google Play:\nhttps://play.google.com/store/apps/details?id=com.saver.savr`,
         title: 'Check out Savr!',
       })
     } catch {}
@@ -174,7 +172,7 @@ export default function Settings() {
     setBackingUp(false)
     if (result.success) {
       setLastBackup(result.backedUpAt)
-      showAlert('✅ Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
+      showAlert('\u2705 Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
     } else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
       showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again to re-enable backup.')
     } else {
@@ -184,28 +182,32 @@ export default function Settings() {
 
   async function handleNotificationToggle(val) {
     if (val) {
-      const granted = await requestNotificationPermission()
-      const { status } = await Notifications.getPermissionsAsync()
-      const isGranted = status === 'granted'
-      setNotificationsEnabled(isGranted)
-      if (!isGranted) {
+      const status = await requestNotificationPermission()
+      if (status === 'granted') {
+        setNotificationsEnabled(true)
+        const savedBudgetAlerts = await AsyncStorage.getItem(BUDGET_ALERTS_KEY)
+        setBudgetAlerts(savedBudgetAlerts !== 'false')
+      } else if (status === 'denied') {
+        setNotificationsEnabled(false)
         showAlert(
-          'Permission Required',
-          'Please enable notifications in your device settings.',
+          'Permission Denied',
+          'Notifications were denied. Please enable them in your device settings.',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() }
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
           ]
         )
       }
     } else {
-      // Can't programmatically disable — open system settings
+      setNotificationsEnabled(false)
+      setBudgetAlerts(false)
+      await AsyncStorage.setItem(BUDGET_ALERTS_KEY, 'false')
       showAlert(
         'Disable Notifications',
-        'To turn off notifications, please disable them in your device settings.',
+        'To fully disable notifications, go to your device settings.',
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings() }
+          { text: 'OK', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
         ]
       )
     }
@@ -216,11 +218,24 @@ export default function Settings() {
     await AsyncStorage.setItem(BUDGET_ALERTS_KEY, val ? 'true' : 'false')
   }
 
+  function openWebView(type, title) {
+    router.push({ pathname: '/webview', params: { type, title } })
+  }
+
   function getInitials() {
     if (!displayName) return '?'
     const parts = displayName.trim().split(' ')
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
     return displayName.slice(0, 2).toUpperCase()
+  }
+
+  function formatBackupDate(dateStr) {
+    try {
+      const d = new Date(dateStr)
+      return `Last backup: ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+    } catch {
+      return 'No backup yet \u2014 tap Backup Now'
+    }
   }
 
   const selectedCurrency = CURRENCIES.find(c => c.code === currency)
@@ -259,8 +274,8 @@ export default function Settings() {
           <Text style={styles.displayName}>{displayName}</Text>
           <Text style={styles.email}>{user?.email}</Text>
           {phone
-            ? <Text style={styles.phoneText}>📱 {phone}</Text>
-            : <Text style={styles.phoneAdd}>📱 Add phone number</Text>
+            ? <Text style={styles.phoneText}>\uD83D\uDCF1 {phone}</Text>
+            : <Text style={styles.phoneAdd}>\uD83D\uDCF1 Add phone number</Text>
           }
         </View>
         <View style={styles.editProfileBtn}>
@@ -321,7 +336,7 @@ export default function Settings() {
             <View>
               <Text style={styles.rowTitle}>Currency</Text>
               <Text style={styles.rowSubtitle}>
-                {selectedCurrency?.flag} {currency} — {selectedCurrency?.name}
+                {selectedCurrency?.flag} {currency} \u2014 {selectedCurrency?.name}
               </Text>
             </View>
           </View>
@@ -339,11 +354,7 @@ export default function Settings() {
             </View>
             <View>
               <Text style={styles.rowTitle}>Google Drive Backup</Text>
-              <Text style={styles.rowSubtitle}>
-                {lastBackup
-                  ? `Last backup: ${new Date(lastBackup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} at ${new Date(lastBackup).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}`
-                  : 'No backup yet — tap Backup Now'}
-              </Text>
+              <Text style={styles.rowSubtitle}>{formatBackupDate(lastBackup)}</Text>
             </View>
           </View>
         </View>
@@ -378,7 +389,7 @@ export default function Settings() {
             </View>
             <View>
               <Text style={styles.rowTitle}>Version</Text>
-              <Text style={styles.rowSubtitle}>Savr v{APP_VERSION} — Latest</Text>
+              <Text style={styles.rowSubtitle}>Savr v{APP_VERSION} \u2014 Latest</Text>
             </View>
           </View>
           <View style={styles.versionPill}>
@@ -390,7 +401,7 @@ export default function Settings() {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => router.push({ pathname: '/webview', params: { type: 'privacy', title: 'Privacy Policy' } })}
+          onPress={() => openWebView('privacy', 'Privacy Policy')}
         >
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#5B9BD522' }]}>
@@ -405,7 +416,7 @@ export default function Settings() {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => router.push({ pathname: '/webview', params: { type: 'terms', title: 'Terms of Service' } })}
+          onPress={() => openWebView('terms', 'Terms of Service')}
         >
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#88888822' }]}>
@@ -461,7 +472,7 @@ export default function Settings() {
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerSub}>Savr v{APP_VERSION} · © 2026</Text>
+        <Text style={styles.footerSub}>Savr v{APP_VERSION} \u00B7 \u00A9 2026</Text>
       </View>
 
       {/* Currency Bottom Sheet */}

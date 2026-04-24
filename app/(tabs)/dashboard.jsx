@@ -52,7 +52,7 @@ export default function Dashboard() {
   const [monthOffset, setMonthOffset] = useState(0)
   const [lastMonthTotal, setLastMonthTotal] = useState(0)
   const [daysInMonth, setDaysInMonth] = useState(1)
-  const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [currencySymbol, setCurrencySymbol] = useState('\u20B9')
   const [currencyCode, setCurrencyCode] = useState('INR')
   const [spendingGoal, setSpendingGoal] = useState(null)
   const [showGoalModal, setShowGoalModal] = useState(false)
@@ -131,7 +131,6 @@ export default function Dashboard() {
       const filtered = sortExpenses(currentExpenses)
       const now = new Date()
 
-      // Fix: correctly calculate days elapsed for past months
       let daysElapsed
       if (monthOffset === 0) {
         daysElapsed = now.getDate()
@@ -150,12 +149,17 @@ export default function Dashboard() {
         expenses: filtered, userName: firstName, lastMonthTotal: lastTotal,
         daysInMonth: daysElapsed, currencySymbol: symbol, currencyCode: code,
       })
-      const notifAsked = await loadCache('savr_notif_asked')
-      if (!notifAsked) {
-        await saveCache('savr_notif_asked', true)
-        setTimeout(async () => { await requestNotificationPermission() }, 2000)
+
+      // Only prompt for notification permission on current month view
+      if (monthOffset === 0) {
+        const notifAsked = await loadCache('savr_notif_asked')
+        if (!notifAsked) {
+          await saveCache('savr_notif_asked', true)
+          setTimeout(async () => { await requestNotificationPermission() }, 2000)
+        }
+        checkWeeklySummary(filtered)
       }
-      if (monthOffset === 0) checkWeeklySummary(filtered)
+
       try {
         const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
         const pendingRestore = await AsyncStorageModule.getItem('savr_pending_restore')
@@ -163,7 +167,7 @@ export default function Dashboard() {
           await AsyncStorageModule.removeItem('savr_pending_restore')
           setTimeout(() => {
             showAlert(
-              '☁️ Backup Found!',
+              '\u2601\uFE0F Backup Found!',
               'We found a Savr backup in your Google Drive. Would you like to restore your data?',
               [
                 { text: 'Skip', style: 'cancel' },
@@ -174,7 +178,7 @@ export default function Dashboard() {
                       const { restoreFromDrive } = await import('../../src/services/driveBackupService')
                       const result = await restoreFromDrive()
                       if (result.success) {
-                        showAlert('✅ Restored!', `${result.expenseCount} expenses restored successfully.`, [
+                        showAlert('\u2705 Restored!', `${result.expenseCount} expenses restored successfully.`, [
                           { text: 'OK', onPress: () => fetchData(true) }
                         ])
                       } else {
@@ -190,7 +194,8 @@ export default function Dashboard() {
           }, 1000)
         }
       } catch {}
-    } catch {
+    } catch (error) {
+      if (__DEV__) console.error('[dashboard] syncFromSQLite failed:', error)
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -247,7 +252,7 @@ export default function Dashboard() {
     const dailyAvg = total / Math.max(daysInMonth, 1)
     if (dailyAvg > 500) result.push(`You're averaging ${formatAmount(dailyAvg, currencySymbol, currencyCode)}/day this month`)
     if (byCategory.length >= 3) result.push(`You've spent across ${byCategory.length} categories this month`)
-    if (spendingGoal && !goalExceeded && goalPercentage >= 80) result.push(`You've used ${goalPercentage.toFixed(0)}% of your monthly goal — slow down!`)
+    if (spendingGoal && !goalExceeded && goalPercentage >= 80) result.push(`You've used ${goalPercentage.toFixed(0)}% of your monthly goal \u2014 slow down!`)
     if (spendingGoal && goalExceeded) result.push(`You've exceeded your monthly goal of ${formatAmount(spendingGoal, currencySymbol, currencyCode)}!`)
     return result
   }, [expenses, byCategory, total, lastMonthTotal, daysInMonth, currencySymbol, currencyCode, spendingGoal, goalExceeded, goalPercentage])
@@ -287,7 +292,7 @@ export default function Dashboard() {
         }
       >
         <View style={styles.header}>
-          <Text style={styles.greeting}>{getGreeting()}, {userName} 👋</Text>
+          <Text style={styles.greeting}>{getGreeting()}, {userName} \uD83D\uDC4B</Text>
         </View>
 
         <View style={styles.monthNav}>
@@ -399,7 +404,7 @@ export default function Dashboard() {
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>vs Last Month</Text>
               <Text style={[styles.statValue, { color: total > lastMonthTotal ? COLORS.accentRed : COLORS.accentGreen }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                {lastMonthTotal === 0 ? 'N/A' : `${total > lastMonthTotal ? '▲' : '▼'} ${formatAmount(Math.abs(total - lastMonthTotal), currencySymbol, currencyCode)}`}
+                {lastMonthTotal === 0 ? 'N/A' : `${total > lastMonthTotal ? '\u25B2' : '\u25BC'} ${formatAmount(Math.abs(total - lastMonthTotal), currencySymbol, currencyCode)}`}
               </Text>
             </View>
           </View>

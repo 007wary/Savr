@@ -35,7 +35,7 @@ export default function AddExpense() {
   const [isRecurring, setIsRecurring] = useState(false)
   const [frequency, setFrequency] = useState('monthly')
   const [submitting, setSubmitting] = useState(false)
-  const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [currencySymbol, setCurrencySymbol] = useState('\u20B9')
   const [currencyCode, setCurrencyCode] = useState('INR')
   const [quickAmounts, setQuickAmounts] = useState(['50', '100', '200', '500', '1000', '2000'])
   const { alertConfig, showAlert, hideAlert } = useAlert()
@@ -116,8 +116,8 @@ export default function AddExpense() {
     }
     Analytics.addExpense(expenseData.category, expenseData.amount)
 
+    // Clear dashboard, budgets and reports caches for the expense month
     await clearCache(`savr_cache_dashboard_${expenseMonth}`)
-    await clearCache('savr_cache_history')
     await clearCache(`savr_cache_budgets_${expenseMonth}`)
     await clearCache(`savr_cache_reports_${expenseMonth}`)
 
@@ -130,6 +130,7 @@ export default function AddExpense() {
       updated_at: new Date().toISOString(),
     }
 
+    // Update dashboard cache if expense is in current month
     if (expenseMonth === currentMonth) {
       const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
       const dashCached = await loadCache(dashCacheKey)
@@ -141,6 +142,7 @@ export default function AddExpense() {
       }
     }
 
+    // Load history cache first, then prepend — do NOT clear before loading
     const historyCached = await loadCache('savr_cache_history') || []
     await saveCache('savr_cache_history', [newExpense, ...historyCached])
 
@@ -182,7 +184,7 @@ export default function AddExpense() {
         if (anomaly) {
           setSubmitting(false)
           showAlert(
-            '⚠️ Unusual Expense Detected',
+            '\u26A0\uFE0F Unusual Expense Detected',
             `This ${selectedCategory} expense of ${formatAmount(expenseData.amount, currencySymbol, currencyCode)} is ${anomaly.multiplier}x your usual spending.\n\nYour average ${selectedCategory} expense is ${formatAmount(anomaly.avg, currencySymbol, currencyCode)} based on ${anomaly.count} past transactions.\n\nWas this intentional?`,
             [
               { text: 'Cancel', style: 'cancel' },
@@ -258,7 +260,7 @@ export default function AddExpense() {
 
         <View style={styles.categoryHeader}>
           <Text style={styles.label}>Category</Text>
-          {autoDetected && <Text style={styles.autoDetectHint}>✨ Auto-selected from your note</Text>}
+          {autoDetected && <Text style={styles.autoDetectHint}>\u2728 Auto-selected from your note</Text>}
         </View>
         <View style={styles.categoryGrid}>
           {CATEGORIES.map((cat) => (

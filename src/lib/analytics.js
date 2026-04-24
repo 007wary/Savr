@@ -1,5 +1,3 @@
-import { Platform } from 'react-native';
-
 let analytics = null;
 
 const getAnalytics = async () => {
@@ -18,7 +16,9 @@ export const logEvent = async (eventName, params = {}) => {
     const a = await getAnalytics();
     if (!a) return;
     await a.logEvent(eventName, params);
-  } catch {}
+  } catch (error) {
+    if (__DEV__) console.error('[analytics] logEvent failed:', eventName, error);
+  }
 };
 
 export const logScreenView = async (screenName) => {
@@ -26,7 +26,9 @@ export const logScreenView = async (screenName) => {
     const a = await getAnalytics();
     if (!a) return;
     await a.logScreenView({ screen_name: screenName, screen_class: screenName });
-  } catch {}
+  } catch (error) {
+    if (__DEV__) console.error('[analytics] logScreenView failed:', screenName, error);
+  }
 };
 
 export const setUserId = async (userId) => {
@@ -34,7 +36,9 @@ export const setUserId = async (userId) => {
     const a = await getAnalytics();
     if (!a) return;
     await a.setUserId(userId);
-  } catch {}
+  } catch (error) {
+    if (__DEV__) console.error('[analytics] setUserId failed:', error);
+  }
 };
 
 // Key events for Savr

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as SecureStore from 'expo-secure-store'
 import { getDB } from './sqliteService'
 import { getUser } from '../lib/auth'
 import { supabase } from '../lib/supabase'
@@ -29,7 +30,8 @@ async function getAccessToken() {
     }
 
     // Try using refresh token via secure Edge Function (client secret never in app)
-    const refreshToken = await AsyncStorage.getItem('savr_google_refresh_token')
+    // Refresh token is stored in SecureStore since it grants long-term Drive access
+    const refreshToken = await SecureStore.getItemAsync('savr_google_refresh_token')
     if (refreshToken) {
       try {
         const response = await fetch(
@@ -49,14 +51,17 @@ async function getAccessToken() {
           await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
           return data.access_token
         }
-      } catch {}
+      } catch (error) {
+        if (__DEV__) console.error('[driveBackup] token refresh failed:', error)
+      }
     }
 
     // Final fallback — return stored token even if possibly expired
     if (storedToken) return storedToken
 
     return null
-  } catch {
+  } catch (error) {
+    if (__DEV__) console.error('[driveBackup] getAccessToken failed:', error)
     return null
   }
 }
@@ -88,7 +93,8 @@ async function getOrCreateFolder(accessToken) {
     )
     const folderData = await createResponse.json()
     return folderData.id
-  } catch {
+  } catch (error) {
+    if (__DEV__) console.error('[driveBackup] getOrCreateFolder failed:', error)
     return null
   }
 }
@@ -106,7 +112,8 @@ async function findBackupFileId(accessToken, folderId) {
     const data = await response.json()
     if (data.files && data.files.length > 0) return data.files[0]
     return null
-  } catch {
+  } catch (error) {
+    if (__DEV__) console.error('[driveBackup] findBackupFileId failed:', error)
     return null
   }
 }
@@ -242,6 +249,7 @@ export async function backupToDrive() {
       expenseCount: data.expenses.length,
     }
   } catch (e) {
+    if (__DEV__) console.error('[driveBackup] backupToDrive failed:', e)
     return { success: false, error: e.message }
   }
 }
@@ -270,7 +278,6 @@ export async function restoreFromDrive() {
     if (!backupPayload.data) return { success: false, error: 'Invalid backup file' }
 
     await restoreAllDataToSQLite(user.id, backupPayload.data)
-
     await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
 
     return {
@@ -279,6 +286,7 @@ export async function restoreFromDrive() {
       expenseCount: backupPayload.data.expenses?.length || 0,
     }
   } catch (e) {
+    if (__DEV__) console.error('[driveBackup] restoreFromDrive failed:', e)
     return { success: false, error: e.message }
   }
 }
@@ -304,7 +312,8 @@ export async function checkBackupExists() {
 
     await AsyncStorage.setItem('savr_last_backup', file.modifiedTime)
     return { exists: true, modifiedTime: file.modifiedTime }
-  } catch {
+  } catch (error) {
+    if (__DEV__) console.error('[driveBackup] checkBackupExists failed:', error)
     return null
   }
 }

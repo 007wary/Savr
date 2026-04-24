@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const WEEKLY_NOTIF_KEY = 'savr_last_weekly_notif'
 const BUDGET_NOTIF_KEY = 'savr_budget_notifs_sent'
+const BUDGET_ALERTS_KEY = 'savr_budget_alerts_enabled'
 
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
@@ -19,27 +20,45 @@ if (Platform.OS !== 'web') {
 export async function requestNotificationPermission() {
   try {
     const { status: existing } = await Notifications.getPermissionsAsync()
-    if (existing === 'granted') return true
+    if (existing === 'granted') return 'granted'
+    if (existing === 'denied') return 'denied'
     const { status } = await Notifications.requestPermissionsAsync()
+    return status
+  } catch {
+    return 'denied'
+  }
+}
+
+export async function isNotificationGranted() {
+  try {
+    const { status } = await Notifications.getPermissionsAsync()
     return status === 'granted'
   } catch {
     return false
   }
 }
 
-export async function sendNotification(title, body) {
+async function sendNotification(title, body) {
   try {
-    const granted = await requestNotificationPermission()
+    const granted = await isNotificationGranted()
     if (!granted) return
     await Notifications.scheduleNotificationAsync({
       content: { title, body, sound: true },
       trigger: null,
     })
-  } catch {}
+  } catch (error) {
+    if (__DEV__) console.error('[notifications] sendNotification failed:', error)
+  }
 }
 
 export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
   try {
+    const granted = await isNotificationGranted()
+    if (!granted) return
+
+    const budgetAlertsEnabled = await AsyncStorage.getItem(BUDGET_ALERTS_KEY)
+    if (budgetAlertsEnabled === 'false') return
+
     const symbol = await getCurrencySymbol()
     const sentRaw = await AsyncStorage.getItem(BUDGET_NOTIF_KEY)
     const sent = sentRaw ? JSON.parse(sentRaw) : {}
@@ -51,6 +70,8 @@ export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
         .reduce((sum, e) => sum + parseFloat(e.amount), 0)
 
       const limit = parseFloat(budget.limit_amount)
+      if (!limit || limit <= 0) continue
+
       const percentage = (spent / limit) * 100
 
       const key100 = `${currentMonth}_${budget.category}_100`
@@ -58,15 +79,15 @@ export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
 
       if (percentage >= 100 && !sent[key100]) {
         await sendNotification(
-          `Budget Exceeded - ${budget.category}`,
-          `You have spent ${symbol}${spent.toFixed(0)} of your ${symbol}${limit.toFixed(0)} budget`
+          `Budget Exceeded \u2014 ${budget.category}`,
+          `You spent ${symbol}${spent.toFixed(0)} of your ${symbol}${limit.toFixed(0)} budget`
         )
         sent[key100] = true
         updated = true
-      } else if (percentage >= 80 && !sent[key80]) {
+      } else if (percentage >= 80 && percentage < 100 && !sent[key80]) {
         await sendNotification(
-          `Budget Warning - ${budget.category}`,
-          `You have used ${percentage.toFixed(0)}% of your ${symbol}${limit.toFixed(0)} budget`
+          `Budget Warning \u2014 ${budget.category}`,
+          `You've used ${percentage.toFixed(0)}% of your ${symbol}${limit.toFixed(0)} budget`
         )
         sent[key80] = true
         updated = true
@@ -76,12 +97,14 @@ export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
     if (updated) {
       await AsyncStorage.setItem(BUDGET_NOTIF_KEY, JSON.stringify(sent))
     }
-  } catch {}
+  } catch (error) {
+    if (__DEV__) console.error('[notifications] checkBudgetAlerts failed:', error)
+  }
 }
 
 export async function checkWeeklySummary(expenses) {
   try {
-    const granted = await requestNotificationPermission()
+    const granted = await isNotificationGranted()
     if (!granted) return
 
     const today = new Date()
@@ -113,14 +136,15 @@ export async function checkWeeklySummary(expenses) {
 
     const expenseCount = weekExpenses.length
     let message = `You made ${expenseCount} expense${expenseCount !== 1 ? 's' : ''} totalling ${symbol}${weekTotal.toFixed(0)} this week`
-    if (topCat) message += ` - Top: ${topCat[0]} (${symbol}${topCat[1].toFixed(0)})`
+    if (topCat) message += ` \u00B7 Top: ${topCat[0]} (${symbol}${topCat[1].toFixed(0)})`
 
-    // Title based on expense count rather than currency-specific amounts
     let title = 'Weekly Spending Summary'
-    if (expenseCount <= 5) title = '🎉 Great week! Low spending activity'
-    else if (expenseCount >= 20) title = '📊 Busy week - review your expenses'
+    if (expenseCount <= 5) title = '\uD83C\uDF89 Great week! Low spending activity'
+    else if (expenseCount >= 20) title = '\uD83D\uDCCA Busy week \u2014 review your expenses'
 
     await sendNotification(title, message)
     await AsyncStorage.setItem(WEEKLY_NOTIF_KEY, todayStr)
-  } catch {}
+  } catch (error) {
+    if (__DEV__) console.error('[notifications] checkWeeklySummary failed:', error)
+  }
 }

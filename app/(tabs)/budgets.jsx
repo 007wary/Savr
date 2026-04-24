@@ -22,7 +22,7 @@ export default function Budgets() {
   const [editing, setEditing] = useState(null)
   const [inputValue, setInputValue] = useState('')
   const [refreshing, setRefreshing] = useState(false)
-  const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [currencySymbol, setCurrencySymbol] = useState('\u20B9')
   const [currencyCode, setCurrencyCode] = useState('INR')
   const [loading, setLoading] = useState(true)
   const [savingBudget, setSavingBudget] = useState(false)
@@ -75,7 +75,8 @@ export default function Budgets() {
       const recentExp = allExp.filter(e => new Date(e.date + 'T00:00:00') >= threeMonthsAgo)
       setRecommendations(generateBudgetRecommendations(recentExp, CATEGORIES))
       await saveCache(CACHE_KEY, { budgets: budgetData, expenses: filtered, allExpenses: allExp })
-    } catch {
+    } catch (error) {
+      if (__DEV__) console.error('[budgets] loadFromSQLite failed:', error)
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -121,7 +122,9 @@ export default function Budgets() {
       const user = userRef.current || await getUser()
       if (!userRef.current) userRef.current = user
       await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth })
-    } catch {}
+    } catch (error) {
+      if (__DEV__) console.error('[budgets] saveBudget failed:', error)
+    }
   }
 
   async function handleDeleteBudget(category) {
@@ -136,7 +139,9 @@ export default function Budgets() {
       if (existing.id && !existing.id.startsWith('temp_')) {
         await deleteBudget(existing.id)
       }
-    } catch {}
+    } catch (error) {
+      if (__DEV__) console.error('[budgets] deleteBudget failed:', error)
+    }
   }
 
   async function applyAllRecommendations() {
@@ -151,12 +156,18 @@ export default function Budgets() {
             try {
               const user = userRef.current || await getUser()
               if (!userRef.current) userRef.current = user
-              for (const [category, rec] of Object.entries(recommendations)) {
-                await saveBudget(user.id, { category, limit_amount: rec.recommended, month: currentMonth })
-              }
+
+              // Use Promise.all instead of sequential loop for performance
+              await Promise.all(
+                Object.entries(recommendations).map(([category, rec]) =>
+                  saveBudget(user.id, { category, limit_amount: rec.recommended, month: currentMonth })
+                )
+              )
               setShowRecommendations(false)
               fetchData(true)
-            } catch {}
+            } catch (error) {
+              if (__DEV__) console.error('[budgets] applyAllRecommendations failed:', error)
+            }
           }
         }
       ]
@@ -297,7 +308,7 @@ export default function Budgets() {
                 <View style={styles.overBanner}>
                   <Ionicons name="alert-circle" size={14} color={COLORS.accentRed} />
                   <Text style={styles.overText}>
-                    Over by {formatAmount(spent - limit, currencySymbol, currencyCode)} · {((spent / limit - 1) * 100).toFixed(0)}% over budget
+                    Over by {formatAmount(spent - limit, currencySymbol, currencyCode)} \u00B7 {((spent / limit - 1) * 100).toFixed(0)}% over budget
                   </Text>
                 </View>
               )}
@@ -317,7 +328,7 @@ export default function Budgets() {
                   {rec && (
                     <TouchableOpacity style={styles.recHint} onPress={() => setInputValue(String(rec.recommended))}>
                       <Ionicons name="bulb-outline" size={13} color={COLORS.accentYellow} />
-                      <Text style={styles.recHintText}>Suggested: {formatAmount(rec.recommended, currencySymbol, currencyCode)} — tap to use</Text>
+                      <Text style={styles.recHintText}>Suggested: {formatAmount(rec.recommended, currencySymbol, currencyCode)} \u2014 tap to use</Text>
                     </TouchableOpacity>
                   )}
                   <View style={styles.editRow}>

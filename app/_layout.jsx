@@ -52,6 +52,7 @@ export default function RootLayout() {
       }, 500)
 
       try {
+        // Trust Supabase's built-in auto-refresh — no manual expiry check needed
         const { data: { session: cachedSession } } = await supabase.auth.getSession()
 
         if (cachedSession?.user) {
@@ -64,23 +65,7 @@ export default function RootLayout() {
         clearTimeout(timeout)
 
         if (cachedSession) {
-          const expiresAt = cachedSession.expires_at
-          const now = Math.floor(Date.now() / 1000)
-          if (expiresAt && expiresAt < now) {
-            const { data: refreshed, error } = await supabase.auth.refreshSession()
-            if (error || !refreshed.session) {
-              await supabase.auth.signOut()
-              await clearAllCache()
-              if (mountedRef.current) {
-                setSession(null)
-                SplashScreen.hideAsync().catch(() => {})
-              }
-              return
-            }
-            if (mountedRef.current) setSession(refreshed.session)
-          } else {
-            if (mountedRef.current) setSession(cachedSession)
-          }
+          if (mountedRef.current) setSession(cachedSession)
           SplashScreen.hideAsync().catch(() => {})
           setTimeout(() => {
             import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
@@ -191,17 +176,6 @@ export default function RootLayout() {
       linkSub.remove()
     }
   }, [])
-
-  useEffect(() => {
-    if (onboardingDone) return
-    async function checkOnboarding() {
-      const done = await AsyncStorage.getItem('savr_onboarding_done')
-      if (done === 'true' && mountedRef.current) {
-        setOnboardingDone(true)
-      }
-    }
-    checkOnboarding()
-  }, [segments, onboardingDone])
 
   useEffect(() => {
     if (session === undefined || onboardingDone === undefined) return

@@ -42,21 +42,31 @@ export default function Reports() {
   const [lastMonthExpenses, setLastMonthExpenses] = useState([])
   const [allExpenses, setAllExpenses] = useState([])
   const [refreshing, setRefreshing] = useState(false)
-  const [currencySymbol, setCurrencySymbol] = useState('₹')
+  const [currencySymbol, setCurrencySymbol] = useState('\u20B9')
   const [currencyCode, setCurrencyCode] = useState('INR')
   const [loading, setLoading] = useState(true)
   const [expandedCategory, setExpandedCategory] = useState(null)
   const userRef = useRef(null)
 
-  const now = new Date()
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
-  const CACHE_KEY = `savr_cache_reports_${currentMonth}`
+  // now is computed fresh inside the component on each render/focus
+  // to avoid stale date if app stays open past midnight
+  const getNow = () => new Date()
+
+  const getCurrentMonth = () => {
+    const now = getNow()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  }
+
+  const getMonthName = () => {
+    return getNow().toLocaleString('default', { month: 'long', year: 'numeric' })
+  }
+
+  const CACHE_KEY = `savr_cache_reports_${getCurrentMonth()}`
 
   useFocusEffect(useCallback(() => {
     fetchData()
 
-    const today = now.toISOString().split('T')[0]
+    const today = getNow().toISOString().split('T')[0]
     if (adShownOnce && adShownDate === today) return
     adShownOnce = true
     adShownDate = today
@@ -104,21 +114,25 @@ export default function Reports() {
       const user = userRef.current || await getUser()
       if (!userRef.current) userRef.current = user
       const allData = await getExpenses(user.id)
-      const freshNow = new Date()
+
+      const freshNow = getNow()
       const freshYear = freshNow.getFullYear()
       const freshMonth = freshNow.getMonth() + 1
       const freshCurrentMonth = `${freshYear}-${String(freshMonth).padStart(2, '0')}`
       const lastMonthDate = new Date(freshYear, freshMonth - 2, 1)
       const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
       const sixMonthsAgo = new Date(freshYear, freshMonth - 7, 1)
+
       const currentData = allData.filter(e => e.date.startsWith(freshCurrentMonth))
       const lastMonthData = allData.filter(e => e.date.startsWith(lastMonthKey))
       const sixMonthData = allData.filter(e => new Date(e.date) >= sixMonthsAgo)
+
       setExpenses(currentData)
       setLastMonthExpenses(lastMonthData)
       setAllExpenses(sixMonthData)
       await saveCache(CACHE_KEY, { expenses: currentData, lastMonthExpenses: lastMonthData, allExpenses: sixMonthData })
-    } catch {
+    } catch (error) {
+      if (__DEV__) console.error('[reports] loadFromSQLite failed:', error)
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -133,8 +147,9 @@ export default function Reports() {
     lastMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0),
   [lastMonthExpenses])
 
-  const daysElapsed = now.getDate()
+  const daysElapsed = getNow().getDate()
   const dailyAvg = total / Math.max(daysElapsed, 1)
+  const now = getNow()
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
   const forecast = dailyAvg * daysInMonth
 
@@ -153,7 +168,7 @@ export default function Reports() {
   const last7 = useMemo(() => {
     const result = []
     for (let i = 6; i >= 0; i--) {
-      const d = new Date()
+      const d = getNow()
       d.setDate(d.getDate() - i)
       const dateStr = d.toISOString().split('T')[0]
       result.push({ date: dateStr, label: d.toLocaleString('default', { weekday: 'short' }), amount: dailyMap[dateStr] || 0 })
@@ -165,8 +180,10 @@ export default function Reports() {
 
   const last6Months = useMemo(() => {
     const result = []
+    const currentMonth = getCurrentMonth()
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const freshNow = getNow()
+      const d = new Date(freshNow.getFullYear(), freshNow.getMonth() - i, 1)
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
       const monthTotal = allExpenses.filter(e => e.date.startsWith(key)).reduce((sum, e) => sum + parseFloat(e.amount), 0)
       result.push({ key, label: d.toLocaleString('default', { month: 'short' }), amount: monthTotal })
@@ -177,10 +194,11 @@ export default function Reports() {
   const max6 = useMemo(() => Math.max(...last6Months.map(m => m.amount), 1), [last6Months])
 
   const heatmapDays = useMemo(() => {
-    const daysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    const freshNow = getNow()
+    const daysInCurrentMonth = new Date(freshNow.getFullYear(), freshNow.getMonth() + 1, 0).getDate()
     const result = []
     for (let d = 1; d <= daysInCurrentMonth; d++) {
-      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      const dateStr = `${freshNow.getFullYear()}-${String(freshNow.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
       result.push({ day: d, amount: dailyMap[dateStr] || 0, dateStr })
     }
     return result
@@ -219,7 +237,7 @@ export default function Reports() {
   const streak = useMemo(() => {
     let count = 0
     for (let i = 0; i < 30; i++) {
-      const d = new Date()
+      const d = getNow()
       d.setDate(d.getDate() - i)
       const dateStr = d.toISOString().split('T')[0]
       if (dailyMap[dateStr]) count++
@@ -228,7 +246,6 @@ export default function Reports() {
     return count
   }, [dailyMap])
 
-  // Extract IIFEs to variables for cleaner JSX
   const compareSection = lastTotal > 0 ? (() => {
     const diff = total - lastTotal
     const pct = ((Math.abs(diff) / lastTotal) * 100).toFixed(0)
@@ -241,6 +258,9 @@ export default function Reports() {
     : null
 
   if (loading) return <ReportsSkeleton />
+
+  const currentMonth = getCurrentMonth()
+  const monthName = getMonthName()
 
   return (
     <ScrollView
@@ -345,7 +365,7 @@ export default function Reports() {
                   </Text>
                   {' '}({compareSection.pct}% {compareSection.isMore ? 'increase' : 'decrease'})
                 </Text>
-                <Text style={styles.compareSubtext}>Last month: {formatAmount(lastTotal, currencySymbol, currencyCode)} · This month: {formatAmount(total, currencySymbol, currencyCode)}</Text>
+                <Text style={styles.compareSubtext}>Last month: {formatAmount(lastTotal, currencySymbol, currencyCode)} \u00B7 This month: {formatAmount(total, currencySymbol, currencyCode)}</Text>
               </View>
             </View>
           )}
@@ -386,7 +406,7 @@ export default function Reports() {
               <View style={styles.heatmap}>
                 {heatmapDays.map((d, i) => {
                   const intensity = d.amount > 0 ? Math.max(0.15, d.amount / maxHeatmap) : 0
-                  const isToday = d.day === now.getDate()
+                  const isToday = d.day === getNow().getDate()
                   return (
                     <View key={i} style={[styles.heatmapCell, { backgroundColor: d.amount > 0 ? `rgba(108, 99, 255, ${intensity})` : COLORS.cardAlt }, isToday && { borderWidth: 1, borderColor: COLORS.accent }]}>
                       <Text style={[styles.heatmapDay, d.amount > 0 && intensity > 0.5 && { color: '#fff' }]}>{d.day}</Text>

@@ -94,12 +94,20 @@ const CATEGORY_KEYWORDS = {
   ],
 }
 
+// Pre-compile regexes at module load — avoids recreating on every keystroke
+const COMPILED_PATTERNS = Object.entries(CATEGORY_KEYWORDS).map(([category, keywords]) => ({
+  category,
+  regexes: keywords.map(k =>
+    new RegExp('(?:^|\\s|[^a-zA-Z])' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?:[^a-zA-Z]|$)', 'i')
+  ),
+}))
+
 // Detect category from note text
 export function detectCategory(note) {
   if (!note || !note.trim()) return null
   const lower = note.toLowerCase()
-  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS)) {
-    if (keywords.some(k => new RegExp('(?:^|\\s|[^a-zA-Z])' + k + '(?:[^a-zA-Z]|$)', 'i').test(lower))) {
+  for (const { category, regexes } of COMPILED_PATTERNS) {
+    if (regexes.some(r => r.test(lower))) {
       return category
     }
   }

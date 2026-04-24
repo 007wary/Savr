@@ -17,8 +17,7 @@ supabase.auth.onAuthStateChange((event) => {
   if (
     event === 'SIGNED_OUT' ||
     event === 'SIGNED_IN' ||
-    event === 'USER_UPDATED' ||
-    event === 'TOKEN_REFRESHED'
+    event === 'USER_UPDATED'
   ) {
     cachedUser = null
   }
