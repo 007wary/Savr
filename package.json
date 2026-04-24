@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
-    "@react-native-async-storage/async-storage": "1.23.1",
+    "@react-native-async-storage/async-storage": "2.1.2",
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-native-community/netinfo": "11.4.1",
     "@react-native-firebase/analytics": "^24.0.0",
@@ -58,7 +58,6 @@
   "expo": {
     "install": {
       "exclude": [
-        "@react-native-async-storage/async-storage",
         "expo-font"
       ]
     }

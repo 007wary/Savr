@@ -18,6 +18,8 @@ jobs:
           distribution: 'temurin'
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+      - name: Install NDK and CMake
+        run: sdkmanager "ndk;27.0.12077973" "cmake;3.31.1"
       - name: Cache Gradle dependencies
         uses: actions/cache@v4
         with:
