@@ -2,16 +2,12 @@
 
 buildscript {
     ext {
-        // FORCE NDK VERSION HERE
-        ndkVersion = "26.1.10909125"
-        
+        ndkVersion = "27.0.12077973"
         buildToolsVersion = "34.0.0"
         minSdkVersion = 24
         compileSdkVersion = 35
         targetSdkVersion = 35
-
-        // ADDED: This forces the C++ compiler to use modern C++20 features
-        // needed for React Native 0.81+ and Expo 51+
+        cmakeVersion = "3.31.1"
         cppFlags = "-std=c++20"
         extraCompilerFlags = "-Dreact_native_81_compat=1"
     }
@@ -21,7 +17,7 @@ buildscript {
     }
     dependencies {
         classpath 'com.google.gms:google-services:4.4.1'
-        classpath 'com.android.tools.build:gradle:8.2.1' 
+        classpath 'com.android.tools.build:gradle:8.7.0'
         classpath('com.facebook.react:react-native-gradle-plugin')
         classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
     }
