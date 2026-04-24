@@ -1,26 +1,28 @@
 import { useState, useCallback } from 'react'
+import Constants from 'expo-constants'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Switch, TextInput,
-  KeyboardAvoidingView, Platform, Image, ActivityIndicator
+  KeyboardAvoidingView, Platform, Image, ActivityIndicator,
+  Linking
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CURRENCIES } from '../../src/constants/theme'
-import { requestNotificationPermission } from '../../src/lib/notifications'
+import { requestNotificationPermission, isNotificationGranted, BUDGET_ALERTS_KEY } from '../../src/lib/notifications'
 import { saveCurrency, loadCurrency } from '../../src/lib/currency'
 import BottomSheet from '../../src/components/BottomSheet'
 import { SettingsSkeleton } from '../../src/components/SkeletonLoader'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
-import * as Notifications from 'expo-notifications'
 import { getUser, clearUserCache } from '../../src/lib/auth'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { backupToDrive, checkBackupExists } from '../../src/services/driveBackupService'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
-const APP_VERSION = '1.0'
+const APP_VERSION = Constants.expoConfig?.version || '1.0'
 const CACHE_KEY = 'savr_cache_settings'
 
 export default function Settings() {
@@ -42,10 +44,22 @@ export default function Settings() {
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
+  async function loadNotificationPrefs() {
+    try {
+      const granted = await isNotificationGranted()
+      setNotificationsEnabled(granted)
+      if (granted) {
+        // Load saved budget alerts preference — default true if never set
+        const savedBudgetAlerts = await AsyncStorage.getItem(BUDGET_ALERTS_KEY)
+        setBudgetAlerts(savedBudgetAlerts !== 'false')
+      } else {
+        setBudgetAlerts(false)
+      }
+    } catch {}
+  }
+
   async function fetchUser(forceRefresh = false) {
-    const { status } = await Notifications.getPermissionsAsync()
-    setNotificationsEnabled(status === 'granted')
-    setBudgetAlerts(status === 'granted')
+    await loadNotificationPrefs()
 
     if (!forceRefresh) {
       const cached = await loadCache(CACHE_KEY)
@@ -59,27 +73,24 @@ export default function Settings() {
         return
       }
     }
-
     await syncFromAuth()
   }
 
   async function syncFromAuth() {
     try {
-      const user = await getUser(true)
-      setUser(user)
-      const name = user.user_metadata?.display_name ||
-                   user.user_metadata?.full_name ||
-                   user.email.split('@')[0]
-      const ph = user.user_metadata?.phone_number || ''
+      const u = await getUser(true)
+      setUser(u)
+      const name = u.user_metadata?.display_name ||
+        u.user_metadata?.full_name ||
+        u.email.split('@')[0]
+      const ph = u.user_metadata?.phone_number || ''
       setDisplayName(name)
       setPhone(ph)
       const savedCurrency = await loadCurrency()
       setCurrency(savedCurrency)
       await saveCache(CACHE_KEY, {
-        user, displayName: name, phone: ph, currency: savedCurrency,
+        user: u, displayName: name, phone: ph, currency: savedCurrency,
       })
-
-      // Check last backup time
       checkBackupExists().then(info => {
         if (info?.modifiedTime) setLastBackup(info.modifiedTime)
       }).catch(() => {})
@@ -105,13 +116,10 @@ export default function Settings() {
       const { error } = await supabase.auth.updateUser({
         data: {
           display_name: editName.trim(),
-          phone_number: editPhone.trim()
+          phone_number: editPhone.trim(),
         }
       })
-      if (error) {
-        showAlert('Error', error.message)
-        return
-      }
+      if (error) { showAlert('Error', error.message); return }
 
       setDisplayName(editName.trim())
       setPhone(editPhone.trim())
@@ -125,8 +133,7 @@ export default function Settings() {
         user, displayName: editName.trim(),
         phone: editPhone.trim(), currency,
       })
-
-      showAlert('✅ Saved!', 'Your profile has been updated.')
+      showAlert('\u2705 Saved!', 'Your profile has been updated.')
     } catch {
       showAlert('Error', 'Failed to save. Please try again.')
     } finally {
@@ -134,39 +141,80 @@ export default function Settings() {
     }
   }
 
-  async function handleSignOut() {
+  function handleSignOut() {
     showAlert('Sign Out', 'Are you sure you want to sign out?', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Sign Out',
         style: 'destructive',
-        onPress: () => supabase.auth.signOut()
+        onPress: () => supabase.auth.signOut(),
       }
     ])
   }
 
   async function handleShareApp() {
-  try {
-    const { Share } = await import('react-native')
-    await Share.share({
-      message: `Savr — Expense Tracker & Budget Planner\n\nTrack expenses, set budgets, and get spending insights — all stored privately on your device.\n\nDownload free on Google Play:\nhttps://play.google.com/store/apps/details?id=com.saver.savr`,
-      title: 'Check out Savr!',
-    })
-  } catch {}
-}
+    try {
+      const { Share } = await import('react-native')
+      await Share.share({
+        message: `Savr \u2014 Expense Tracker & Budget Planner\n\nTrack expenses, set budgets, and get spending insights \u2014 all stored privately on your device.\n\nDownload free on Google Play:\nhttps://play.google.com/store/apps/details?id=com.saver.savr`,
+        title: 'Check out Savr!',
+      })
+    } catch {}
+  }
 
   async function handleManualBackup() {
     setBackingUp(true)
     const result = await backupToDrive()
     setBackingUp(false)
     if (result.success) {
-  setLastBackup(result.backedUpAt)
-  showAlert('✅ Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
-} else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
-  showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again to re-enable backup.')
-} else {
-  showAlert('Backup Failed', result.error || 'Something went wrong.')
-}
+      setLastBackup(result.backedUpAt)
+      showAlert('\u2705 Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
+    } else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
+      showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again to re-enable backup.')
+    } else {
+      showAlert('Backup Failed', result.error || 'Something went wrong.')
+    }
+  }
+
+  async function handleNotificationToggle(val) {
+    if (val) {
+      const status = await requestNotificationPermission()
+      if (status === 'granted') {
+        setNotificationsEnabled(true)
+        // Restore saved budget alerts preference
+        const savedBudgetAlerts = await AsyncStorage.getItem(BUDGET_ALERTS_KEY)
+        setBudgetAlerts(savedBudgetAlerts !== 'false')
+      } else if (status === 'denied') {
+        // Permanently denied — must go to device settings
+        setNotificationsEnabled(false)
+        showAlert(
+          'Permission Denied',
+          'Notifications were denied. Please enable them in your device settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
+        )
+      }
+    } else {
+      // Can't disable programmatically on Android — guide user to settings
+      setNotificationsEnabled(false)
+      setBudgetAlerts(false)
+      await AsyncStorage.setItem(BUDGET_ALERTS_KEY, 'false')
+      showAlert(
+        'Disable Notifications',
+        'To fully disable notifications, go to your device settings.',
+        [
+          { text: 'OK', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+        ]
+      )
+    }
+  }
+
+  async function handleBudgetAlertsToggle(val) {
+    setBudgetAlerts(val)
+    await AsyncStorage.setItem(BUDGET_ALERTS_KEY, val ? 'true' : 'false')
   }
 
   function getInitials() {
@@ -174,6 +222,15 @@ export default function Settings() {
     const parts = displayName.trim().split(' ')
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase()
     return displayName.slice(0, 2).toUpperCase()
+  }
+
+  function formatBackupDate(dateStr) {
+    try {
+      const d = new Date(dateStr)
+      return `Last backup: ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+    } catch {
+      return 'No backup yet \u2014 tap Backup Now'
+    }
   }
 
   const selectedCurrency = CURRENCIES.find(c => c.code === currency)
@@ -212,8 +269,8 @@ export default function Settings() {
           <Text style={styles.displayName}>{displayName}</Text>
           <Text style={styles.email}>{user?.email}</Text>
           {phone
-            ? <Text style={styles.phoneText}>📱 {phone}</Text>
-            : <Text style={styles.phoneAdd}>📱 Add phone number</Text>
+            ? <Text style={styles.phoneText}>\uD83D\uDCF1 {phone}</Text>
+            : <Text style={styles.phoneAdd}>\uD83D\uDCF1 Add phone number</Text>
           }
         </View>
         <View style={styles.editProfileBtn}>
@@ -237,10 +294,7 @@ export default function Settings() {
           </View>
           <Switch
             value={notificationsEnabled}
-            onValueChange={async (val) => {
-              setNotificationsEnabled(val)
-              if (val) await requestNotificationPermission()
-            }}
+            onValueChange={handleNotificationToggle}
             trackColor={{ false: COLORS.border, true: COLORS.accent }}
             thumbColor="#fff"
           />
@@ -260,7 +314,8 @@ export default function Settings() {
           </View>
           <Switch
             value={budgetAlerts}
-            onValueChange={(val) => setBudgetAlerts(val)}
+            onValueChange={handleBudgetAlertsToggle}
+            disabled={!notificationsEnabled}
             trackColor={{ false: COLORS.border, true: COLORS.accent }}
             thumbColor="#fff"
           />
@@ -276,7 +331,7 @@ export default function Settings() {
             <View>
               <Text style={styles.rowTitle}>Currency</Text>
               <Text style={styles.rowSubtitle}>
-                {selectedCurrency?.flag} {currency} — {selectedCurrency?.name}
+                {selectedCurrency?.flag} {currency} \u2014 {selectedCurrency?.name}
               </Text>
             </View>
           </View>
@@ -294,11 +349,7 @@ export default function Settings() {
             </View>
             <View>
               <Text style={styles.rowTitle}>Google Drive Backup</Text>
-              <Text style={styles.rowSubtitle}>
-  {lastBackup
-    ? `Last backup: ${new Date(lastBackup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} at ${new Date(lastBackup).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}`
-    : 'No backup yet — tap Backup Now'}
-</Text>
+              <Text style={styles.rowSubtitle}>{formatBackupDate(lastBackup)}</Text>
             </View>
           </View>
         </View>
@@ -333,7 +384,7 @@ export default function Settings() {
             </View>
             <View>
               <Text style={styles.rowTitle}>Version</Text>
-              <Text style={styles.rowSubtitle}>Savr v{APP_VERSION} — Latest</Text>
+              <Text style={styles.rowSubtitle}>Savr v{APP_VERSION} \u2014 Latest</Text>
             </View>
           </View>
           <View style={styles.versionPill}>
@@ -373,32 +424,32 @@ export default function Settings() {
 
         <View style={styles.divider} />
 
-<TouchableOpacity style={styles.row} onPress={handleShareApp}>
-  <View style={styles.rowLeft}>
-    <View style={[styles.rowIcon, { backgroundColor: '#30D15822' }]}>
-      <Ionicons name="share-social-outline" size={18} color='#30D158' />
-    </View>
-    <View>
-      <Text style={styles.rowTitle}>Share Savr</Text>
-      <Text style={styles.rowSubtitle}>Invite friends to track smarter</Text>
-    </View>
-  </View>
-  <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-</TouchableOpacity>
+        <TouchableOpacity style={styles.row} onPress={handleShareApp}>
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#30D15822' }]}>
+              <Ionicons name="share-social-outline" size={18} color='#30D158' />
+            </View>
+            <View>
+              <Text style={styles.rowTitle}>Share Savr</Text>
+              <Text style={styles.rowSubtitle}>Invite friends to track smarter</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
 
-<View style={styles.divider} />
+        <View style={styles.divider} />
 
-<View style={styles.row}>
-  <View style={styles.rowLeft}>
-    <View style={[styles.rowIcon, { backgroundColor: '#FF8C4222' }]}>
-      <Ionicons name="code-slash-outline" size={18} color='#FF8C42' />
-    </View>
-    <View>
-      <Text style={styles.rowTitle}>Developer</Text>
-      <Text style={styles.rowSubtitle}>Wary Dev.</Text>
-    </View>
-  </View>
-</View>
+        <View style={styles.row}>
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#FF8C4222' }]}>
+              <Ionicons name="code-slash-outline" size={18} color='#FF8C42' />
+            </View>
+            <View>
+              <Text style={styles.rowTitle}>Developer</Text>
+              <Text style={styles.rowSubtitle}>Wary Dev.</Text>
+            </View>
+          </View>
+        </View>
       </View>
 
       {/* Account */}
@@ -416,7 +467,7 @@ export default function Settings() {
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerSub}>Savr v{APP_VERSION} · © 2026</Text>
+        <Text style={styles.footerSub}>Savr v{APP_VERSION} \u00B7 \u00A9 2026</Text>
       </View>
 
       {/* Currency Bottom Sheet */}
