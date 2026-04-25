@@ -8,8 +8,6 @@ import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
-import { BannerAd, BannerAdSize } from 'react-native-google-mobile-ads'
-import { BANNER_AD_UNIT_ID } from '../../src/lib/ads'
 import { checkWeeklySummary, requestNotificationPermission } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
 import { getExpenses, getMonthlyTotal } from '../../src/services/sqliteService'
@@ -389,10 +387,6 @@ export default function Dashboard() {
           </TouchableOpacity>
         )}
 
-        <View style={styles.bannerContainer}>
-          <BannerAd unitId={BANNER_AD_UNIT_ID} size={BannerAdSize.BANNER} requestOptions={{ requestNonPersonalizedAdsOnly: false }} />
-        </View>
-
         {expenses.length > 0 && (
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
@@ -568,7 +562,6 @@ const styles = StyleSheet.create({
   goalEmptyIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.accent + '22', justifyContent: 'center', alignItems: 'center' },
   goalEmptyTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text },
   goalEmptySub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  bannerContainer: { alignItems: 'center', marginBottom: 16, borderRadius: 12, overflow: 'hidden', backgroundColor: COLORS.card, minHeight: 50 },
   statsRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   statCard: { flex: 1, alignItems: 'center' },
   statLabel: { fontSize: 11, color: COLORS.textMuted, marginBottom: 6, letterSpacing: 1, textTransform: 'uppercase' },

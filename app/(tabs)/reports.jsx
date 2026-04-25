@@ -11,8 +11,6 @@ import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/cur
 import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
-import { InterstitialAd, AdEventType } from 'react-native-google-mobile-ads'
-import { INTERSTITIAL_AD_UNIT_ID } from '../../src/lib/ads'
 import { getExpenses } from '../../src/services/sqliteService'
 
 function AnimatedBar({ percentage, color, delay = 0 }) {
@@ -33,9 +31,6 @@ function AnimatedBar({ percentage, color, delay = 0 }) {
     }} />
   )
 }
-
-let adShownOnce = false
-let adShownDate = ''
 
 export default function Reports() {
   const [expenses, setExpenses] = useState([])
@@ -60,29 +55,6 @@ export default function Reports() {
 
   useFocusEffect(useCallback(() => {
     fetchData()
-
-    const today = getNow().toISOString().split('T')[0]
-    if (adShownOnce && adShownDate === today) return
-    adShownOnce = true
-    adShownDate = today
-
-    let interstitial = null
-    let unsubLoaded = null
-    let unsubError = null
-    try {
-      interstitial = InterstitialAd.createForAdRequest(INTERSTITIAL_AD_UNIT_ID)
-      unsubLoaded = interstitial.addAdEventListener(AdEventType.LOADED, () => {
-        try { interstitial.show() } catch {}
-      })
-      unsubError = interstitial.addAdEventListener(AdEventType.ERROR, () => {})
-      interstitial.load()
-    } catch {}
-    return () => {
-      try {
-        if (unsubLoaded) unsubLoaded()
-        if (unsubError) unsubError()
-      } catch {}
-    }
   }, []))
 
   async function fetchData(forceRefresh = false) {

@@ -34,7 +34,7 @@ export default function CustomAlert({ visible, title, message, buttons, onClose 
                   btn.style === 'cancel' && styles.btnCancel,
                   !btn.style && styles.btnDefault,
                   buttons.length === 1 && { flex: 0, paddingHorizontal: 40 },
-                  shouldStack && { flex: 0 },
+                  shouldStack && { flex: 0, width: '100%' },
                 ]}
                 onPress={() => handlePress(btn)}
               >
