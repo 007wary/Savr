@@ -99,10 +99,8 @@ export default function Dashboard() {
       try {
         const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
         const notifAsked = await AsyncStorageModule.getItem('savr_notif_asked')
-        if (notifAsked) return
-        const user = await getUser()
-        if (!user) return
-        notifRequestedRef.current = true
+          if (notifAsked) return
+          notifRequestedRef.current = true
         await AsyncStorageModule.setItem('savr_notif_asked', 'true')
         const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
         const alreadyGranted = await isNotificationGranted()
