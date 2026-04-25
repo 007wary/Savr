@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, Modal, KeyboardAvoidingView, Platform, AppState } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -92,8 +92,8 @@ export default function Dashboard() {
     loadGoalData()
   }, [])
 
-  // Request notification permission once when dashboard is focused and user is loaded
-  useFocusEffect(useCallback(() => {
+  // Request notification permission when app becomes active
+  useEffect(() => {
     async function requestNotifIfNeeded() {
       if (notifRequestedRef.current) return
       try {
@@ -111,8 +111,18 @@ export default function Dashboard() {
         }
       } catch {}
     }
+
+    // Try immediately on mount
     requestNotifIfNeeded()
-  }, []))
+
+    // Also try when app comes to foreground
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        requestNotifIfNeeded()
+      }
+    })
+    return () => subscription.remove()
+  }, [])
 
   // Check for Google Drive backup on first sign in
   useEffect(() => {

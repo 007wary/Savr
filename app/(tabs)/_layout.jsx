@@ -19,6 +19,7 @@ function TabIcon({ name, color, focused }) {
 export default function TabsLayout() {
   return (
     <Tabs
+      lazy={false}
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: COLORS.bg },
