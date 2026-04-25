@@ -13,8 +13,12 @@ export function clearUserCache() {
   cachedUser = null
 }
 
-supabase.auth.onAuthStateChange((event) => {
-  if (event === 'SIGNED_OUT' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT') {
+    cachedUser = null
+  } else if (event === 'SIGNED_IN' && session?.user) {
+    cachedUser = session.user
+  } else if (event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
     cachedUser = null
   }
 })
