@@ -105,7 +105,6 @@ export default function RootLayout() {
         }
         Analytics.login()
 
-        // Re-read onboarding status before navigating
         const done = await AsyncStorage.getItem('savr_onboarding_done')
         if (done === 'true') {
           router.replace('/(tabs)/dashboard')
@@ -129,40 +128,32 @@ export default function RootLayout() {
           } catch {}
         }, 1000)
 
-        // Run backup check immediately
+        // Cache provider token immediately for faster Drive access
         ;(async () => {
           try {
-            const { backupToDrive, checkBackupExists } = await import('../src/services/driveBackupService')
-            const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
-            const { getExpenses } = await import('../src/services/sqliteService')
-
-            const user = session?.user
-            if (!user) return
-
-            // Cache provider token immediately — avoids extra network calls
             const providerToken = session?.provider_token
             if (providerToken) {
               await AsyncStorage.setItem('savr_google_token', providerToken)
               await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
             }
+          } catch {}
+        })()
 
+        // Daily auto backup if user has data
+        ;(async () => {
+          try {
+            const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
+            const { getExpenses } = await import('../src/services/sqliteService')
+            const user = session?.user
+            if (!user) return
             const localExpenses = await getExpenses(user.id)
-            const hasLocalData = localExpenses.length > 0
-            const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
-
-            if (!hasLocalData && !restoreOffered) {
-              const backupInfo = await checkBackupExists()
-              if (backupInfo?.exists) {
-                await AsyncStorageModule.setItem('savr_restore_offered', 'true')
-                await AsyncStorageModule.setItem('savr_pending_restore', 'true')
-              }
-            } else if (hasLocalData) {
-              const lastTrigger = await AsyncStorageModule.getItem(LAST_BACKUP_TRIGGER_KEY)
-              const today = new Date().toISOString().split('T')[0]
-              if (lastTrigger !== today) {
-                await AsyncStorageModule.setItem(LAST_BACKUP_TRIGGER_KEY, today)
-                backupToDrive().catch(() => {})
-              }
+            if (localExpenses.length === 0) return
+            const lastTrigger = await AsyncStorageModule.getItem(LAST_BACKUP_TRIGGER_KEY)
+            const today = new Date().toISOString().split('T')[0]
+            if (lastTrigger !== today) {
+              await AsyncStorageModule.setItem(LAST_BACKUP_TRIGGER_KEY, today)
+              const { backupToDrive } = await import('../src/services/driveBackupService')
+              backupToDrive().catch(() => {})
             }
           } catch {}
         })()
@@ -175,7 +166,6 @@ export default function RootLayout() {
         AsyncStorage.removeItem('savr_notif_asked').catch(() => {})
         AsyncStorage.removeItem(LAST_BACKUP_TRIGGER_KEY).catch(() => {})
         AsyncStorage.removeItem('savr_restore_offered').catch(() => {})
-        AsyncStorage.removeItem('savr_pending_restore').catch(() => {})
         AsyncStorage.removeItem('savr_last_backup').catch(() => {})
         unregisterBackupTask().catch(() => {})
         recurringProcessedRef.current = false
@@ -238,7 +228,6 @@ export default function RootLayout() {
     const inAuth = segments[0] === '(auth)'
     const inTabs = segments[0] === '(tabs)'
 
-    // Always re-check AsyncStorage before redirecting away from onboarding
     if (!onboardingDone && !inOnboarding) {
       AsyncStorage.getItem('savr_onboarding_done').then(done => {
         if (done === 'true') {

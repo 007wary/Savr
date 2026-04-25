@@ -92,7 +92,7 @@ export default function Dashboard() {
     loadGoalData()
   }, [])
 
-  // Request notification permission once after mount — runs in proper foreground context
+  // Request notification permission once after mount
   useEffect(() => {
     async function requestNotifIfNeeded() {
       if (notifRequestedRef.current) return
@@ -112,6 +112,56 @@ export default function Dashboard() {
       } catch {}
     }
     requestNotifIfNeeded()
+  }, [])
+
+  // Check for Google Drive backup on first sign in
+  useEffect(() => {
+    async function checkForBackup() {
+      try {
+        const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
+        const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
+        if (restoreOffered) return
+
+        const user = await getUser()
+        if (!user) return
+
+        const { getExpenses: getExp } = await import('../../src/services/sqliteService')
+        const localExpenses = await getExp(user.id)
+        if (localExpenses.length > 0) return
+
+        const { checkBackupExists } = await import('../../src/services/driveBackupService')
+        const backupInfo = await checkBackupExists()
+        if (backupInfo?.exists) {
+          await AsyncStorageModule.setItem('savr_restore_offered', 'true')
+          showAlert(
+            '☁️ Backup Found!',
+            'We found a Savr backup in your Google Drive. Would you like to restore your data?',
+            [
+              { text: 'Skip', style: 'cancel' },
+              {
+                text: 'Restore',
+                onPress: async () => {
+                  try {
+                    const { restoreFromDrive } = await import('../../src/services/driveBackupService')
+                    const result = await restoreFromDrive()
+                    if (result.success) {
+                      showAlert('✅ Restored!', `${result.expenseCount} expenses restored successfully.`, [
+                        { text: 'OK', onPress: () => fetchData(true) }
+                      ])
+                    } else {
+                      showAlert('Failed', result.error || 'Restore failed.')
+                    }
+                  } catch {
+                    showAlert('Failed', 'Something went wrong.')
+                  }
+                }
+              }
+            ]
+          )
+        }
+      } catch {}
+    }
+    checkForBackup()
   }, [])
 
   async function fetchData(forceRefresh = false) {
@@ -174,42 +224,6 @@ export default function Dashboard() {
       if (monthOffset === 0) {
         checkWeeklySummary(filtered)
       }
-
-      // Check for pending restore from Google Drive backup
-      try {
-        const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
-        const pendingRestore = await AsyncStorageModule.getItem('savr_pending_restore')
-        if (pendingRestore === 'true') {
-          await AsyncStorageModule.removeItem('savr_pending_restore')
-          setTimeout(() => {
-            showAlert(
-              '☁️ Backup Found!',
-              'We found a Savr backup in your Google Drive. Would you like to restore your data?',
-              [
-                { text: 'Skip', style: 'cancel' },
-                {
-                  text: 'Restore',
-                  onPress: async () => {
-                    try {
-                      const { restoreFromDrive } = await import('../../src/services/driveBackupService')
-                      const result = await restoreFromDrive()
-                      if (result.success) {
-                        showAlert('✅ Restored!', `${result.expenseCount} expenses restored successfully.`, [
-                          { text: 'OK', onPress: () => fetchData(true) }
-                        ])
-                      } else {
-                        showAlert('Failed', result.error || 'Restore failed.')
-                      }
-                    } catch {
-                      showAlert('Failed', 'Something went wrong.')
-                    }
-                  }
-                }
-              ]
-            )
-          }, 300)
-        }
-      } catch {}
     } catch (e) {
       console.error('Dashboard sync error:', e)
     } finally {
