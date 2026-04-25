@@ -174,6 +174,8 @@ export default function RootLayout() {
         AsyncStorage.removeItem('savr_google_token').catch(() => {})
         AsyncStorage.removeItem('savr_notif_asked').catch(() => {})
         AsyncStorage.removeItem(LAST_BACKUP_TRIGGER_KEY).catch(() => {})
+        AsyncStorage.removeItem('savr_restore_offered').catch(() => {})
+        AsyncStorage.removeItem('savr_pending_restore').catch(() => {})
         unregisterBackupTask().catch(() => {})
         recurringProcessedRef.current = false
         router.replace('/(auth)/login')
