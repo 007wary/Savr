@@ -154,26 +154,31 @@ export default function Dashboard() {
 
         try {
           const currentUser = userRef.current
+          console.log('NOTIF DEBUG - user:', !!currentUser, 'monthOffset:', monthOffset)
           if (currentUser) {
             const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
             const notifAsked = await AsyncStorageModule.getItem('savr_notif_asked')
+            console.log('NOTIF DEBUG - notifAsked:', notifAsked)
             if (!notifAsked) {
               await AsyncStorageModule.setItem('savr_notif_asked', 'true')
               const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
               const alreadyGranted = await isNotificationGranted()
+              console.log('NOTIF DEBUG - alreadyGranted:', alreadyGranted)
               if (!alreadyGranted) {
+                console.log('NOTIF DEBUG - requesting permission now')
                 setTimeout(async () => {
                   await requestNotificationPermission()
                 }, 1500)
               }
             }
           }
-        } catch {}
+        } catch (e) { console.log('NOTIF DEBUG - error:', e) }
       }
 
       try {
         const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
         const pendingRestore = await AsyncStorageModule.getItem('savr_pending_restore')
+        console.log('BACKUP DEBUG - pendingRestore:', pendingRestore)
         if (pendingRestore === 'true') {
           await AsyncStorageModule.removeItem('savr_pending_restore')
           setTimeout(() => {
