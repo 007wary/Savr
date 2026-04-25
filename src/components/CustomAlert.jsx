@@ -32,7 +32,7 @@ export default function CustomAlert({ visible, title, message, buttons, onClose 
                   styles.btn,
                   btn.style === 'destructive' && styles.btnDestructive,
                   btn.style === 'cancel' && styles.btnCancel,
-                  !btn.style && styles.btnDefault,
+                  (!btn.style || btn.style === 'default') && styles.btnDefault,
                   buttons.length === 1 && { flex: 0, paddingHorizontal: 40 },
                   shouldStack && { flex: 0, width: '100%' },
                 ]}
@@ -42,7 +42,7 @@ export default function CustomAlert({ visible, title, message, buttons, onClose 
                   styles.btnText,
                   btn.style === 'destructive' && styles.btnTextDestructive,
                   btn.style === 'cancel' && styles.btnTextCancel,
-                  !btn.style && styles.btnTextDefault,
+                  (!btn.style || btn.style === 'default') && styles.btnTextDefault,
                 ]}>
                   {btn.text}
                 </Text>
