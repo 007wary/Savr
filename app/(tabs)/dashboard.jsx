@@ -92,11 +92,10 @@ export default function Dashboard() {
     loadGoalData()
   }, [])
 
-  // Request notification permission once after user is loaded
-  useEffect(() => {
+  // Request notification permission once when dashboard is focused and user is loaded
+  useFocusEffect(useCallback(() => {
     async function requestNotifIfNeeded() {
       if (notifRequestedRef.current) return
-      if (!userName) return  // wait until user data is loaded
       try {
         const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
         const notifAsked = await AsyncStorageModule.getItem('savr_notif_asked')
@@ -113,7 +112,7 @@ export default function Dashboard() {
       } catch {}
     }
     requestNotifIfNeeded()
-  }, [userName])
+  }, []))
 
   // Check for Google Drive backup on first sign in
   useEffect(() => {
