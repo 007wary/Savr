@@ -99,8 +99,8 @@ export default function Dashboard() {
       try {
         const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
         const notifAsked = await AsyncStorageModule.getItem('savr_notif_asked')
-          if (notifAsked) return
-          notifRequestedRef.current = true
+        if (notifAsked) return
+        notifRequestedRef.current = true
         await AsyncStorageModule.setItem('savr_notif_asked', 'true')
         const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
         const alreadyGranted = await isNotificationGranted()
@@ -110,8 +110,8 @@ export default function Dashboard() {
       } catch {}
     }
 
-    // Try immediately on mount
-    requestNotifIfNeeded()
+    // Try after dashboard fully loads
+    setTimeout(() => requestNotifIfNeeded(), 1500)
 
     // Also try when app comes to foreground
     const subscription = AppState.addEventListener('change', (nextState) => {
@@ -131,15 +131,15 @@ export default function Dashboard() {
         if (restoreOffered) return
 
         let user = await getUser()
-if (!user) {
-  await new Promise(resolve => setTimeout(resolve, 2000))
-  user = await getUser()
-}
-if (!user) return
+        if (!user) {
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          user = await getUser()
+        }
+        if (!user) return
 
-const { getExpenses: getExp } = await import('../../src/services/sqliteService')
+        const { getExpenses: getExp } = await import('../../src/services/sqliteService')
         const localExpenses = await getExp(user.id)
-        if (localExpenses.length > 0) return
+        // if (localExpenses.length > 0) return  // commented out for testing
 
         const { checkBackupExists } = await import('../../src/services/driveBackupService')
         const backupInfo = await checkBackupExists()
