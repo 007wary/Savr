@@ -11,13 +11,20 @@ export default function CustomAlert({ visible, title, message, buttons, onClose 
     }, 100)
   }
 
+  const hasLongText = buttons?.some(btn => btn.text?.length > 10)
+  const shouldStack = buttons?.length === 2 && hasLongText
+
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.box}>
           {title && <Text style={styles.title}>{title}</Text>}
           {message && <Text style={styles.message}>{message}</Text>}
-          <View style={[styles.btnRow, buttons?.length === 1 && { justifyContent: 'center' }]}>
+          <View style={[
+            styles.btnRow,
+            buttons?.length === 1 && { justifyContent: 'center' },
+            shouldStack && { flexDirection: 'column' },
+          ]}>
             {buttons?.map((btn, i) => (
               <TouchableOpacity
                 key={i}
@@ -26,7 +33,8 @@ export default function CustomAlert({ visible, title, message, buttons, onClose 
                   btn.style === 'destructive' && styles.btnDestructive,
                   btn.style === 'cancel' && styles.btnCancel,
                   !btn.style && styles.btnDefault,
-                  buttons.length === 1 && { flex: 0, paddingHorizontal: 40 }
+                  buttons.length === 1 && { flex: 0, paddingHorizontal: 40 },
+                  shouldStack && { flex: 0 },
                 ]}
                 onPress={() => handlePress(btn)}
               >

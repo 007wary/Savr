@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, Modal, KeyboardAvoidingView, Platform } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
@@ -59,6 +59,7 @@ export default function Dashboard() {
   const [goalInput, setGoalInput] = useState('')
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
+  const userRef = useRef(null)
 
   function getMonthInfo(offset) {
     const d = new Date()
@@ -66,7 +67,8 @@ export default function Dashboard() {
     d.setMonth(d.getMonth() + offset)
     const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
     const name = d.toLocaleString('default', { month: 'long', year: 'numeric' })
-    return { month, name }
+    const totalDays = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+    return { month, name, totalDays }
   }
 
   const { month: currentMonth, name: monthName } = getMonthInfo(monthOffset)
@@ -82,6 +84,7 @@ export default function Dashboard() {
   useEffect(() => {
     async function loadGoalData() {
       const user = await getUser()
+      userRef.current = user
       if (user) {
         const goal = await loadGoal(user.id)
         setSpendingGoal(goal)
@@ -104,7 +107,6 @@ export default function Dashboard() {
         setCurrencyCode(cached.currencyCode || 'INR')
         setLoading(false)
         setMonthLoading(false)
-        // Sync in background AFTER UI renders — key fix for fast load
         setTimeout(() => syncFromSQLite(cacheKey), 100)
         return
       }
@@ -114,7 +116,8 @@ export default function Dashboard() {
 
   async function syncFromSQLite(cacheKey) {
     try {
-      const user = await getUser()
+      const user = userRef.current || await getUser()
+      if (!userRef.current) userRef.current = user
       const meta = user.user_metadata?.display_name || user.user_metadata?.full_name
       const emailName = user.email.split('@')[0]
       const firstName = meta ? meta.split(' ')[0] : emailName
@@ -127,7 +130,16 @@ export default function Dashboard() {
       ])
       const filtered = sortExpenses(currentExpenses)
       const now = new Date()
-      const daysElapsed = monthOffset === 0 ? now.getDate() : new Date(currentMonth + '-01').getDate()
+
+      // Fix: correctly calculate days elapsed for past months
+      let daysElapsed
+      if (monthOffset === 0) {
+        daysElapsed = now.getDate()
+      } else {
+        const { totalDays } = getMonthInfo(monthOffset)
+        daysElapsed = totalDays
+      }
+
       setExpenses(filtered)
       setUserName(firstName)
       setLastMonthTotal(lastTotal)
@@ -138,12 +150,17 @@ export default function Dashboard() {
         expenses: filtered, userName: firstName, lastMonthTotal: lastTotal,
         daysInMonth: daysElapsed, currencySymbol: symbol, currencyCode: code,
       })
-      const notifAsked = await loadCache('savr_notif_asked')
-      if (!notifAsked) {
-        await saveCache('savr_notif_asked', true)
-        setTimeout(async () => { await requestNotificationPermission() }, 2000)
+
+      // Only check notification permission on current month view
+      if (monthOffset === 0) {
+        const notifAsked = await loadCache('savr_notif_asked')
+        if (!notifAsked) {
+          await saveCache('savr_notif_asked', true)
+          setTimeout(async () => { await requestNotificationPermission() }, 2000)
+        }
+        checkWeeklySummary(filtered)
       }
-      if (monthOffset === 0) checkWeeklySummary(filtered)
+
       try {
         const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
         const pendingRestore = await AsyncStorageModule.getItem('savr_pending_restore')
@@ -192,7 +209,7 @@ export default function Dashboard() {
   async function handleSaveGoal() {
     const amount = parseFloat(goalInput)
     if (!goalInput || isNaN(amount) || amount <= 0) return
-    const user = await getUser()
+    const user = userRef.current || await getUser()
     await saveGoal(user.id, amount)
     setSpendingGoal(amount)
     setShowGoalModal(false)
@@ -200,7 +217,7 @@ export default function Dashboard() {
   }
 
   async function handleClearGoal() {
-    const user = await getUser()
+    const user = userRef.current || await getUser()
     await clearGoal(user.id)
     setSpendingGoal(null)
     setShowGoalModal(false)
@@ -209,15 +226,15 @@ export default function Dashboard() {
 
   const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
   const now = new Date()
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const todayStr = now.toISOString().split('T')[0]
   const todayExpenses = expenses.filter(e => e.date === todayStr)
   const todayTotal = todayExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
 
-  const byCategory = CATEGORIES.map(cat => {
+  const byCategory = useMemo(() => CATEGORIES.map(cat => {
     const catExpenses = expenses.filter(e => e.category === cat.label)
     const catTotal = catExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
     return { ...cat, total: catTotal }
-  }).filter(c => c.total > 0).sort((a, b) => b.total - a.total)
+  }).filter(c => c.total > 0).sort((a, b) => b.total - a.total), [expenses])
 
   const recent = sortExpenses(expenses).slice(0, 5)
 
@@ -225,6 +242,21 @@ export default function Dashboard() {
   const goalExceeded = spendingGoal && total > spendingGoal
   const goalRemaining = spendingGoal ? Math.max(spendingGoal - total, 0) : 0
   const goalColor = goalPercentage >= 100 ? COLORS.accentRed : goalPercentage >= 80 ? COLORS.accentYellow : COLORS.accentGreen
+
+  const insights = useMemo(() => {
+    if (expenses.length < 3) return []
+    const result = []
+    const topCat = byCategory[0]
+    if (topCat) result.push(`${topCat.label} is your biggest spend at ${((topCat.total / total) * 100).toFixed(0)}% of total`)
+    if (total > lastMonthTotal && lastMonthTotal > 0) result.push(`You're spending ${((total - lastMonthTotal) / lastMonthTotal * 100).toFixed(0)}% more than last month`)
+    if (total < lastMonthTotal && lastMonthTotal > 0) result.push(`Great job! You're spending ${((lastMonthTotal - total) / lastMonthTotal * 100).toFixed(0)}% less than last month`)
+    const dailyAvg = total / Math.max(daysInMonth, 1)
+    if (dailyAvg > 500) result.push(`You're averaging ${formatAmount(dailyAvg, currencySymbol, currencyCode)}/day this month`)
+    if (byCategory.length >= 3) result.push(`You've spent across ${byCategory.length} categories this month`)
+    if (spendingGoal && !goalExceeded && goalPercentage >= 80) result.push(`You've used ${goalPercentage.toFixed(0)}% of your monthly goal — slow down!`)
+    if (spendingGoal && goalExceeded) result.push(`You've exceeded your monthly goal of ${formatAmount(spendingGoal, currencySymbol, currencyCode)}!`)
+    return result
+  }, [expenses, byCategory, total, lastMonthTotal, daysInMonth, currencySymbol, currencyCode, spendingGoal, goalExceeded, goalPercentage])
 
   function getCategoryInfo(label) {
     return CATEGORIES.find(c => c.label === label) || { icon: 'grid-outline', color: '#888' }
@@ -240,10 +272,10 @@ export default function Dashboard() {
 
   function formatDate(dateStr) {
     const today = new Date()
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const todayStr = today.toISOString().split('T')[0]
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
-    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+    const yesterdayStr = yesterday.toISOString().split('T')[0]
     if (dateStr === todayStr) return 'Today'
     if (dateStr === yesterdayStr) return 'Yesterday'
     return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
@@ -379,33 +411,20 @@ export default function Dashboard() {
           </View>
         )}
 
-        {expenses.length >= 3 && (() => {
-          const insights = []
-          const topCat = byCategory[0]
-          if (topCat) insights.push(`${topCat.label} is your biggest spend at ${((topCat.total / total) * 100).toFixed(0)}% of total`)
-          if (total > lastMonthTotal && lastMonthTotal > 0) insights.push(`You're spending ${((total - lastMonthTotal) / lastMonthTotal * 100).toFixed(0)}% more than last month`)
-          if (total < lastMonthTotal && lastMonthTotal > 0) insights.push(`Great job! You're spending ${((lastMonthTotal - total) / lastMonthTotal * 100).toFixed(0)}% less than last month`)
-          const dailyAvg = total / Math.max(daysInMonth, 1)
-          if (dailyAvg > 500) insights.push(`You're averaging ${formatAmount(dailyAvg, currencySymbol, currencyCode)}/day this month`)
-          if (byCategory.length >= 3) insights.push(`You've spent across ${byCategory.length} categories this month`)
-          if (spendingGoal && !goalExceeded && goalPercentage >= 80) insights.push(`You've used ${goalPercentage.toFixed(0)}% of your monthly goal — slow down!`)
-          if (spendingGoal && goalExceeded) insights.push(`You've exceeded your monthly goal of ${formatAmount(spendingGoal, currencySymbol, currencyCode)}!`)
-          if (insights.length === 0) return null
-          return (
-            <View style={styles.insightsCard}>
-              <View style={styles.insightsTitleRow}>
-                <Ionicons name="bulb-outline" size={16} color={COLORS.accentYellow} />
-                <Text style={styles.insightsTitle}>Insights</Text>
-              </View>
-              {insights.map((insight, i) => (
-                <View key={i} style={styles.insightRow}>
-                  <View style={styles.insightDot} />
-                  <Text style={styles.insightText}>{insight}</Text>
-                </View>
-              ))}
+        {insights.length > 0 && (
+          <View style={styles.insightsCard}>
+            <View style={styles.insightsTitleRow}>
+              <Ionicons name="bulb-outline" size={16} color={COLORS.accentYellow} />
+              <Text style={styles.insightsTitle}>Insights</Text>
             </View>
-          )
-        })()}
+            {insights.map((insight, i) => (
+              <View key={i} style={styles.insightRow}>
+                <View style={styles.insightDot} />
+                <Text style={styles.insightText}>{insight}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {byCategory.length > 0 && (
           <View style={styles.section}>

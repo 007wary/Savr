@@ -192,7 +192,7 @@ export default function Settings() {
           'Notifications were denied. Please enable them in your device settings.',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            { text: 'Open Settings', style: 'default', onPress: () => Linking.openSettings() },
           ]
         )
       }
@@ -206,7 +206,7 @@ export default function Settings() {
         'To fully disable notifications, go to your device settings.',
         [
           { text: 'OK', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          { text: 'Open Settings', style: 'default', onPress: () => Linking.openSettings() },
         ]
       )
     }
@@ -269,8 +269,8 @@ export default function Settings() {
           <Text style={styles.displayName}>{displayName}</Text>
           <Text style={styles.email}>{user?.email}</Text>
           {phone
-            ? <Text style={styles.phoneText}>\uD83D\uDCF1 {phone}</Text>
-            : <Text style={styles.phoneAdd}>\uD83D\uDCF1 Add phone number</Text>
+            ? <View style={styles.phoneRow}><Ionicons name="phone-portrait-outline" size={13} color={COLORS.textMuted} /><Text style={styles.phoneText}> {phone}</Text></View>
+: <View style={styles.phoneRow}><Ionicons name="phone-portrait-outline" size={13} color={COLORS.accent} /><Text style={styles.phoneAdd}> Add phone number</Text></View>
           }
         </View>
         <View style={styles.editProfileBtn}>
@@ -331,8 +331,8 @@ export default function Settings() {
             <View>
               <Text style={styles.rowTitle}>Currency</Text>
               <Text style={styles.rowSubtitle}>
-                {selectedCurrency?.flag} {currency} \u2014 {selectedCurrency?.name}
-              </Text>
+  {selectedCurrency?.flag + ' ' + currency + ' \u2014 ' + (selectedCurrency?.name || '')}
+</Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
@@ -384,7 +384,7 @@ export default function Settings() {
             </View>
             <View>
               <Text style={styles.rowTitle}>Version</Text>
-              <Text style={styles.rowSubtitle}>Savr v{APP_VERSION} \u2014 Latest</Text>
+              <Text style={styles.rowSubtitle}>{'Savr v' + APP_VERSION + ' \u2014 Latest'}</Text>
             </View>
           </View>
           <View style={styles.versionPill}>
@@ -467,7 +467,7 @@ export default function Settings() {
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerSub}>Savr v{APP_VERSION} \u00B7 \u00A9 2026</Text>
+        <Text style={styles.footerSub}>{'Savr v' + APP_VERSION + ' \u00B7 \u00A9 2026'}</Text>
       </View>
 
       {/* Currency Bottom Sheet */}
@@ -604,6 +604,7 @@ const styles = StyleSheet.create({
   profileInfo: { flex: 1 },
   displayName: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 2, letterSpacing: -0.3 },
   email: { fontSize: 13, color: COLORS.textMuted },
+  phoneRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
   phoneText: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
   phoneAdd: { fontSize: 13, color: COLORS.accent, marginTop: 2 },
   editProfileBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },

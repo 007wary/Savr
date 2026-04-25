@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, TextInput, RefreshControl, KeyboardAvoidingView, Platform
@@ -15,6 +15,11 @@ import useAlert from '../../src/hooks/useAlert'
 import { generateBudgetRecommendations } from '../../src/lib/budgetRecommendations'
 import { getExpenses, getBudgets, saveBudget, deleteBudget } from '../../src/services/sqliteService'
 
+const now = new Date()
+const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
+const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
+
 export default function Budgets() {
   const [budgets, setBudgets] = useState([])
   const [expenses, setExpenses] = useState([])
@@ -29,11 +34,7 @@ export default function Budgets() {
   const [recommendations, setRecommendations] = useState({})
   const [showRecommendations, setShowRecommendations] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
-
-  const now = new Date()
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
-  const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
+  const userRef = useRef(null)
 
   async function fetchData(forceRefresh = false) {
     const symbol = await getCurrencySymbol()
@@ -59,7 +60,8 @@ export default function Budgets() {
 
   async function loadFromSQLite() {
     try {
-      const user = await getUser()
+      const user = userRef.current || await getUser()
+      if (!userRef.current) userRef.current = user
       const [budgetData, allExp] = await Promise.all([
         getBudgets(user.id, currentMonth),
         getExpenses(user.id),
@@ -97,7 +99,8 @@ export default function Budgets() {
     setInputValue('')
     setSavingBudget(false)
     try {
-      const user = await getUser()
+      const user = userRef.current || await getUser()
+      if (!userRef.current) userRef.current = user
       await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth })
     } catch (e) {
       console.error('Save budget error:', e)
@@ -124,10 +127,11 @@ export default function Budgets() {
         {
           text: 'Apply All',
           onPress: async () => {
-            const user = await getUser()
-            for (const [category, rec] of Object.entries(recommendations)) {
-              await saveBudget(user.id, { category, limit_amount: rec.recommended, month: currentMonth })
-            }
+            const user = userRef.current || await getUser()
+            if (!userRef.current) userRef.current = user
+            await Promise.all(Object.entries(recommendations).map(([category, rec]) =>
+              saveBudget(user.id, { category, limit_amount: rec.recommended, month: currentMonth })
+            ))
             setShowRecommendations(false)
             fetchData(true)
           }
@@ -279,7 +283,7 @@ export default function Budgets() {
                 <View style={styles.overBanner}>
                   <Ionicons name="alert-circle" size={14} color={COLORS.accentRed} />
                   <Text style={styles.overText}>
-                    Over by {formatAmount(spent - limit, currencySymbol, currencyCode)} · {((spent / limit - 1) * 100).toFixed(0)}% over budget
+                    {`Over by ${formatAmount(spent - limit, currencySymbol, currencyCode)} \u00B7 ${((spent / limit - 1) * 100).toFixed(0)}% over budget`}
                   </Text>
                 </View>
               )}

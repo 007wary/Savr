@@ -3,6 +3,8 @@ import {
   View, Text, TouchableOpacity,
   StyleSheet, ActivityIndicator
 } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as SecureStore from 'expo-secure-store'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS } from '../../src/constants/theme'
 import CustomAlert from '../../src/components/CustomAlert'
@@ -30,8 +32,9 @@ export default function Login() {
     }
     try {
       setGoogleLoading(true)
-      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default
-      const existingRefreshToken = await AsyncStorage.getItem('savr_google_refresh_token')
+
+      // Refresh token stored securely in SecureStore
+      const existingRefreshToken = await SecureStore.getItemAsync('savr_google_refresh_token')
 
       const redirectUrl = AuthSession.makeRedirectUri({ scheme: 'savr' })
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -69,12 +72,14 @@ export default function Login() {
           await supabase.auth.setSession({ access_token, refresh_token })
 
           if (provider_token) {
+            // Short-lived access token — AsyncStorage is fine
             await AsyncStorage.setItem('savr_google_token', provider_token)
             await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
           }
 
           if (provider_refresh_token) {
-            await AsyncStorage.setItem('savr_google_refresh_token', provider_refresh_token)
+            // Long-lived refresh token — store securely
+            await SecureStore.setItemAsync('savr_google_refresh_token', provider_refresh_token)
           }
         }
       }

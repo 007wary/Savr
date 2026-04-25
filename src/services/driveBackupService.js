@@ -27,9 +27,19 @@ async function getAccessToken() {
       if (age < 55 * 60 * 1000) return storedToken
     }
 
+    // Migrate refresh token from AsyncStorage to SecureStore if needed
+    // This handles users who had the old version before SecureStore fix
+    let refreshToken = await SecureStore.getItemAsync('savr_google_refresh_token')
+    if (!refreshToken) {
+      const oldToken = await AsyncStorage.getItem('savr_google_refresh_token')
+      if (oldToken) {
+        await SecureStore.setItemAsync('savr_google_refresh_token', oldToken)
+        await AsyncStorage.removeItem('savr_google_refresh_token')
+        refreshToken = oldToken
+      }
+    }
+
     // Try using refresh token via secure Edge Function
-    // Refresh token is stored in SecureStore — matches login.jsx
-    const refreshToken = await SecureStore.getItemAsync('savr_google_refresh_token')
     if (refreshToken) {
       try {
         const response = await fetch(
@@ -38,7 +48,7 @@ async function getAccessToken() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'apikey': 'sb_publishable_fTC_70PzCNPOs0_sNh1nEQ_Boj4EjqC',
+              'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_fTC_70PzCNPOs0_sNh1nEQ_Boj4EjqC',
             },
             body: JSON.stringify({ refresh_token: refreshToken }),
           }
@@ -133,7 +143,6 @@ async function restoreAllDataToSQLite(userId, data) {
   const db = await getDB()
   const now = new Date().toISOString()
 
-  // Use transaction so restore is atomic — all or nothing
   await db.withTransactionAsync(async () => {
     await db.runAsync('DELETE FROM expenses WHERE user_id = ?', [userId])
     await db.runAsync('DELETE FROM budgets WHERE user_id = ?', [userId])

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ScrollView, KeyboardAvoidingView,
@@ -40,16 +40,18 @@ export default function AddExpense() {
   const [quickAmounts, setQuickAmounts] = useState(['50', '100', '200', '500', '1000', '2000'])
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
+  const userRef = useRef(null)
 
   useEffect(() => {
-    async function loadCurrencyData() {
+    async function init() {
       const symbol = await getCurrencySymbol()
       const code = await loadCurrency()
       setCurrencySymbol(symbol)
       setCurrencyCode(code)
       setQuickAmounts(getQuickAmounts(code))
+      userRef.current = await getUser()
     }
-    loadCurrencyData()
+    init()
   }, [])
 
   function handleNoteChange(text) {
@@ -88,7 +90,8 @@ export default function AddExpense() {
   }
 
   async function saveExpense(expenseData, expenseMonth, currentMonth) {
-    const user = await getUser()
+    const user = userRef.current || await getUser()
+    if (!userRef.current) userRef.current = user
 
     if (isRecurring) {
       await addRecurring(user.id, {
@@ -110,30 +113,12 @@ export default function AddExpense() {
     }
     Analytics.addExpense(expenseData.category, expenseData.amount)
 
+    // Clear caches for the expense month
     await clearCache(`savr_cache_dashboard_${expenseMonth}`)
-    await clearCache('savr_cache_history')
     await clearCache(`savr_cache_budgets_${expenseMonth}`)
     await clearCache(`savr_cache_reports_${expenseMonth}`)
 
-    if (expenseMonth === currentMonth) {
-      const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
-      const dashCached = await loadCache(dashCacheKey)
-      if (dashCached) {
-        const newExpense = {
-          ...expenseData,
-          id: `temp_${Date.now()}`,
-          user_id: user.id,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }
-        await saveCache(dashCacheKey, {
-          ...dashCached,
-          expenses: [newExpense, ...dashCached.expenses],
-        })
-      }
-    }
-
-    const historyCached = await loadCache('savr_cache_history') || []
+    // Build new expense object once and reuse
     const newExpense = {
       ...expenseData,
       id: `temp_${Date.now()}`,
@@ -141,6 +126,21 @@ export default function AddExpense() {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }
+
+    // Update dashboard cache if expense is in current month
+    if (expenseMonth === currentMonth) {
+      const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
+      const dashCached = await loadCache(dashCacheKey)
+      if (dashCached) {
+        await saveCache(dashCacheKey, {
+          ...dashCached,
+          expenses: [newExpense, ...dashCached.expenses],
+        })
+      }
+    }
+
+    // Load history cache first then prepend — do NOT clear before loading
+    const historyCached = await loadCache('savr_cache_history') || []
     await saveCache('savr_cache_history', [newExpense, ...historyCached])
 
     try {
@@ -180,7 +180,6 @@ export default function AddExpense() {
         const historyCached = await loadCache('savr_cache_history') || []
         const anomaly = detectAnomaly(expenseData.amount, selectedCategory, historyCached)
         if (anomaly) {
-          resetForm()
           setSubmitting(false)
           showAlert(
             '⚠️ Unusual Expense Detected',
@@ -191,6 +190,7 @@ export default function AddExpense() {
                 text: 'Yes, Add It',
                 onPress: async () => {
                   setSubmitting(true)
+                  resetForm()
                   await saveExpense(expenseData, expenseMonth, currentMonth)
                 }
               }
@@ -258,7 +258,12 @@ export default function AddExpense() {
 
         <View style={styles.categoryHeader}>
           <Text style={styles.label}>Category</Text>
-          {autoDetected && <Text style={styles.autoDetectHint}>✨ Auto-selected from your note</Text>}
+          {autoDetected && (
+  <View style={styles.autoDetectHintRow}>
+    <Ionicons name="flash" size={11} color={COLORS.accentGreen} />
+    <Text style={styles.autoDetectHint}> Auto-selected from your note</Text>
+  </View>
+)}
         </View>
         <View style={styles.categoryGrid}>
           {CATEGORIES.map((cat) => (
@@ -381,6 +386,7 @@ const styles = StyleSheet.create({
   autoDetectText: { fontSize: 12, color: COLORS.accentGreen, fontWeight: '600' },
   categoryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   autoDetectHint: { fontSize: 11, color: COLORS.accentGreen, fontWeight: '600' },
+  autoDetectHintRow: { flexDirection: 'row', alignItems: 'center' },
   quickAmounts: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20, marginTop: -12 },
   quickBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
   quickBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },

@@ -15,14 +15,17 @@ import { Analytics, setUserId } from '../src/lib/analytics'
 
 SplashScreen.preventAutoHideAsync()
 
+const NOTIF_ASKED_KEY = 'savr_notif_asked'
+const LAST_BACKUP_TRIGGER_KEY = 'savr_last_backup_trigger'
+
 export default function RootLayout() {
   const [session, setSession] = useState(undefined)
   const [onboardingDone, setOnboardingDone] = useState(undefined)
   const recurringProcessedRef = useRef(false)
+  const initialSessionLoadedRef = useRef(false)
   const router = useRouter()
   const segments = useSegments()
 
-  // Track screen views when segments change
   useEffect(() => {
     if (!segments || segments.length === 0) return
     const screen = segments.join('/')
@@ -34,29 +37,19 @@ export default function RootLayout() {
       clearExpiredCache().catch(() => {})
       initializeDatabase().catch(() => {})
 
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session?.user) {
-          import('../src/lib/userProfile').then(({ updateLastActive }) => {
-            updateLastActive(session.user.id)
-          }).catch(() => {})
-        }
-      }).catch(() => {})
-
       const done = await AsyncStorage.getItem('savr_onboarding_done')
       setOnboardingDone(done === 'true')
 
-      const timeout = setTimeout(() => {
-        if (session === undefined) {
-          setSession(null)
-          SplashScreen.hideAsync().catch(() => {})
-        }
-      }, 500)
-
       try {
         const { data: { session: cachedSession } } = await supabase.auth.getSession()
-        if (cachedSession) {
-          clearTimeout(timeout)
 
+        if (cachedSession?.user) {
+          import('../src/lib/userProfile').then(({ updateLastActive }) => {
+            updateLastActive(cachedSession.user.id)
+          }).catch(() => {})
+        }
+
+        if (cachedSession) {
           const expiresAt = cachedSession.expires_at
           const now = Math.floor(Date.now() / 1000)
           if (expiresAt && expiresAt < now) {
@@ -64,12 +57,15 @@ export default function RootLayout() {
             if (error || !refreshed.session) {
               await supabase.auth.signOut()
               await clearAllCache()
+              initialSessionLoadedRef.current = true
               setSession(null)
               SplashScreen.hideAsync().catch(() => {})
               return
             }
+            initialSessionLoadedRef.current = true
             setSession(refreshed.session)
           } else {
+            initialSessionLoadedRef.current = true
             setSession(cachedSession)
           }
 
@@ -78,14 +74,13 @@ export default function RootLayout() {
           setTimeout(() => {
             import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
           }, 2000)
-
         } else {
-          clearTimeout(timeout)
+          initialSessionLoadedRef.current = true
           setSession(null)
           SplashScreen.hideAsync().catch(() => {})
         }
       } catch {
-        clearTimeout(timeout)
+        initialSessionLoadedRef.current = true
         setSession(null)
         SplashScreen.hideAsync().catch(() => {})
       }
@@ -94,19 +89,29 @@ export default function RootLayout() {
     init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Only process auth events after initial session load is done
+      // This prevents the flash caused by onAuthStateChange racing with init()
+      if (!initialSessionLoadedRef.current && event !== 'SIGNED_OUT') return
+
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
-        // Set Firebase user ID for analytics
         if (session?.user?.id) {
           setUserId(session.user.id).catch(() => {})
         }
         Analytics.login()
         router.replace('/(tabs)/dashboard')
 
-        setTimeout(() => {
+        recurringProcessedRef.current = false
+
+        setTimeout(async () => {
           try {
-            requestNotificationPermission()
+            const notifAsked = await AsyncStorage.getItem(NOTIF_ASKED_KEY)
+            if (!notifAsked) {
+              await AsyncStorage.setItem(NOTIF_ASKED_KEY, 'true')
+              await requestNotificationPermission()
+            }
+
             if (session?.user) {
               if (!recurringProcessedRef.current) {
                 recurringProcessedRef.current = true
@@ -119,7 +124,7 @@ export default function RootLayout() {
             import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
             registerBackupTask().catch(() => {})
           } catch {}
-        }, 3000)
+        }, 1000)
 
         setTimeout(async () => {
           try {
@@ -141,17 +146,25 @@ export default function RootLayout() {
                 await AsyncStorageModule.setItem('savr_pending_restore', 'true')
               }
             } else {
-              backupToDrive().catch(() => {})
+              const lastTrigger = await AsyncStorageModule.getItem(LAST_BACKUP_TRIGGER_KEY)
+              const today = new Date().toISOString().split('T')[0]
+              if (lastTrigger !== today) {
+                await AsyncStorageModule.setItem(LAST_BACKUP_TRIGGER_KEY, today)
+                backupToDrive().catch(() => {})
+              }
             }
           } catch {}
-        }, 5000)
+        }, 2000)
       }
 
       if (event === 'SIGNED_OUT') {
         Analytics.logout()
         await clearAllCache()
         AsyncStorage.removeItem('savr_google_token').catch(() => {})
+        AsyncStorage.removeItem(NOTIF_ASKED_KEY).catch(() => {})
+        AsyncStorage.removeItem(LAST_BACKUP_TRIGGER_KEY).catch(() => {})
         unregisterBackupTask().catch(() => {})
+        recurringProcessedRef.current = false
         router.replace('/(auth)/login')
       }
 
@@ -203,16 +216,6 @@ export default function RootLayout() {
       clearInterval(refreshInterval)
     }
   }, [])
-
-  useEffect(() => {
-    async function checkOnboarding() {
-      const done = await AsyncStorage.getItem('savr_onboarding_done')
-      if (done === 'true' && !onboardingDone) {
-        setOnboardingDone(true)
-      }
-    }
-    checkOnboarding()
-  }, [segments])
 
   useEffect(() => {
     if (session === undefined || onboardingDone === undefined) return

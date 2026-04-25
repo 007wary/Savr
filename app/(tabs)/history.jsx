@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, SectionList, TouchableOpacity,
   RefreshControl, TextInput, ScrollView, Platform
@@ -12,11 +12,13 @@ import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/cur
 import BottomSheet from '../../src/components/BottomSheet'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
-import * as FileSystem from 'expo-file-system/legacy'
+import * as FileSystem from 'expo-file-system'
 import * as Sharing from 'expo-sharing'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
 import { getExpenses, updateExpense, deleteExpense } from '../../src/services/sqliteService'
+
+const CACHE_KEY = 'savr_cache_history'
 
 export default function History() {
   const [expenses, setExpenses] = useState(null)
@@ -35,8 +37,7 @@ export default function History() {
   const [selectedMonth, setSelectedMonth] = useState('All')
   const [showFilters, setShowFilters] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
-
-  const CACHE_KEY = 'savr_cache_history'
+  const userRef = useRef(null)
 
   function sortExpenses(data) {
     return [...data].sort((a, b) => {
@@ -63,7 +64,8 @@ export default function History() {
 
   async function loadFromSQLite() {
     try {
-      const user = await getUser()
+      const user = userRef.current || await getUser()
+      if (!userRef.current) userRef.current = user
       const data = await getExpenses(user.id)
       const sorted = sortExpenses(data)
       setExpenses(sorted)
@@ -155,7 +157,13 @@ export default function History() {
           const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
           await clearCache(`savr_cache_budgets_${currentMonth}`)
           await clearCache(`savr_cache_reports_${currentMonth}`)
-          try { await deleteExpense(id) } catch (e) { console.error('Delete error:', e) }
+          try {
+            await deleteExpense(id)
+          } catch (e) {
+            console.error('Delete error:', e)
+            setExpenses(expenses)
+            await saveCache(CACHE_KEY, expenses)
+          }
         }
       }
     ])
@@ -297,12 +305,22 @@ export default function History() {
         <View style={styles.chipRow}>
           {selectedCategory !== 'All' && (
             <TouchableOpacity style={styles.chip} onPress={() => setSelectedCategory('All')}>
-              <Text style={styles.chipText}>{selectedCategory} ✕</Text>
+              <TouchableOpacity style={styles.chip} onPress={() => setSelectedCategory('All')}>
+  <View style={styles.chipInner}>
+    <Text style={styles.chipText}>{selectedCategory}</Text>
+    <Ionicons name="close" size={12} color={COLORS.accent} />
+  </View>
+</TouchableOpacity>
             </TouchableOpacity>
           )}
           {selectedMonth !== 'All' && (
             <TouchableOpacity style={styles.chip} onPress={() => setSelectedMonth('All')}>
-              <Text style={styles.chipText}>{selectedMonth} ✕</Text>
+              <TouchableOpacity style={styles.chip} onPress={() => setSelectedMonth('All')}>
+  <View style={styles.chipInner}>
+    <Text style={styles.chipText}>{selectedMonth}</Text>
+    <Ionicons name="close" size={12} color={COLORS.accent} />
+  </View>
+</TouchableOpacity>
             </TouchableOpacity>
           )}
           <TouchableOpacity onPress={clearFilters}>
@@ -503,6 +521,7 @@ const styles = StyleSheet.create({
   filterBadge: { position: 'absolute', top: 6, right: 6, fontSize: 9, color: '#fff', fontWeight: '700' },
   chipRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' },
   chip: { backgroundColor: COLORS.accent + '33', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 12 },
+  chipInner: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   chipText: { color: COLORS.accent, fontSize: 12, fontWeight: '600' },
   clearText: { color: COLORS.accentRed, fontSize: 12, fontWeight: '600' },
   resultsText: { fontSize: 12, color: COLORS.textMuted, marginBottom: 10 },

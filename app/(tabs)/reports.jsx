@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
   RefreshControl, TouchableOpacity, Animated
@@ -34,7 +34,6 @@ function AnimatedBar({ percentage, color, delay = 0 }) {
   )
 }
 
-// Module-level variable — persists across component unmounts/remounts
 let adShownOnce = false
 let adShownDate = ''
 
@@ -47,16 +46,22 @@ export default function Reports() {
   const [currencyCode, setCurrencyCode] = useState('INR')
   const [loading, setLoading] = useState(true)
   const [expandedCategory, setExpandedCategory] = useState(null)
+  const userRef = useRef(null)
 
-  const now = new Date()
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
-  const CACHE_KEY = `savr_cache_reports_${currentMonth}`
+  // getNow() called fresh each time to avoid stale date if app open past midnight
+  const getNow = () => new Date()
+
+  const getCurrentMonth = () => {
+    const n = getNow()
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`
+  }
+
+  const CACHE_KEY = `savr_cache_reports_${getCurrentMonth()}`
 
   useFocusEffect(useCallback(() => {
     fetchData()
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = getNow().toISOString().split('T')[0]
     if (adShownOnce && adShownDate === today) return
     adShownOnce = true
     adShownDate = today
@@ -101,9 +106,10 @@ export default function Reports() {
 
   async function loadFromSQLite() {
     try {
-      const user = await getUser()
+      const user = userRef.current || await getUser()
+      if (!userRef.current) userRef.current = user
       const allData = await getExpenses(user.id)
-      const freshNow = new Date()
+      const freshNow = getNow()
       const freshYear = freshNow.getFullYear()
       const freshMonth = freshNow.getMonth() + 1
       const freshCurrentMonth = `${freshYear}-${String(freshMonth).padStart(2, '0')}`
@@ -125,74 +131,115 @@ export default function Reports() {
     }
   }
 
-  const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
-  const lastTotal = lastMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+  const now = getNow()
+  const currentMonth = getCurrentMonth()
+  const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
+
+  const total = useMemo(() =>
+    expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0),
+  [expenses])
+
+  const lastTotal = useMemo(() =>
+    lastMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0),
+  [lastMonthExpenses])
+
   const daysElapsed = now.getDate()
   const dailyAvg = total / Math.max(daysElapsed, 1)
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
   const forecast = dailyAvg * daysInMonth
 
-  const categoryTotals = CATEGORIES.map(cat => {
+  const categoryTotals = useMemo(() => CATEGORIES.map(cat => {
     const catExpenses = expenses.filter(e => e.category === cat.label)
     const catTotal = catExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
     return { ...cat, total: catTotal, percentage: total > 0 ? (catTotal / total) * 100 : 0, expenses: catExpenses }
-  }).filter(c => c.total > 0).sort((a, b) => b.total - a.total)
+  }).filter(c => c.total > 0).sort((a, b) => b.total - a.total), [expenses, total])
 
-  const dailyMap = {}
-  expenses.forEach(e => { dailyMap[e.date] = (dailyMap[e.date] || 0) + parseFloat(e.amount) })
+  const dailyMap = useMemo(() => {
+    const map = {}
+    expenses.forEach(e => { map[e.date] = (map[e.date] || 0) + parseFloat(e.amount) })
+    return map
+  }, [expenses])
 
-  const last7 = []
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    last7.push({ date: dateStr, label: d.toLocaleString('default', { weekday: 'short' }), amount: dailyMap[dateStr] || 0 })
-  }
-  const max7 = Math.max(...last7.map(d => d.amount), 1)
-
-  const last6Months = []
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    const monthTotal = allExpenses.filter(e => e.date.startsWith(key)).reduce((sum, e) => sum + parseFloat(e.amount), 0)
-    last6Months.push({ key, label: d.toLocaleString('default', { month: 'short' }), amount: monthTotal })
-  }
-  const max6 = Math.max(...last6Months.map(m => m.amount), 1)
-
-  const daysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-  const heatmapDays = []
-  for (let d = 1; d <= daysInCurrentMonth; d++) {
-    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    heatmapDays.push({ day: d, amount: dailyMap[dateStr] || 0, dateStr })
-  }
-  const maxHeatmap = Math.max(...heatmapDays.map(d => d.amount), 1)
-
-  const weekendExpenses = expenses.filter(e => { const day = new Date(e.date + 'T00:00:00').getDay(); return day === 0 || day === 6 })
-  const weekdayExpenses = expenses.filter(e => { const day = new Date(e.date + 'T00:00:00').getDay(); return day !== 0 && day !== 6 })
-  const weekendTotal = weekendExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
-  const weekdayTotal = weekdayExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
-
-  const noteCounts = {}
-  expenses.forEach(e => {
-    if (e.note && e.note.trim()) {
-      const key = e.note.trim().toLowerCase()
-      noteCounts[key] = (noteCounts[key] || 0) + 1
+  const last7 = useMemo(() => {
+    const result = []
+    for (let i = 6; i >= 0; i--) {
+      const d = getNow()
+      d.setDate(d.getDate() - i)
+      const dateStr = d.toISOString().split('T')[0]
+      result.push({ date: dateStr, label: d.toLocaleString('default', { weekday: 'short' }), amount: dailyMap[dateStr] || 0 })
     }
-  })
-  const topNote = Object.entries(noteCounts).sort((a, b) => b[1] - a[1])[0]
+    return result
+  }, [dailyMap])
 
-  const dayTotals = {}
-  expenses.forEach(e => { dayTotals[e.date] = (dayTotals[e.date] || 0) + parseFloat(e.amount) })
-  const biggestDay = Object.entries(dayTotals).sort((a, b) => b[1] - a[1])[0]
+  const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
 
-  let streak = 0
-  for (let i = 0; i < 30; i++) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    if (dailyMap[dateStr]) streak++
-    else break
-  }
+  const last6Months = useMemo(() => {
+    const result = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const monthTotal = allExpenses.filter(e => e.date.startsWith(key)).reduce((sum, e) => sum + parseFloat(e.amount), 0)
+      result.push({ key, label: d.toLocaleString('default', { month: 'short' }), amount: monthTotal })
+    }
+    return result
+  }, [allExpenses])
+
+  const max6 = useMemo(() => Math.max(...last6Months.map(m => m.amount), 1), [last6Months])
+
+  const heatmapDays = useMemo(() => {
+    const daysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    const result = []
+    for (let d = 1; d <= daysInCurrentMonth; d++) {
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      result.push({ day: d, amount: dailyMap[dateStr] || 0, dateStr })
+    }
+    return result
+  }, [dailyMap])
+
+  const maxHeatmap = useMemo(() => Math.max(...heatmapDays.map(d => d.amount), 1), [heatmapDays])
+
+  const { weekendTotal, weekdayTotal } = useMemo(() => {
+    const weekendExp = expenses.filter(e => { const day = new Date(e.date + 'T00:00:00').getDay(); return day === 0 || day === 6 })
+    const weekdayExp = expenses.filter(e => { const day = new Date(e.date + 'T00:00:00').getDay(); return day !== 0 && day !== 6 })
+    return {
+      weekendTotal: weekendExp.reduce((sum, e) => sum + parseFloat(e.amount), 0),
+      weekdayTotal: weekdayExp.reduce((sum, e) => sum + parseFloat(e.amount), 0),
+    }
+  }, [expenses])
+
+  const topNote = useMemo(() => {
+    const noteCounts = {}
+    expenses.forEach(e => {
+      if (e.note && e.note.trim()) {
+        const key = e.note.trim().toLowerCase()
+        noteCounts[key] = (noteCounts[key] || 0) + 1
+      }
+    })
+    const entries = Object.entries(noteCounts).sort((a, b) => b[1] - a[1])
+    return entries[0] || null
+  }, [expenses])
+
+  const biggestDay = useMemo(() => {
+    const dayTotals = {}
+    expenses.forEach(e => { dayTotals[e.date] = (dayTotals[e.date] || 0) + parseFloat(e.amount) })
+    return Object.entries(dayTotals).sort((a, b) => b[1] - a[1])[0] || null
+  }, [expenses])
+
+  const streak = useMemo(() => {
+    let count = 0
+    for (let i = 0; i < 30; i++) {
+      const d = getNow()
+      d.setDate(d.getDate() - i)
+      const dateStr = d.toISOString().split('T')[0]
+      if (dailyMap[dateStr]) count++
+      else break
+    }
+    return count
+  }, [dailyMap])
+
+  const biggestExpense = useMemo(() =>
+    expenses.length > 0 ? [...expenses].sort((a, b) => b.amount - a.amount)[0] : null,
+  [expenses])
 
   if (loading) return <ReportsSkeleton />
 
@@ -448,9 +495,8 @@ export default function Reports() {
             </View>
           )}
 
-          {expenses.length > 0 && (() => {
-            const biggest = [...expenses].sort((a, b) => b.amount - a.amount)[0]
-            const cat = CATEGORIES.find(c => c.label === biggest.category) || { icon: 'grid-outline', color: '#888' }
+          {biggestExpense && (() => {
+            const cat = CATEGORIES.find(c => c.label === biggestExpense.category) || { icon: 'grid-outline', color: '#888' }
             return (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Biggest Expense</Text>
@@ -459,12 +505,12 @@ export default function Reports() {
                     <Ionicons name={cat.icon} size={26} color={cat.color} />
                   </View>
                   <View style={{ marginLeft: 16, flex: 1 }}>
-                    <Text style={styles.bigCategory}>{biggest.category}</Text>
-                    <Text style={styles.bigNote}>{biggest.note || biggest.date}</Text>
-                    <Text style={styles.bigDate}>{biggest.date}</Text>
+                    <Text style={styles.bigCategory}>{biggestExpense.category}</Text>
+                    <Text style={styles.bigNote}>{biggestExpense.note || biggestExpense.date}</Text>
+                    <Text style={styles.bigDate}>{biggestExpense.date}</Text>
                   </View>
                   <Text style={styles.bigAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                    {formatAmount(biggest.amount, currencySymbol, currencyCode)}
+                    {formatAmount(biggestExpense.amount, currencySymbol, currencyCode)}
                   </Text>
                 </View>
               </View>
