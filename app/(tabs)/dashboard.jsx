@@ -130,10 +130,14 @@ export default function Dashboard() {
         const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
         if (restoreOffered) return
 
-        const user = await getUser()
-        if (!user) return
+        let user = await getUser()
+if (!user) {
+  await new Promise(resolve => setTimeout(resolve, 2000))
+  user = await getUser()
+}
+if (!user) return
 
-        const { getExpenses: getExp } = await import('../../src/services/sqliteService')
+const { getExpenses: getExp } = await import('../../src/services/sqliteService')
         const localExpenses = await getExp(user.id)
         if (localExpenses.length > 0) return
 

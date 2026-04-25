@@ -22,7 +22,6 @@ export async function requestNotificationPermission() {
   try {
     const { status: existing } = await Notifications.getPermissionsAsync()
     if (existing === 'granted') return 'granted'
-    if (existing === 'denied') return 'denied'
     const { status } = await Notifications.requestPermissionsAsync()
     return status
   } catch {
