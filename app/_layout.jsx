@@ -33,6 +33,14 @@ export default function RootLayout() {
   }, [segments])
 
   useEffect(() => {
+  AsyncStorage.getItem('savr_onboarding_done').then(done => {
+    if (done === 'true' && !onboardingDone) {
+      setOnboardingDone(true)
+    }
+  }).catch(() => {})
+}, [segments])
+
+  useEffect(() => {
     async function init() {
       clearExpiredCache().catch(() => {})
       initializeDatabase().catch(() => {})
@@ -89,8 +97,6 @@ export default function RootLayout() {
     init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Only process auth events after initial session load is done
-      // This prevents the flash caused by onAuthStateChange racing with init()
       if (!initialSessionLoadedRef.current && event !== 'SIGNED_OUT') return
 
       setSession(session ?? null)
@@ -100,17 +106,24 @@ export default function RootLayout() {
           setUserId(session.user.id).catch(() => {})
         }
         Analytics.login()
-        router.replace('/(tabs)/dashboard')
+
+        // Re-read onboarding status before navigating
+        const done = await AsyncStorage.getItem('savr_onboarding_done')
+        if (done === 'true') {
+          router.replace('/(tabs)/dashboard')
+        }
 
         recurringProcessedRef.current = false
 
         setTimeout(async () => {
-          try {
-            const notifAsked = await AsyncStorage.getItem(NOTIF_ASKED_KEY)
-            if (!notifAsked) {
-              await AsyncStorage.setItem(NOTIF_ASKED_KEY, 'true')
-              await requestNotificationPermission()
-            }
+  try {
+    const notifAsked = await AsyncStorage.getItem(NOTIF_ASKED_KEY)
+    if (!notifAsked) {
+      await AsyncStorage.setItem(NOTIF_ASKED_KEY, 'true')
+      setTimeout(async () => {
+        await requestNotificationPermission()
+      }, 2000)
+    }
 
             if (session?.user) {
               if (!recurringProcessedRef.current) {
@@ -126,35 +139,36 @@ export default function RootLayout() {
           } catch {}
         }, 1000)
 
-        setTimeout(async () => {
-          try {
-            const { backupToDrive, checkBackupExists } = await import('../src/services/driveBackupService')
-            const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
-            const { getExpenses } = await import('../src/services/sqliteService')
+        // Run immediately, no delay
+;(async () => {
+  try {
+    const { backupToDrive, checkBackupExists } = await import('../src/services/driveBackupService')
+    const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
+    const { getExpenses } = await import('../src/services/sqliteService')
 
-            const user = session?.user
-            if (!user) return
+    const user = session?.user
+    if (!user) return
 
-            const localExpenses = await getExpenses(user.id)
-            const hasLocalData = localExpenses.length > 0
-            const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
+    const localExpenses = await getExpenses(user.id)
+    const hasLocalData = localExpenses.length > 0
+    const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
 
-            if (!hasLocalData && !restoreOffered) {
-              const backupInfo = await checkBackupExists()
-              if (backupInfo?.exists) {
-                await AsyncStorageModule.setItem('savr_restore_offered', 'true')
-                await AsyncStorageModule.setItem('savr_pending_restore', 'true')
-              }
-            } else {
-              const lastTrigger = await AsyncStorageModule.getItem(LAST_BACKUP_TRIGGER_KEY)
-              const today = new Date().toISOString().split('T')[0]
-              if (lastTrigger !== today) {
-                await AsyncStorageModule.setItem(LAST_BACKUP_TRIGGER_KEY, today)
-                backupToDrive().catch(() => {})
-              }
-            }
-          } catch {}
-        }, 2000)
+    if (!hasLocalData && !restoreOffered) {
+      const backupInfo = await checkBackupExists()
+      if (backupInfo?.exists) {
+        await AsyncStorageModule.setItem('savr_restore_offered', 'true')
+        await AsyncStorageModule.setItem('savr_pending_restore', 'true')
+      }
+    } else {
+      const lastTrigger = await AsyncStorageModule.getItem(LAST_BACKUP_TRIGGER_KEY)
+      const today = new Date().toISOString().split('T')[0]
+      if (lastTrigger !== today) {
+        await AsyncStorageModule.setItem(LAST_BACKUP_TRIGGER_KEY, today)
+        backupToDrive().catch(() => {})
+      }
+    }
+  } catch {}
+})()
       }
 
       if (event === 'SIGNED_OUT') {
@@ -218,35 +232,37 @@ export default function RootLayout() {
   }, [])
 
   useEffect(() => {
-    if (session === undefined || onboardingDone === undefined) return
+  if (session === undefined || onboardingDone === undefined) return
 
-    const inOnboarding = segments[0] === 'onboarding'
-    const inAuth = segments[0] === '(auth)'
-    const inTabs = segments[0] === '(tabs)'
+  const inOnboarding = segments[0] === 'onboarding'
+  const inAuth = segments[0] === '(auth)'
+  const inTabs = segments[0] === '(tabs)'
 
-    if (!onboardingDone && !inOnboarding) {
-      router.replace('/onboarding')
+  // Always re-check AsyncStorage before redirecting away from onboarding
+  if (!onboardingDone && !inOnboarding) {
+    AsyncStorage.getItem('savr_onboarding_done').then(done => {
+      if (done === 'true') {
+        setOnboardingDone(true)
+      } else {
+        router.replace('/onboarding')
+      }
+    }).catch(() => { router.replace('/onboarding') })
+    return
+  }
+
+  if (onboardingDone) {
+    if (session && inTabs) return
+    if (!session && inAuth) return
+    if (!session && !inAuth && !inOnboarding) {
+      router.replace('/(auth)/login')
       return
     }
-
-    if (onboardingDone) {
-      if (session && inTabs) return
-      if (!session && inAuth) return
-
-      if (!session && !inAuth && !inOnboarding) {
-        router.replace('/(auth)/login')
-        return
-      }
-      if (session && inAuth) {
-        router.replace('/(tabs)/dashboard')
-        return
-      }
-      if (inOnboarding) {
-        router.replace('/(auth)/login')
-        return
-      }
+    if (session && inAuth) {
+      router.replace('/(tabs)/dashboard')
+      return
     }
-  }, [session, segments, onboardingDone])
+  }
+}, [session, segments, onboardingDone])
 
   if (session === undefined || onboardingDone === undefined) {
     return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />

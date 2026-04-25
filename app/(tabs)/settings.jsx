@@ -20,6 +20,7 @@ import useAlert from '../../src/hooks/useAlert'
 import { getUser, clearUserCache } from '../../src/lib/auth'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { backupToDrive, checkBackupExists } from '../../src/services/driveBackupService'
+import { getExpenses } from '../../src/services/sqliteService'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const APP_VERSION = Constants.expoConfig?.version || '1.0'
@@ -41,6 +42,8 @@ export default function Settings() {
   const [loading, setLoading] = useState(true)
   const [lastBackup, setLastBackup] = useState(null)
   const [backingUp, setBackingUp] = useState(false)
+const [expenseCount, setExpenseCount] = useState(0)
+const [backupUpToDate, setBackupUpToDate] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
@@ -91,9 +94,33 @@ export default function Settings() {
       await saveCache(CACHE_KEY, {
         user: u, displayName: name, phone: ph, currency: savedCurrency,
       })
-      checkBackupExists().then(info => {
-        if (info?.modifiedTime) setLastBackup(info.modifiedTime)
-      }).catch(() => {})
+      // Show cached timestamp instantly
+AsyncStorage.getItem('savr_last_backup').then(cached => {
+  if (cached) setLastBackup(cached)
+})
+// Silently verify with Drive in background
+checkBackupExists().then(info => {
+  if (info?.modifiedTime) setLastBackup(info.modifiedTime)
+}).catch(() => {})
+
+// Load expense count and check if backup is current
+try {
+  const u = await getUser()
+  const expenses = await getExpenses(u.id)
+  setExpenseCount(expenses.length)
+
+  // Check if last expense was added before last backup
+  const lastBackupTime = await AsyncStorage.getItem('savr_last_backup')
+  if (lastBackupTime && expenses.length > 0) {
+    const lastExpenseDate = expenses
+      .map(e => new Date(e.updated_at || e.created_at || e.date))
+      .sort((a, b) => b - a)[0]
+    const backupDate = new Date(lastBackupTime)
+    setBackupUpToDate(lastExpenseDate <= backupDate)
+  } else {
+    setBackupUpToDate(false)
+  }
+} catch {}
     } catch {
       // Silently fail
     } finally {
@@ -163,18 +190,27 @@ export default function Settings() {
   }
 
   async function handleManualBackup() {
-    setBackingUp(true)
-    const result = await backupToDrive()
-    setBackingUp(false)
-    if (result.success) {
-      setLastBackup(result.backedUpAt)
-      showAlert('\u2705 Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
-    } else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
-      showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again to re-enable backup.')
-    } else {
-      showAlert('Backup Failed', result.error || 'Something went wrong.')
-    }
+  if (expenseCount === 0) {
+    showAlert('No Data', 'You have no expenses to back up yet.')
+    return
   }
+  if (backupUpToDate) {
+    showAlert('Already Up To Date', 'Your backup is already up to date. No changes since last backup.')
+    return
+  }
+  setBackingUp(true)
+  const result = await backupToDrive()
+  setBackingUp(false)
+  if (result.success) {
+    setLastBackup(result.backedUpAt)
+    setBackupUpToDate(true)
+    showAlert('\u2705 Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
+  } else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
+    showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again to re-enable backup.')
+  } else {
+    showAlert('Backup Failed', result.error || 'Something went wrong.')
+  }
+}
 
   async function handleNotificationToggle(val) {
     if (val) {
@@ -357,10 +393,10 @@ export default function Settings() {
         <View style={styles.divider} />
 
         <TouchableOpacity
-          style={styles.row}
-          onPress={handleManualBackup}
-          disabled={backingUp}
-        >
+  style={[styles.row, (expenseCount === 0 || backupUpToDate) && { opacity: 0.4 }]}
+  onPress={handleManualBackup}
+  disabled={backingUp}
+>
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#34C75922' }]}>
               {backingUp
