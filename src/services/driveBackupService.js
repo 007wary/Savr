@@ -11,20 +11,20 @@ const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3'
 
 async function getAccessToken() {
   try {
-    // Try refreshing Supabase session first
-    const { data: refreshed } = await supabase.auth.refreshSession()
-    if (refreshed?.session?.provider_token) {
-      await AsyncStorage.setItem('savr_google_token', refreshed.session.provider_token)
-      await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
-      return refreshed.session.provider_token
-    }
-
-    // Check if stored token is still fresh (under 55 minutes old)
+    // Check cached token FIRST — avoid network call if still fresh
     const tokenTime = await AsyncStorage.getItem('savr_google_token_time')
     const storedToken = await AsyncStorage.getItem('savr_google_token')
     if (storedToken && tokenTime) {
       const age = Date.now() - parseInt(tokenTime)
       if (age < 55 * 60 * 1000) return storedToken
+    }
+
+    // Token expired or missing — try Supabase session refresh
+    const { data: refreshed } = await supabase.auth.refreshSession()
+    if (refreshed?.session?.provider_token) {
+      await AsyncStorage.setItem('savr_google_token', refreshed.session.provider_token)
+      await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
+      return refreshed.session.provider_token
     }
 
     // Migrate refresh token from AsyncStorage to SecureStore if needed

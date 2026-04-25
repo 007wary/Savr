@@ -152,16 +152,18 @@ export default function Dashboard() {
       if (monthOffset === 0) {
         checkWeeklySummary(filtered)
 
-        // Request notification permission once on fresh install
         try {
           const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
           const notifAsked = await AsyncStorageModule.getItem('savr_notif_asked')
           if (!notifAsked) {
             await AsyncStorageModule.setItem('savr_notif_asked', 'true')
-            const { requestNotificationPermission } = await import('../../src/lib/notifications')
-            setTimeout(async () => {
-              await requestNotificationPermission()
-            }, 1500)
+            const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
+            const alreadyGranted = await isNotificationGranted()
+            if (!alreadyGranted) {
+              setTimeout(async () => {
+                await requestNotificationPermission()
+              }, 1500)
+            }
           }
         } catch {}
       }
