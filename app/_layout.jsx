@@ -5,7 +5,6 @@ import { COLORS } from '../src/constants/theme'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import * as Linking from 'expo-linking'
-import { requestNotificationPermission } from '../src/lib/notifications'
 import { processDueRecurring } from '../src/lib/recurring'
 import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -15,7 +14,6 @@ import { Analytics, setUserId } from '../src/lib/analytics'
 
 SplashScreen.preventAutoHideAsync()
 
-const NOTIF_ASKED_KEY = 'savr_notif_asked'
 const LAST_BACKUP_TRIGGER_KEY = 'savr_last_backup_trigger'
 
 export default function RootLayout() {
@@ -117,14 +115,6 @@ export default function RootLayout() {
 
         setTimeout(async () => {
   try {
-    const notifAsked = await AsyncStorage.getItem(NOTIF_ASKED_KEY)
-    if (!notifAsked) {
-      await AsyncStorage.setItem(NOTIF_ASKED_KEY, 'true')
-      setTimeout(async () => {
-        await requestNotificationPermission()
-      }, 2000)
-    }
-
             if (session?.user) {
               if (!recurringProcessedRef.current) {
                 recurringProcessedRef.current = true
@@ -148,6 +138,13 @@ export default function RootLayout() {
 
     const user = session?.user
     if (!user) return
+
+    // Cache provider token immediately — avoids extra network calls in checkBackupExists
+    const providerToken = session?.provider_token
+    if (providerToken) {
+      await AsyncStorage.setItem('savr_google_token', providerToken)
+      await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
+    }
 
     const localExpenses = await getExpenses(user.id)
     const hasLocalData = localExpenses.length > 0
@@ -175,7 +172,7 @@ export default function RootLayout() {
         Analytics.logout()
         await clearAllCache()
         AsyncStorage.removeItem('savr_google_token').catch(() => {})
-        AsyncStorage.removeItem(NOTIF_ASKED_KEY).catch(() => {})
+        AsyncStorage.removeItem('savr_notif_asked').catch(() => {})
         AsyncStorage.removeItem(LAST_BACKUP_TRIGGER_KEY).catch(() => {})
         unregisterBackupTask().catch(() => {})
         recurringProcessedRef.current = false

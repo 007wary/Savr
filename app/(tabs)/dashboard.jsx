@@ -8,7 +8,7 @@ import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser } from '../../src/lib/auth'
-import { checkWeeklySummary, requestNotificationPermission } from '../../src/lib/notifications'
+import { checkWeeklySummary } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
 import { getExpenses, getMonthlyTotal } from '../../src/services/sqliteService'
 import CustomAlert from '../../src/components/CustomAlert'
@@ -149,14 +149,21 @@ export default function Dashboard() {
         daysInMonth: daysElapsed, currencySymbol: symbol, currencyCode: code,
       })
 
-      // Only check notification permission on current month view
       if (monthOffset === 0) {
-        const notifAsked = await loadCache('savr_notif_asked')
-        if (!notifAsked) {
-          await saveCache('savr_notif_asked', true)
-          setTimeout(async () => { await requestNotificationPermission() }, 2000)
-        }
         checkWeeklySummary(filtered)
+
+        // Request notification permission once on fresh install
+        try {
+          const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
+          const notifAsked = await AsyncStorageModule.getItem('savr_notif_asked')
+          if (!notifAsked) {
+            await AsyncStorageModule.setItem('savr_notif_asked', 'true')
+            const { requestNotificationPermission } = await import('../../src/lib/notifications')
+            setTimeout(async () => {
+              await requestNotificationPermission()
+            }, 1500)
+          }
+        } catch {}
       }
 
       try {
@@ -165,8 +172,8 @@ export default function Dashboard() {
         if (pendingRestore === 'true') {
           await AsyncStorageModule.removeItem('savr_pending_restore')
           setTimeout(() => {
-            showAlert(
-              '☁️ Backup Found!',
+  showAlert(
+    '☁️ Backup Found!',
               'We found a Savr backup in your Google Drive. Would you like to restore your data?',
               [
                 { text: 'Skip', style: 'cancel' },
@@ -190,7 +197,7 @@ export default function Dashboard() {
                 }
               ]
             )
-          }, 1000)
+          }, 300)
         }
       } catch {}
     } catch (e) {
