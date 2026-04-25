@@ -58,6 +58,7 @@ export default function Dashboard() {
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
   const userRef = useRef(null)
+  const notifRequestedRef = useRef(false)
 
   function getMonthInfo(offset) {
     const d = new Date()
@@ -89,6 +90,28 @@ export default function Dashboard() {
       }
     }
     loadGoalData()
+  }, [])
+
+  // Request notification permission once after mount — runs in proper foreground context
+  useEffect(() => {
+    async function requestNotifIfNeeded() {
+      if (notifRequestedRef.current) return
+      try {
+        const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
+        const notifAsked = await AsyncStorageModule.getItem('savr_notif_asked')
+        if (notifAsked) return
+        const user = await getUser()
+        if (!user) return
+        notifRequestedRef.current = true
+        await AsyncStorageModule.setItem('savr_notif_asked', 'true')
+        const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
+        const alreadyGranted = await isNotificationGranted()
+        if (!alreadyGranted) {
+          await requestNotificationPermission()
+        }
+      } catch {}
+    }
+    requestNotifIfNeeded()
   }, [])
 
   async function fetchData(forceRefresh = false) {
@@ -129,7 +152,6 @@ export default function Dashboard() {
       const filtered = sortExpenses(currentExpenses)
       const now = new Date()
 
-      // Fix: correctly calculate days elapsed for past months
       let daysElapsed
       if (monthOffset === 0) {
         daysElapsed = now.getDate()
@@ -151,39 +173,17 @@ export default function Dashboard() {
 
       if (monthOffset === 0) {
         checkWeeklySummary(filtered)
-
-        try {
-          const currentUser = userRef.current
-          console.log('NOTIF DEBUG - user:', !!currentUser, 'monthOffset:', monthOffset)
-          if (currentUser) {
-            const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
-            const notifAsked = await AsyncStorageModule.getItem('savr_notif_asked')
-            console.log('NOTIF DEBUG - notifAsked:', notifAsked)
-            if (!notifAsked) {
-              await AsyncStorageModule.setItem('savr_notif_asked', 'true')
-              const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
-              const alreadyGranted = await isNotificationGranted()
-              console.log('NOTIF DEBUG - alreadyGranted:', alreadyGranted)
-              if (!alreadyGranted) {
-                console.log('NOTIF DEBUG - requesting permission now')
-                setTimeout(async () => {
-                  await requestNotificationPermission()
-                }, 1500)
-              }
-            }
-          }
-        } catch (e) { console.log('NOTIF DEBUG - error:', e) }
       }
 
+      // Check for pending restore from Google Drive backup
       try {
         const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
         const pendingRestore = await AsyncStorageModule.getItem('savr_pending_restore')
-        console.log('BACKUP DEBUG - pendingRestore:', pendingRestore)
         if (pendingRestore === 'true') {
           await AsyncStorageModule.removeItem('savr_pending_restore')
           setTimeout(() => {
-  showAlert(
-    '☁️ Backup Found!',
+            showAlert(
+              '☁️ Backup Found!',
               'We found a Savr backup in your Google Drive. Would you like to restore your data?',
               [
                 { text: 'Skip', style: 'cancel' },
