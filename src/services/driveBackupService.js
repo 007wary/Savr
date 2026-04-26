@@ -304,10 +304,6 @@ export async function restoreFromDrive() {
 
 export async function checkBackupExists() {
   try {
-    const localTimestamp = await AsyncStorage.getItem('savr_last_backup')
-    if (localTimestamp) {
-      return { exists: true, modifiedTime: localTimestamp }
-    }
     const accessToken = await getAccessToken()
     if (!accessToken) return null
     const folderId = await getOrCreateFolder(accessToken)

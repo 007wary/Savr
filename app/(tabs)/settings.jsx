@@ -43,7 +43,6 @@ export default function Settings() {
   const [lastBackup, setLastBackup] = useState(null)
   const [backingUp, setBackingUp] = useState(false)
 const [expenseCount, setExpenseCount] = useState(0)
-const [backupUpToDate, setBackupUpToDate] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
@@ -109,17 +108,6 @@ try {
   const expenses = await getExpenses(u.id)
   setExpenseCount(expenses.length)
 
-  // Check if last expense was added before last backup
-  const lastBackupTime = await AsyncStorage.getItem('savr_last_backup')
-  if (lastBackupTime && expenses.length > 0) {
-    const lastExpenseDate = expenses
-      .map(e => new Date(e.updated_at || e.created_at || e.date))
-      .sort((a, b) => b - a)[0]
-    const backupDate = new Date(lastBackupTime)
-    setBackupUpToDate(lastExpenseDate <= backupDate)
-  } else {
-    setBackupUpToDate(false)
-  }
 } catch {}
     } catch {
       // Silently fail
@@ -393,7 +381,7 @@ try {
         <View style={styles.divider} />
 
         <TouchableOpacity
-  style={[styles.row, (expenseCount === 0 || backupUpToDate) && { opacity: 0.4 }]}
+  style={[styles.row, expenseCount === 0 && { opacity: 0.4 }]}
   onPress={handleManualBackup}
   disabled={backingUp}
 >
