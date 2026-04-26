@@ -56,9 +56,9 @@ export default function Onboarding() {
   const router = useRouter()
 
   async function handleDone() {
-    await AsyncStorage.setItem('savr_onboarding_done', 'true')
-    router.replace('/(auth)/login')
-  }
+  await AsyncStorage.setItem('savr_onboarding_done', 'true')
+  router.replace('/(auth)/login')
+}
 
   function handleNext() {
     if (currentIndex < SLIDES.length - 1) {

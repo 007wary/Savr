@@ -90,67 +90,70 @@ export default function AddExpense() {
   }
 
   async function saveExpense(expenseData, expenseMonth, currentMonth) {
-    const user = userRef.current || await getUser()
-    if (!userRef.current) userRef.current = user
-
-    if (isRecurring) {
-      await addRecurring(user.id, {
-        amount: expenseData.amount,
-        category: expenseData.category,
-        note: expenseData.note,
-        frequency,
-        next_due: expenseData.date,
-      })
-      await addExpense(user.id, {
-        amount: expenseData.amount,
-        category: expenseData.category,
-        note: expenseData.note || `Auto: ${expenseData.category}`,
-        date: expenseData.date,
-        is_recurring: 1,
-      })
-    } else {
-      await addExpense(user.id, expenseData)
-    }
-    Analytics.addExpense(expenseData.category, expenseData.amount)
-
-    // Clear caches for the expense month
-    await clearCache(`savr_cache_dashboard_${expenseMonth}`)
-    await clearCache(`savr_cache_budgets_${expenseMonth}`)
-    await clearCache(`savr_cache_reports_${expenseMonth}`)
-
-    // Build new expense object once and reuse
-    const newExpense = {
-      ...expenseData,
-      id: `temp_${Date.now()}`,
-      user_id: user.id,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }
-
-    // Update dashboard cache if expense is in current month
-    if (expenseMonth === currentMonth) {
-      const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
-      const dashCached = await loadCache(dashCacheKey)
-      if (dashCached) {
-        await saveCache(dashCacheKey, {
-          ...dashCached,
-          expenses: [newExpense, ...dashCached.expenses],
-        })
-      }
-    }
-
-    // Load history cache first then prepend — do NOT clear before loading
-    const historyCached = await loadCache('savr_cache_history') || []
-    await saveCache('savr_cache_history', [newExpense, ...historyCached])
-
     try {
-      const allExpenses = await getExpenses(user.id)
-      const budgets = await getBudgets(user.id, expenseMonth)
-      if (budgets.length > 0) checkBudgetAlerts(allExpenses, budgets, expenseMonth)
-    } catch {}
+      const user = userRef.current || await getUser()
+      if (!userRef.current) userRef.current = user
 
-    setSubmitting(false)
-    router.replace('/(tabs)/dashboard')
+      if (isRecurring) {
+        await addRecurring(user.id, {
+          amount: expenseData.amount,
+          category: expenseData.category,
+          note: expenseData.note,
+          frequency,
+          next_due: expenseData.date,
+        })
+        await addExpense(user.id, {
+          amount: expenseData.amount,
+          category: expenseData.category,
+          note: expenseData.note || `Auto: ${expenseData.category}`,
+          date: expenseData.date,
+          is_recurring: 1,
+        })
+      } else {
+        await addExpense(user.id, expenseData)
+      }
+
+      Analytics.addExpense(expenseData.category, expenseData.amount)
+
+      await clearCache(`savr_cache_dashboard_${expenseMonth}`)
+      await clearCache(`savr_cache_budgets_${expenseMonth}`)
+      await clearCache(`savr_cache_reports_${expenseMonth}`)
+
+      const newExpense = {
+        ...expenseData,
+        id: `temp_${Date.now()}`,
+        user_id: user.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+
+      if (expenseMonth === currentMonth) {
+        const dashCacheKey = `savr_cache_dashboard_${currentMonth}`
+        const dashCached = await loadCache(dashCacheKey)
+        if (dashCached) {
+          await saveCache(dashCacheKey, {
+            ...dashCached,
+            expenses: [newExpense, ...dashCached.expenses],
+          })
+        }
+      }
+
+      const historyCached = await loadCache('savr_cache_history') || []
+      await saveCache('savr_cache_history', [newExpense, ...historyCached])
+
+      try {
+        const allExpenses = await getExpenses(user.id)
+        const budgets = await getBudgets(user.id, expenseMonth)
+        if (budgets.length > 0) checkBudgetAlerts(allExpenses, budgets, expenseMonth)
+      } catch {}
+
+      router.replace('/(tabs)/dashboard')
+    } catch (e) {
+      console.error('saveExpense error:', e)
+      showAlert('Error', 'Could not save expense. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   async function handleAdd() {
@@ -189,9 +192,14 @@ export default function AddExpense() {
               {
                 text: 'Yes, Add It',
                 onPress: async () => {
-                  setSubmitting(true)
-                  resetForm()
-                  await saveExpense(expenseData, expenseMonth, currentMonth)
+                  try {
+                    setSubmitting(true)
+                    resetForm()
+                    await saveExpense(expenseData, expenseMonth, currentMonth)
+                  } catch {
+                    setSubmitting(false)
+                    showAlert('Error', 'Could not save expense. Please try again.')
+                  }
                 }
               }
             ]
@@ -259,11 +267,11 @@ export default function AddExpense() {
         <View style={styles.categoryHeader}>
           <Text style={styles.label}>Category</Text>
           {autoDetected && (
-  <View style={styles.autoDetectHintRow}>
-    <Ionicons name="flash" size={11} color={COLORS.accentGreen} />
-    <Text style={styles.autoDetectHint}> Auto-selected from your note</Text>
-  </View>
-)}
+            <View style={styles.autoDetectHintRow}>
+              <Ionicons name="flash" size={11} color={COLORS.accentGreen} />
+              <Text style={styles.autoDetectHint}> Auto-selected from your note</Text>
+            </View>
+          )}
         </View>
         <View style={styles.categoryGrid}>
           {CATEGORIES.map((cat) => (
