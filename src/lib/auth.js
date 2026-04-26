@@ -7,7 +7,15 @@ const SUPABASE_SESSION_KEY = 'sb-fsrbsqhlgfdqugixqtxc-auth-token'
 
 async function getUserFromStorage() {
   try {
-    const raw = await AsyncStorage.getItem(SUPABASE_SESSION_KEY)
+    // Try AsyncStorage first
+    let raw = await AsyncStorage.getItem(SUPABASE_SESSION_KEY)
+    // If not found, try SecureStore (session may be stored there if under 1800 chars)
+    if (!raw) {
+      try {
+        const SecureStore = await import('expo-secure-store')
+        raw = await SecureStore.getItemAsync(SUPABASE_SESSION_KEY)
+      } catch {}
+    }
     if (!raw) return null
     const parsed = JSON.parse(raw)
     const session = parsed?.currentSession || parsed

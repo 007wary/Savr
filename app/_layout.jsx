@@ -196,12 +196,11 @@ export default function RootLayout() {
         if (expiresAt && expiresAt - now < fiveMinutes) {
           const { data, error } = await supabase.auth.refreshSession()
           if (error || !data.session) {
-            await supabase.auth.signOut()
-            await clearAllCache()
-            setSession(null)
-          } else {
-            setSession(data.session)
-          }
+  // offline or refresh failed — keep existing session, do not sign out
+  return
+} else {
+  setSession(data.session)
+}
         }
       } catch {}
     }, 10 * 60 * 1000)
