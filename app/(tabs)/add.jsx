@@ -11,7 +11,7 @@ import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { clearCache, saveCache, loadCache } from '../../src/lib/cache'
-import { getUser } from '../../src/lib/auth'
+import { getUser, getCachedUser } from '../../src/lib/auth'
 import { getCurrencySymbol, loadCurrency, formatAmount, getQuickAmounts } from '../../src/lib/currency'
 import { detectCategory } from '../../src/lib/categoryDetector'
 import { detectAnomaly } from '../../src/lib/anomalyDetector'
@@ -91,8 +91,13 @@ export default function AddExpense() {
 
   async function saveExpense(expenseData, expenseMonth, currentMonth) {
     try {
-      const user = userRef.current || await getUser()
-      if (!userRef.current) userRef.current = user
+      const user = getCachedUser() || userRef.current || await getUser()
+if (!user) {
+  showAlert('Error', 'Could not save expense. Please try again.')
+  setSubmitting(false)
+  return
+}
+if (!userRef.current) userRef.current = user
 
       if (isRecurring) {
         await addRecurring(user.id, {

@@ -29,6 +29,10 @@ export function setCachedUser(user) {
   cachedUser = user
 }
 
+export function getCachedUser() {
+  return cachedUser
+}
+
 export async function getUser(forceRefresh = false) {
   if (cachedUser && !forceRefresh) return cachedUser
   try {
