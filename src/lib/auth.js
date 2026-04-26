@@ -1,6 +1,25 @@
 import { supabase } from './supabase'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 let cachedUser = null
+
+const SUPABASE_SESSION_KEY = 'sb-fsrbsqhlgfdqugixqtxc-auth-token'
+
+async function getUserFromStorage() {
+  try {
+    const raw = await AsyncStorage.getItem(SUPABASE_SESSION_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    const session = parsed?.currentSession || parsed
+    return session?.user ?? null
+  } catch {
+    return null
+  }
+}
+
+export function setCachedUser(user) {
+  cachedUser = user
+}
 
 export async function getUser(forceRefresh = false) {
   if (cachedUser && !forceRefresh) return cachedUser
@@ -9,13 +28,9 @@ export async function getUser(forceRefresh = false) {
     cachedUser = user
     return user
   } catch {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      cachedUser = session?.user ?? null
-      return cachedUser
-    } catch {
-      return cachedUser
-    }
+    const user = await getUserFromStorage()
+    if (user) cachedUser = user
+    return cachedUser
   }
 }
 

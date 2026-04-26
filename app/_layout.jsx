@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { initializeDatabase } from '../src/services/sqliteService'
 import { registerBackupTask, unregisterBackupTask } from '../src/services/backgroundBackup'
 import { Analytics, setUserId } from '../src/lib/analytics'
+import { setCachedUser } from '../src/lib/auth'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -61,17 +62,19 @@ export default function RootLayout() {
           if (expiresAt && expiresAt < now) {
             const { data: refreshed, error } = await supabase.auth.refreshSession()
             if (error || !refreshed.session) {
-              await supabase.auth.signOut()
-              await clearAllCache()
+              // offline — keep existing session instead of signing out
               initialSessionLoadedRef.current = true
-              setSession(null)
+              setCachedUser(cachedSession.user)
+              setSession(cachedSession)
               SplashScreen.hideAsync().catch(() => {})
               return
             }
             initialSessionLoadedRef.current = true
+            setCachedUser(refreshed.session.user)
             setSession(refreshed.session)
           } else {
             initialSessionLoadedRef.current = true
+            setCachedUser(cachedSession.user)
             setSession(cachedSession)
           }
 
