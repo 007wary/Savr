@@ -10,36 +10,34 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publish
 
 const isExpoGo = Constants.appOwnership === 'expo'
 
-// SecureStore has 2048 byte limit — Supabase session tokens exceed this
-// Route large values to AsyncStorage, small sensitive keys to SecureStore
 const LARGE_KEYS = ['supabase.auth.token', 'sb-', 'supabase']
 
 const storage = isExpoGo ? AsyncStorage : {
   getItem: async (key) => {
     try {
-      // For large session keys — read from AsyncStorage directly
+      // For session keys — check AsyncStorage first (where we store large values)
       if (LARGE_KEYS.some(k => key.includes(k))) {
-        const val = await AsyncStorage.getItem(key)
-        if (val) return val
+        const asyncVal = await AsyncStorage.getItem(key)
+        if (asyncVal) return asyncVal
       }
-      // For small keys — try SecureStore first
-      const secureVal = await SecureStore.getItemAsync(key)
-      if (secureVal) return secureVal
-      // Fall back to AsyncStorage
+      // Try SecureStore
+      try {
+        const secureVal = await SecureStore.getItemAsync(key)
+        if (secureVal) return secureVal
+      } catch {}
+      // Final fallback to AsyncStorage
       return await AsyncStorage.getItem(key)
     } catch {
-      try {
-        return await AsyncStorage.getItem(key)
-      } catch {
-        return null
-      }
+      return null
     }
   },
   setItem: async (key, value) => {
     try {
-      // Route large values to AsyncStorage to avoid SecureStore 2048 byte limit
       if (value && value.length > 1800) {
+        // Large values always go to AsyncStorage
         await AsyncStorage.setItem(key, value)
+        // Also clear any corrupted SecureStore entry for this key
+        try { await SecureStore.deleteItemAsync(key) } catch {}
       } else {
         await SecureStore.setItemAsync(key, value)
       }
@@ -50,12 +48,8 @@ const storage = isExpoGo ? AsyncStorage : {
     }
   },
   removeItem: async (key) => {
-    try {
-      await SecureStore.deleteItemAsync(key)
-    } catch {}
-    try {
-      await AsyncStorage.removeItem(key)
-    } catch {}
+    try { await SecureStore.deleteItemAsync(key) } catch {}
+    try { await AsyncStorage.removeItem(key) } catch {}
   },
 }
 
