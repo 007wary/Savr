@@ -173,8 +173,8 @@ export default function Dashboard() {
         }
       } catch {}
     }
-    checkForBackup()
-  }, [])
+    setTimeout(() => checkForBackup(), 3000)
+}, [])
 
   async function fetchData(forceRefresh = false) {
     const cacheKey = `savr_cache_dashboard_${currentMonth}`
