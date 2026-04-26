@@ -12,7 +12,6 @@ import { initializeDatabase } from '../src/services/sqliteService'
 import { registerBackupTask, unregisterBackupTask } from '../src/services/backgroundBackup'
 import { Analytics, setUserId } from '../src/lib/analytics'
 import { setCachedUser } from '../src/lib/auth'
-import NetInfo from '@react-native-community/netinfo'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -51,16 +50,17 @@ export default function RootLayout() {
       try {
         const { data: { session: cachedSession } } = await supabase.auth.getSession()
 
-        // Only call updateLastActive when online — prevents startup crash offline
         if (cachedSession?.user) {
-          NetInfo.fetch().then(state => {
-            if (state.isConnected) {
-              import('../src/lib/userProfile').then(({ updateLastActive }) => {
-                updateLastActive(cachedSession.user.id)
-              }).catch(() => {})
-            }
-          }).catch(() => {})
-        }
+  import('@react-native-community/netinfo').then(({ default: NetInfo }) => {
+    NetInfo.fetch().then(state => {
+      if (state.isConnected) {
+        import('../src/lib/userProfile').then(({ updateLastActive }) => {
+          updateLastActive(cachedSession.user.id)
+        }).catch(() => {})
+      }
+    }).catch(() => {})
+  }).catch(() => {})
+}
 
         if (cachedSession) {
           const expiresAt = cachedSession.expires_at
