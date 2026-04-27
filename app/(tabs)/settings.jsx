@@ -17,7 +17,7 @@ import BottomSheet from '../../src/components/BottomSheet'
 import { SettingsSkeleton } from '../../src/components/SkeletonLoader'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
-import { getUser, clearUserCache } from '../../src/lib/auth'
+import { getUser, getCachedUser, clearUserCache } from '../../src/lib/auth'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { backupToDrive, checkBackupExists } from '../../src/services/driveBackupService'
 import { getExpenses } from '../../src/services/sqliteService'
@@ -102,12 +102,12 @@ checkBackupExists().then(info => {
   if (info?.modifiedTime) setLastBackup(info.modifiedTime)
 }).catch(() => {})
 
-// Load expense count and check if backup is current
 try {
-  const u = await getUser()
-  const expenses = await getExpenses(u.id)
-  setExpenseCount(expenses.length)
-
+  const u = getCachedUser()
+  if (u) {
+    const expenses = await getExpenses(u.id)
+    setExpenseCount(expenses.length)
+  }
 } catch {}
     } catch {
       // Silently fail
@@ -182,16 +182,17 @@ try {
     showAlert('No Data', 'You have no expenses to back up yet.')
     return
   }
-  if (backupUpToDate) {
-    showAlert('Already Up To Date', 'Your backup is already up to date. No changes since last backup.')
-    return
-  }
-  setBackingUp(true)
-  const result = await backupToDrive()
+  try {
+  await fetch('https://www.google.com', { method: 'HEAD' })
+} catch {
+  showAlert('No Internet', 'You\'re offline. Please connect to the internet to backup your data.')
+  return
+}
+setBackingUp(true)
+const result = await backupToDrive()
   setBackingUp(false)
   if (result.success) {
     setLastBackup(result.backedUpAt)
-    setBackupUpToDate(true)
     showAlert('\u2705 Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
   } else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
     showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again to re-enable backup.')
