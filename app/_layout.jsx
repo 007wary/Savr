@@ -51,15 +51,11 @@ export default function RootLayout() {
         const { data: { session: cachedSession } } = await supabase.auth.getSession()
 
         if (cachedSession?.user) {
-  import('@react-native-community/netinfo').then(({ default: NetInfo }) => {
-    NetInfo.fetch().then(state => {
-      if (state.isConnected) {
-        import('../src/lib/userProfile').then(({ updateLastActive }) => {
-          updateLastActive(cachedSession.user.id)
-        }).catch(() => {})
-      }
+  setTimeout(() => {
+    import('../src/lib/userProfile').then(({ updateLastActive }) => {
+      updateLastActive(cachedSession.user.id)
     }).catch(() => {})
-  }).catch(() => {})
+  }, 3000)
 }
 
         if (cachedSession) {
