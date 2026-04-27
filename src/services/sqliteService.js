@@ -6,6 +6,19 @@ let db = null
 
 export const getDB = async () => {
   if (!db) {
+    try {
+      db = await SQLite.openDatabaseAsync('savr.db')
+    } catch (e) {
+      db = null
+      throw e
+    }
+  }
+  // Verify db is still valid by checking it's not null
+  try {
+    await db.getFirstAsync('SELECT 1')
+  } catch {
+    // db was garbage collected or closed — reopen
+    db = null
     db = await SQLite.openDatabaseAsync('savr.db')
   }
   return db

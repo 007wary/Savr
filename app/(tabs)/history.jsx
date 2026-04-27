@@ -64,9 +64,10 @@ export default function History() {
   }
 
   async function loadFromSQLite() {
-    try {
-      const user = userRef.current || await getUser()
-      if (!userRef.current) userRef.current = user
+  try {
+    const user = getCachedUser() || userRef.current || await getUser()
+    if (!user) { setRefreshing(false); return }
+    if (!userRef.current) userRef.current = user
       const data = await getExpenses(user.id)
       const sorted = sortExpenses(data)
       setExpenses(sorted)
@@ -210,9 +211,7 @@ export default function History() {
         note: editNote.trim(),
         date: editDate,
       })
-    try {
       await AsyncStorage.removeItem('savr_last_backup_count')
-    } catch {}
     } catch (e) { console.error('Edit error:', e) }
     setSaving(false)
   }
