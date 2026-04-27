@@ -42,7 +42,13 @@ export default function RootLayout() {
   useEffect(() => {
     async function init() {
       clearExpiredCache().catch(() => {})
-      initializeDatabase().catch(() => {})
+try {
+  await initializeDatabase()
+} catch {
+  try {
+    await initializeDatabase()
+  } catch {}
+}
 
       const done = await AsyncStorage.getItem('savr_onboarding_done')
       setOnboardingDone(done === 'true')
