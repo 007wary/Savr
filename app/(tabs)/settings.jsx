@@ -129,9 +129,6 @@ if (lastBackupTime) {
 }
       } catch {}
 
-      // Check online status
-      checkOnlineStatus().then(online => setIsOnline(online)).catch(() => setIsOnline(false))
-
       // Silently verify with Drive in background
       checkBackupExists().then(info => {
         if (info?.modifiedTime) setLastBackup(info.modifiedTime)
@@ -207,10 +204,11 @@ if (lastBackupTime) {
       showAlert('No Data', 'You have no expenses to back up yet.')
       return
     }
-    if (!isOnline) {
-      showAlert('No Internet', 'You\'re offline. Please connect to the internet to backup your data.')
-      return
-    }
+    const online = await checkOnlineStatus()
+if (!online) {
+  showAlert('No Internet', 'You\'re offline. Please connect to the internet to backup your data.')
+  return
+}
     if (isUpToDate) {
       showAlert('Already Up To Date', 'Your backup is already up to date.')
       return

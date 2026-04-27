@@ -10,12 +10,13 @@ export const BUDGET_ALERTS_KEY = 'savr_budget_alerts_enabled'
 // How notifications appear when app is open
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    }),
-  })
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+})
 }
 
 export async function requestNotificationPermission() {

@@ -116,11 +116,6 @@ try {
         }
         Analytics.login()
 
-        const done = await AsyncStorage.getItem('savr_onboarding_done')
-        if (done === 'true') {
-          router.replace('/(tabs)/dashboard')
-        }
-
         recurringProcessedRef.current = false
 
         setTimeout(async () => {
@@ -178,6 +173,7 @@ try {
         AsyncStorage.removeItem(LAST_BACKUP_TRIGGER_KEY).catch(() => {})
         AsyncStorage.removeItem('savr_restore_offered').catch(() => {})
         AsyncStorage.removeItem('savr_last_backup').catch(() => {})
+        AsyncStorage.removeItem('savr_last_backup_count').catch(() => {})
         unregisterBackupTask().catch(() => {})
         recurringProcessedRef.current = false
         router.replace('/(auth)/login')

@@ -7,7 +7,7 @@ import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import { saveCache, loadCache } from '../../src/lib/cache'
-import { getUser } from '../../src/lib/auth'
+import { getUser, getCachedUser } from '../../src/lib/auth'
 import { checkWeeklySummary } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
 import { getExpenses, getMonthlyTotal } from '../../src/services/sqliteService'
@@ -82,8 +82,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function loadGoalData() {
-      const user = await getUser()
-      userRef.current = user
+      const user = getCachedUser() || await getUser()
+userRef.current = user
       if (user) {
         const goal = await loadGoal(user.id)
         setSpendingGoal(goal)
@@ -130,16 +130,12 @@ export default function Dashboard() {
         const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
         if (restoreOffered) return
 
-        let user = await getUser()
-        if (!user) {
-          await new Promise(resolve => setTimeout(resolve, 2000))
-          user = await getUser()
-        }
+        let user = getCachedUser() || await getUser()
         if (!user) return
 
         const { getExpenses: getExp } = await import('../../src/services/sqliteService')
         const localExpenses = await getExp(user.id)
-        // if (localExpenses.length > 0) return  // commented out for testing
+        if (localExpenses.length > 0) return
 
         const { checkBackupExists } = await import('../../src/services/driveBackupService')
         const backupInfo = await checkBackupExists()
@@ -199,8 +195,9 @@ export default function Dashboard() {
 
   async function syncFromSQLite(cacheKey) {
     try {
-      const user = userRef.current || await getUser()
-      if (!userRef.current) userRef.current = user
+      const user = getCachedUser() || userRef.current || await getUser()
+if (!user) { setLoading(false); setRefreshing(false); setMonthLoading(false); return }
+if (!userRef.current) userRef.current = user
       const meta = user.user_metadata?.display_name || user.user_metadata?.full_name
       const emailName = user.email.split('@')[0]
       const firstName = meta ? meta.split(' ')[0] : emailName
@@ -236,9 +233,8 @@ export default function Dashboard() {
       if (monthOffset === 0) {
         checkWeeklySummary(filtered)
       }
-    } catch (e) {
-      console.error('Dashboard sync error:', e)
-    } finally {
+    } catch (e) {}
+    finally {
       setLoading(false)
       setRefreshing(false)
       setMonthLoading(false)
@@ -250,16 +246,18 @@ export default function Dashboard() {
   async function handleSaveGoal() {
     const amount = parseFloat(goalInput)
     if (!goalInput || isNaN(amount) || amount <= 0) return
-    const user = userRef.current || await getUser()
-    await saveGoal(user.id, amount)
+    const user = getCachedUser() || userRef.current || await getUser()
+if (!user) return
+await saveGoal(user.id, amount)
     setSpendingGoal(amount)
     setShowGoalModal(false)
     setGoalInput('')
   }
 
   async function handleClearGoal() {
-    const user = userRef.current || await getUser()
-    await clearGoal(user.id)
+    const user = getCachedUser() || userRef.current || await getUser()
+if (!user) return
+await clearGoal(user.id)
     setSpendingGoal(null)
     setShowGoalModal(false)
     setGoalInput('')

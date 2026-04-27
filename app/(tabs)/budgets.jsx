@@ -9,18 +9,25 @@ import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/cur
 import { BudgetsSkeleton } from '../../src/components/SkeletonLoader'
 import { Ionicons } from '@expo/vector-icons'
 import { saveCache, loadCache } from '../../src/lib/cache'
-import { getUser } from '../../src/lib/auth'
+import { getUser, getCachedUser } from '../../src/lib/auth'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { generateBudgetRecommendations } from '../../src/lib/budgetRecommendations'
 import { getExpenses, getBudgets, saveBudget, deleteBudget } from '../../src/services/sqliteService'
 
-const now = new Date()
-const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
-const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
+function getCurrentMonth() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+function getMonthName() {
+  return new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
+}
 
 export default function Budgets() {
+  const currentMonth = getCurrentMonth()
+const monthName = getMonthName()
+const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
+
   const [budgets, setBudgets] = useState([])
   const [expenses, setExpenses] = useState([])
   const [allExpenses, setAllExpenses] = useState([])
@@ -60,9 +67,10 @@ export default function Budgets() {
 
   async function loadFromSQLite() {
     try {
-      const user = userRef.current || await getUser()
-      if (!userRef.current) userRef.current = user
-      const [budgetData, allExp] = await Promise.all([
+      const user = getCachedUser() || userRef.current || await getUser()
+if (!user) { setLoading(false); setRefreshing(false); return }
+if (!userRef.current) userRef.current = user
+const [budgetData, allExp] = await Promise.all([
         getBudgets(user.id, currentMonth),
         getExpenses(user.id),
       ])
@@ -73,7 +81,6 @@ export default function Budgets() {
       setRecommendations(generateBudgetRecommendations(allExp, CATEGORIES))
       await saveCache(CACHE_KEY, { budgets: budgetData, expenses: filtered, allExpenses: allExp })
     } catch (e) {
-      console.error('Budgets load error:', e)
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -99,11 +106,10 @@ export default function Budgets() {
     setInputValue('')
     setSavingBudget(false)
     try {
-      const user = userRef.current || await getUser()
-      if (!userRef.current) userRef.current = user
-      await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth })
+      const user = getCachedUser() || userRef.current || await getUser()
+if (!userRef.current) userRef.current = user
+await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth })
     } catch (e) {
-      console.error('Save budget error:', e)
     }
   }
 
@@ -115,7 +121,7 @@ export default function Budgets() {
     await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses, allExpenses })
     setEditing(null)
     setInputValue('')
-    try { await deleteBudget(existing.id) } catch (e) { console.error('Delete budget error:', e) }
+    try { await deleteBudget(existing.id) } catch (e) {}
   }
 
   async function applyAllRecommendations() {
@@ -127,9 +133,9 @@ export default function Budgets() {
         {
           text: 'Apply All',
           onPress: async () => {
-            const user = userRef.current || await getUser()
-            if (!userRef.current) userRef.current = user
-            await Promise.all(Object.entries(recommendations).map(([category, rec]) =>
+            const user = getCachedUser() || userRef.current || await getUser()
+if (!userRef.current) userRef.current = user
+await Promise.all(Object.entries(recommendations).map(([category, rec]) =>
               saveBudget(user.id, { category, limit_amount: rec.recommended, month: currentMonth })
             ))
             setShowRecommendations(false)

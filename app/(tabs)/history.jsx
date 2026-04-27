@@ -73,7 +73,6 @@ export default function History() {
       setExpenses(sorted)
       await saveCache(CACHE_KEY, sorted)
     } catch (e) {
-      console.error('History load error:', e)
     } finally {
       setRefreshing(false)
     }
@@ -163,7 +162,6 @@ export default function History() {
   await deleteExpense(id)
   await AsyncStorage.removeItem('savr_last_backup_count')
 } catch (e) {
-  console.error('Delete error:', e)
   setExpenses(expenses)
   await saveCache(CACHE_KEY, expenses)
 }
@@ -212,7 +210,7 @@ export default function History() {
         date: editDate,
       })
       await AsyncStorage.removeItem('savr_last_backup_count')
-    } catch (e) { console.error('Edit error:', e) }
+    } catch (e) {}
     setSaving(false)
   }
 

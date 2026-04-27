@@ -10,7 +10,7 @@ import { COLORS, CATEGORIES } from '../../src/constants/theme'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
 import { saveCache, loadCache } from '../../src/lib/cache'
-import { getUser } from '../../src/lib/auth'
+import { getUser, getCachedUser } from '../../src/lib/auth'
 import { getExpenses } from '../../src/services/sqliteService'
 
 function AnimatedBar({ percentage, color, delay = 0 }) {
@@ -78,8 +78,9 @@ export default function Reports() {
 
   async function loadFromSQLite() {
     try {
-      const user = userRef.current || await getUser()
-      if (!userRef.current) userRef.current = user
+      const user = getCachedUser() || userRef.current || await getUser()
+if (!user) { setLoading(false); setRefreshing(false); return }
+if (!userRef.current) userRef.current = user
       const allData = await getExpenses(user.id)
       const freshNow = getNow()
       const freshYear = freshNow.getFullYear()
@@ -95,9 +96,8 @@ export default function Reports() {
       setLastMonthExpenses(lastMonthData)
       setAllExpenses(sixMonthData)
       await saveCache(CACHE_KEY, { expenses: currentData, lastMonthExpenses: lastMonthData, allExpenses: sixMonthData })
-    } catch (e) {
-      console.error('Reports load error:', e)
-    } finally {
+    } catch {}
+    finally {
       setLoading(false)
       setRefreshing(false)
     }

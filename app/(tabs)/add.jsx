@@ -49,7 +49,7 @@ export default function AddExpense() {
       setCurrencySymbol(symbol)
       setCurrencyCode(code)
       setQuickAmounts(getQuickAmounts(code))
-      userRef.current = await getUser()
+      userRef.current = getCachedUser() || await getUser()
     }
     init()
   }, [])
@@ -154,7 +154,6 @@ if (!userRef.current) userRef.current = user
 
       router.replace('/(tabs)/dashboard')
     } catch (e) {
-      console.error('saveExpense error:', e)
       showAlert('Error', 'Could not save expense. Please try again.')
     } finally {
       setSubmitting(false)
