@@ -12,10 +12,11 @@ import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/cur
 import BottomSheet from '../../src/components/BottomSheet'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
-import * as FileSystem from 'expo-file-system'
+import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
-import { getUser } from '../../src/lib/auth'
+import { getUser, getCachedUser } from '../../src/lib/auth'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getExpenses, updateExpense, deleteExpense } from '../../src/services/sqliteService'
 
 const CACHE_KEY = 'savr_cache_history'
@@ -158,12 +159,13 @@ export default function History() {
           await clearCache(`savr_cache_budgets_${currentMonth}`)
           await clearCache(`savr_cache_reports_${currentMonth}`)
           try {
-            await deleteExpense(id)
-          } catch (e) {
-            console.error('Delete error:', e)
-            setExpenses(expenses)
-            await saveCache(CACHE_KEY, expenses)
-          }
+  await deleteExpense(id)
+  await AsyncStorage.removeItem('savr_last_backup_count')
+} catch (e) {
+  console.error('Delete error:', e)
+  setExpenses(expenses)
+  await saveCache(CACHE_KEY, expenses)
+}
         }
       }
     ])
@@ -208,6 +210,9 @@ export default function History() {
         note: editNote.trim(),
         date: editDate,
       })
+    try {
+      await AsyncStorage.removeItem('savr_last_backup_count')
+    } catch {}
     } catch (e) { console.error('Edit error:', e) }
     setSaving(false)
   }

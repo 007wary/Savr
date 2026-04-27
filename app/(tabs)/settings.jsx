@@ -110,21 +110,23 @@ export default function Settings() {
         setExpenseCount(expenses.length)
 
         // Check if backup is up to date
-        const lastBackupTime = await AsyncStorage.getItem('savr_last_backup')
-        if (lastBackupTime) {
-          setLastBackup(lastBackupTime)
-          if (expenses.length > 0) {
-            const lastExpenseTime = expenses
-              .map(e => new Date(e.updated_at || e.created_at || e.date).getTime())
-              .sort((a, b) => b - a)[0]
-            const backupTime = new Date(lastBackupTime).getTime()
-            setIsUpToDate(lastExpenseTime <= backupTime)
-          } else {
-            setIsUpToDate(true)
-          }
-        } else {
-          setIsUpToDate(false)
-        }
+const lastBackupTime = await AsyncStorage.getItem('savr_last_backup')
+const lastBackupCount = await AsyncStorage.getItem('savr_last_backup_count')
+if (lastBackupTime) {
+  setLastBackup(lastBackupTime)
+  if (expenses.length > 0) {
+    const lastExpenseTime = expenses
+      .map(e => new Date(e.updated_at || e.created_at || e.date).getTime())
+      .sort((a, b) => b - a)[0]
+    const backupTime = new Date(lastBackupTime).getTime()
+    const countMatches = lastBackupCount !== null && parseInt(lastBackupCount) === expenses.length
+    setIsUpToDate(lastExpenseTime <= backupTime && countMatches)
+  } else {
+    setIsUpToDate(true)
+  }
+} else {
+  setIsUpToDate(false)
+}
       } catch {}
 
       // Check online status
@@ -217,10 +219,11 @@ export default function Settings() {
     const result = await backupToDrive()
     setBackingUp(false)
     if (result.success) {
-      setLastBackup(result.backedUpAt)
-      setIsUpToDate(true)
-      showAlert('✅ Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
-    } else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
+  setLastBackup(result.backedUpAt)
+  setExpenseCount(result.expenseCount)
+  setIsUpToDate(true)
+  showAlert('✅ Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
+} else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
       showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again to re-enable backup.')
     } else {
       showAlert('Backup Failed', result.error || 'Something went wrong.')

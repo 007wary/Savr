@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { getDB } from './sqliteService'
-import { getUser } from '../lib/auth'
+import { getUser, getCachedUser } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 
 const BACKUP_FILE_NAME = 'savr_backup.json'
@@ -191,8 +191,8 @@ export async function backupToDrive() {
     const isValid = await verifyToken(accessToken)
     if (!isValid) return { success: false, error: 'SESSION_EXPIRED' }
 
-    const user = await getUser()
-    if (!user) return { success: false, error: 'No user found' }
+    const user = getCachedUser() || await getUser()
+if (!user) return { success: false, error: 'No user found' }
 
     const data = await getAllDataFromSQLite(user.id)
     const backupPayload = {
@@ -254,11 +254,12 @@ export async function backupToDrive() {
     }
 
     await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
-    return {
-      success: true,
-      backedUpAt: backupPayload.backedUpAt,
-      expenseCount: data.expenses.length,
-    }
+await AsyncStorage.setItem('savr_last_backup_count', String(data.expenses.length))
+return {
+  success: true,
+  backedUpAt: backupPayload.backedUpAt,
+  expenseCount: data.expenses.length,
+}
   } catch (e) {
     return { success: false, error: e.message }
   }
@@ -272,8 +273,8 @@ export async function restoreFromDrive() {
     const isValid = await verifyToken(accessToken)
     if (!isValid) return { success: false, error: 'SESSION_EXPIRED' }
 
-    const user = await getUser()
-    if (!user) return { success: false, error: 'No user found' }
+    const user = getCachedUser() || await getUser()
+if (!user) return { success: false, error: 'No user found' }
 
     const folderId = await getOrCreateFolder(accessToken)
     let existingFile = await findBackupFileId(accessToken, folderId)
