@@ -16,6 +16,7 @@ import { setCachedUser } from '../src/lib/auth'
 SplashScreen.preventAutoHideAsync()
 
 const LAST_BACKUP_TRIGGER_KEY = 'savr_last_backup_trigger'
+const LAST_RECURRING_CHECK_KEY = 'savr_last_recurring_check'
 
 export default function RootLayout() {
   const [session, setSession] = useState(undefined)
@@ -41,67 +42,70 @@ export default function RootLayout() {
 
   useEffect(() => {
     async function init() {
-      clearExpiredCache().catch(() => {})
-try {
-  await initializeDatabase()
-} catch {
+  clearExpiredCache().catch(() => {})
+
+  const [, done] = await Promise.all([
+    initializeDatabase().catch(() => initializeDatabase().catch(() => {})),
+    AsyncStorage.getItem('savr_onboarding_done'),
+  ])
+  setOnboardingDone(done === 'true')
+
   try {
-    await initializeDatabase()
-  } catch {}
-}
+    const { data: { session: cachedSession } } = await supabase.auth.getSession()
 
-      const done = await AsyncStorage.getItem('savr_onboarding_done')
-      setOnboardingDone(done === 'true')
+    if (cachedSession) {
+      const expiresAt = cachedSession.expires_at
+      const now = Math.floor(Date.now() / 1000)
 
-      try {
-        const { data: { session: cachedSession } } = await supabase.auth.getSession()
+      // Set session immediately — don't wait for token refresh
+      initialSessionLoadedRef.current = true
+      setCachedUser(cachedSession.user)
+      setSession(cachedSession)
+      SplashScreen.hideAsync().catch(() => {})
 
-        if (cachedSession?.user) {
-  setTimeout(() => {
-    import('../src/lib/userProfile').then(({ updateLastActive }) => {
-      updateLastActive(cachedSession.user.id)
-    }).catch(() => {})
-  }, 3000)
-}
-
-        if (cachedSession) {
-          const expiresAt = cachedSession.expires_at
-          const now = Math.floor(Date.now() / 1000)
-          if (expiresAt && expiresAt < now) {
-            const { data: refreshed, error } = await supabase.auth.refreshSession()
-            if (error || !refreshed.session) {
-              // offline — keep existing session instead of signing out
-              initialSessionLoadedRef.current = true
-              setCachedUser(cachedSession.user)
-              setSession(cachedSession)
-              SplashScreen.hideAsync().catch(() => {})
-              return
-            }
-            initialSessionLoadedRef.current = true
+      // Refresh token in background — don't block UI
+      if (expiresAt && expiresAt < now) {
+        supabase.auth.refreshSession().then(({ data: refreshed, error }) => {
+          if (!error && refreshed.session) {
             setCachedUser(refreshed.session.user)
             setSession(refreshed.session)
-          } else {
-            initialSessionLoadedRef.current = true
-            setCachedUser(cachedSession.user)
-            setSession(cachedSession)
           }
-
-          SplashScreen.hideAsync().catch(() => {})
-
-          setTimeout(() => {
-            import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
-          }, 2000)
-        } else {
-          initialSessionLoadedRef.current = true
-          setSession(null)
-          SplashScreen.hideAsync().catch(() => {})
-        }
-      } catch {
-        initialSessionLoadedRef.current = true
-        setSession(null)
-        SplashScreen.hideAsync().catch(() => {})
+        }).catch(() => {})
       }
+
+      // Deferred tasks — run after UI is shown
+      setTimeout(() => {
+        import('../src/lib/userProfile').then(({ updateLastActive }) => {
+          updateLastActive(cachedSession.user.id)
+        }).catch(() => {})
+      }, 3000)
+
+      setTimeout(async () => {
+        try {
+          const today = new Date().toISOString().split('T')[0]
+          const lastCheck = await AsyncStorage.getItem(LAST_RECURRING_CHECK_KEY)
+          if (lastCheck !== today) {
+            await AsyncStorage.setItem(LAST_RECURRING_CHECK_KEY, today)
+            processDueRecurring(cachedSession.user.id).catch(() => {})
+          }
+        } catch {}
+      }, 2000)
+
+      setTimeout(() => {
+        import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+      }, 2000)
+
+    } else {
+      initialSessionLoadedRef.current = true
+      setSession(null)
+      SplashScreen.hideAsync().catch(() => {})
     }
+  } catch {
+    initialSessionLoadedRef.current = true
+    setSession(null)
+    SplashScreen.hideAsync().catch(() => {})
+  }
+}
 
     init()
 
@@ -171,6 +175,7 @@ try {
         AsyncStorage.removeItem('savr_google_token').catch(() => {})
         AsyncStorage.removeItem('savr_notif_asked').catch(() => {})
         AsyncStorage.removeItem(LAST_BACKUP_TRIGGER_KEY).catch(() => {})
+        AsyncStorage.removeItem(LAST_RECURRING_CHECK_KEY).catch(() => {})
         AsyncStorage.removeItem('savr_restore_offered').catch(() => {})
         AsyncStorage.removeItem('savr_last_backup').catch(() => {})
         AsyncStorage.removeItem('savr_last_backup_count').catch(() => {})
@@ -200,7 +205,6 @@ try {
         if (expiresAt && expiresAt - now < fiveMinutes) {
           const { data, error } = await supabase.auth.refreshSession()
           if (error || !data.session) {
-            // offline or refresh failed — keep existing session, do not sign out
             return
           } else {
             setSession(data.session)

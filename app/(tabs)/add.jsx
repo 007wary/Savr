@@ -184,8 +184,9 @@ if (!userRef.current) userRef.current = user
 
     if (!isRecurring) {
       try {
-        const historyCached = await loadCache('savr_cache_history') || []
-        const anomaly = detectAnomaly(expenseData.amount, selectedCategory, historyCached)
+        const user = getCachedUser() || userRef.current || await getUser()
+const allExpenses = user ? await getExpenses(user.id) : []
+const anomaly = detectAnomaly(expenseData.amount, selectedCategory, allExpenses)
         if (anomaly) {
           setSubmitting(false)
           showAlert(

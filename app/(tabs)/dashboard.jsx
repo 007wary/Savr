@@ -10,7 +10,7 @@ import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import { checkWeeklySummary } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
-import { getExpenses, getMonthlyTotal } from '../../src/services/sqliteService'
+import { getExpenses, getMonthlyTotal, getRecurring } from '../../src/services/sqliteService'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 
@@ -55,6 +55,8 @@ export default function Dashboard() {
   const [spendingGoal, setSpendingGoal] = useState(null)
   const [showGoalModal, setShowGoalModal] = useState(false)
   const [goalInput, setGoalInput] = useState('')
+  const [recurringTotal, setRecurringTotal] = useState(0)
+  const [recurringCount, setRecurringCount] = useState(0)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
   const userRef = useRef(null)
@@ -83,7 +85,7 @@ export default function Dashboard() {
   useEffect(() => {
     async function loadGoalData() {
       const user = getCachedUser() || await getUser()
-userRef.current = user
+      userRef.current = user
       if (user) {
         const goal = await loadGoal(user.id)
         setSpendingGoal(goal)
@@ -92,7 +94,6 @@ userRef.current = user
     loadGoalData()
   }, [])
 
-  // Request notification permission when app becomes active
   useEffect(() => {
     async function requestNotifIfNeeded() {
       if (notifRequestedRef.current) return
@@ -109,34 +110,24 @@ userRef.current = user
         }
       } catch {}
     }
-
-    // Try after dashboard fully loads
     setTimeout(() => requestNotifIfNeeded(), 1500)
-
-    // Also try when app comes to foreground
     const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') {
-        requestNotifIfNeeded()
-      }
+      if (nextState === 'active') requestNotifIfNeeded()
     })
     return () => subscription.remove()
   }, [])
 
-  // Check for Google Drive backup on first sign in
   useEffect(() => {
     async function checkForBackup() {
       try {
         const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
         const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
         if (restoreOffered) return
-
         let user = getCachedUser() || await getUser()
         if (!user) return
-
         const { getExpenses: getExp } = await import('../../src/services/sqliteService')
         const localExpenses = await getExp(user.id)
         if (localExpenses.length > 0) return
-
         const { checkBackupExists } = await import('../../src/services/driveBackupService')
         const backupInfo = await checkBackupExists()
         if (backupInfo?.exists) {
@@ -170,7 +161,7 @@ userRef.current = user
       } catch {}
     }
     setTimeout(() => checkForBackup(), 3000)
-}, [])
+  }, [])
 
   async function fetchData(forceRefresh = false) {
     const cacheKey = `savr_cache_dashboard_${currentMonth}`
@@ -184,6 +175,8 @@ userRef.current = user
         setDaysInMonth(cached.daysInMonth)
         setCurrencySymbol(cached.currencySymbol)
         setCurrencyCode(cached.currencyCode || 'INR')
+        setRecurringTotal(cached.recurringTotal || 0)
+        setRecurringCount(cached.recurringCount || 0)
         setLoading(false)
         setMonthLoading(false)
         setTimeout(() => syncFromSQLite(cacheKey), 100)
@@ -196,17 +189,18 @@ userRef.current = user
   async function syncFromSQLite(cacheKey) {
     try {
       const user = getCachedUser() || userRef.current || await getUser()
-if (!user) { setLoading(false); setRefreshing(false); setMonthLoading(false); return }
-if (!userRef.current) userRef.current = user
+      if (!user) { setLoading(false); setRefreshing(false); setMonthLoading(false); return }
+      if (!userRef.current) userRef.current = user
       const meta = user.user_metadata?.display_name || user.user_metadata?.full_name
       const emailName = user.email.split('@')[0]
       const firstName = meta ? meta.split(' ')[0] : emailName
       const symbol = await getCurrencySymbol()
       const code = await loadCurrency()
       const lastMonthInfo = getMonthInfo(monthOffset - 1)
-      const [currentExpenses, lastTotal] = await Promise.all([
+      const [currentExpenses, lastTotal, recurringItems] = await Promise.all([
         getExpenses(user.id, { month: currentMonth }),
         getMonthlyTotal(user.id, lastMonthInfo.month),
+        getRecurring(user.id),
       ])
       const filtered = sortExpenses(currentExpenses)
       const now = new Date()
@@ -219,15 +213,22 @@ if (!userRef.current) userRef.current = user
         daysElapsed = totalDays
       }
 
+      const recTotal = recurringItems.reduce((sum, r) => sum + parseFloat(r.amount), 0)
+      const recCount = recurringItems.length
+
       setExpenses(filtered)
       setUserName(firstName)
       setLastMonthTotal(lastTotal)
       setDaysInMonth(daysElapsed)
       setCurrencySymbol(symbol)
       setCurrencyCode(code)
+      setRecurringTotal(recTotal)
+      setRecurringCount(recCount)
+
       await saveCache(cacheKey, {
         expenses: filtered, userName: firstName, lastMonthTotal: lastTotal,
         daysInMonth: daysElapsed, currencySymbol: symbol, currencyCode: code,
+        recurringTotal: recTotal, recurringCount: recCount,
       })
 
       if (monthOffset === 0) {
@@ -247,8 +248,8 @@ if (!userRef.current) userRef.current = user
     const amount = parseFloat(goalInput)
     if (!goalInput || isNaN(amount) || amount <= 0) return
     const user = getCachedUser() || userRef.current || await getUser()
-if (!user) return
-await saveGoal(user.id, amount)
+    if (!user) return
+    await saveGoal(user.id, amount)
     setSpendingGoal(amount)
     setShowGoalModal(false)
     setGoalInput('')
@@ -256,8 +257,8 @@ await saveGoal(user.id, amount)
 
   async function handleClearGoal() {
     const user = getCachedUser() || userRef.current || await getUser()
-if (!user) return
-await clearGoal(user.id)
+    if (!user) return
+    await clearGoal(user.id)
     setSpendingGoal(null)
     setShowGoalModal(false)
     setGoalInput('')
@@ -373,6 +374,20 @@ await clearGoal(user.id)
               <Text style={styles.totalSub}>{todayExpenses.length} today</Text>
             </View>
           </View>
+          {isCurrentMonth && recurringCount > 0 && (
+            <View style={styles.recurringRow}>
+              <View style={styles.recurringDivider} />
+              <View style={styles.recurringContent}>
+                <Text style={styles.totalLabel}>MONTHLY RECURRING</Text>
+                <View style={styles.recurringValueRow}>
+                  <CountUp value={recurringTotal} style={styles.totalAmount} symbol={currencySymbol} currencyCode={currencyCode} />
+                  <View style={styles.recurringBadge}>
+                    <Text style={styles.recurringBadgeText}>{recurringCount} active</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          )}
         </LinearGradient>
 
         {isCurrentMonth && (
@@ -585,6 +600,12 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginBottom: 6, letterSpacing: 1.5, textTransform: 'uppercase' },
   totalAmount: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.5, width: '100%', textAlign: 'center' },
   totalSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
+  recurringRow: { marginTop: 16 },
+  recurringDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginBottom: 16 },
+  recurringContent: { alignItems: 'center' },
+  recurringValueRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  recurringBadge: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8 },
+  recurringBadgeText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
   goalCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   goalCardExceeded: { borderColor: COLORS.accentRed + '66' },
   goalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },

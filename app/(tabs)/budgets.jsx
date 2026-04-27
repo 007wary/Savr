@@ -23,10 +23,21 @@ function getMonthName() {
   return new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
 }
 
+// Returns last 3 months as YYYY-MM strings
+function getLast3MonthKeys() {
+  const keys = []
+  const now = new Date()
+  for (let i = 1; i <= 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+  return keys
+}
+
 export default function Budgets() {
   const currentMonth = getCurrentMonth()
-const monthName = getMonthName()
-const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
+  const monthName = getMonthName()
+  const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
 
   const [budgets, setBudgets] = useState([])
   const [expenses, setExpenses] = useState([])
@@ -68,18 +79,31 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
   async function loadFromSQLite() {
     try {
       const user = getCachedUser() || userRef.current || await getUser()
-if (!user) { setLoading(false); setRefreshing(false); return }
-if (!userRef.current) userRef.current = user
-const [budgetData, allExp] = await Promise.all([
+      if (!user) { setLoading(false); setRefreshing(false); return }
+      if (!userRef.current) userRef.current = user
+
+      // Only fetch last 3 months for recommendations — not all expenses
+      const last3Keys = getLast3MonthKeys()
+      const [budgetData, currentExpenses, ...monthlyExpenses] = await Promise.all([
         getBudgets(user.id, currentMonth),
-        getExpenses(user.id),
+        getExpenses(user.id, { month: currentMonth }),
+        ...last3Keys.map(month => getExpenses(user.id, { month })),
       ])
-      const filtered = allExp.filter(e => e.date.startsWith(currentMonth))
+
+      // Combine last 3 months for recommendations only
+      const last3Expenses = monthlyExpenses.flat()
+
       setBudgets(budgetData)
-      setExpenses(filtered)
-      setAllExpenses(allExp)
-      setRecommendations(generateBudgetRecommendations(allExp, CATEGORIES))
-      await saveCache(CACHE_KEY, { budgets: budgetData, expenses: filtered, allExpenses: allExp })
+      setExpenses(currentExpenses)
+      setAllExpenses(last3Expenses)
+      setRecommendations(generateBudgetRecommendations(last3Expenses, CATEGORIES))
+
+      // Cache only what's needed — current expenses + last 3 months
+      await saveCache(CACHE_KEY, {
+        budgets: budgetData,
+        expenses: currentExpenses,
+        allExpenses: last3Expenses,
+      })
     } catch (e) {
     } finally {
       setLoading(false)
@@ -90,8 +114,9 @@ const [budgetData, allExp] = await Promise.all([
   useFocusEffect(useCallback(() => { fetchData() }, []))
 
   async function handleSaveBudget(category, customLimit = null) {
-    const limitValue = customLimit !== null ? String(customLimit) : inputValue
-    if (!limitValue || isNaN(parseFloat(limitValue))) {
+    // Bug 3 fix — reject zero or negative custom limits
+    const limitValue = (customLimit !== null && customLimit > 0) ? String(customLimit) : inputValue
+    if (!limitValue || isNaN(parseFloat(limitValue)) || parseFloat(limitValue) <= 0) {
       return showAlert('Invalid', 'Please enter a valid amount')
     }
     setSavingBudget(true)
@@ -107,10 +132,9 @@ const [budgetData, allExp] = await Promise.all([
     setSavingBudget(false)
     try {
       const user = getCachedUser() || userRef.current || await getUser()
-if (!userRef.current) userRef.current = user
-await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth })
-    } catch (e) {
-    }
+      if (!userRef.current) userRef.current = user
+      await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth })
+    } catch (e) {}
   }
 
   async function handleDeleteBudget(category) {
@@ -134,11 +158,32 @@ await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth }
           text: 'Apply All',
           onPress: async () => {
             const user = getCachedUser() || userRef.current || await getUser()
-if (!userRef.current) userRef.current = user
-await Promise.all(Object.entries(recommendations).map(([category, rec]) =>
-              saveBudget(user.id, { category, limit_amount: rec.recommended, month: currentMonth })
-            ))
+            if (!userRef.current) userRef.current = user
+
+            // Bug 2 fix — optimistically update state before fetchData
+            const optimisticBudgets = [...budgets]
+            Object.entries(recommendations).forEach(([category, rec]) => {
+              const existing = optimisticBudgets.find(b => b.category === category)
+              if (existing) {
+                existing.limit_amount = rec.recommended
+              } else {
+                optimisticBudgets.push({
+                  id: `temp_${Date.now()}_${category}`,
+                  category,
+                  limit_amount: rec.recommended,
+                  month: currentMonth,
+                })
+              }
+            })
+            setBudgets(optimisticBudgets)
             setShowRecommendations(false)
+            await saveCache(CACHE_KEY, { budgets: optimisticBudgets, expenses, allExpenses })
+
+            await Promise.all(
+              Object.entries(recommendations).map(([category, rec]) =>
+                saveBudget(user.id, { category, limit_amount: rec.recommended, month: currentMonth })
+              )
+            )
             fetchData(true)
           }
         }
