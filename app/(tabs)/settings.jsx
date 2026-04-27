@@ -42,16 +42,26 @@ export default function Settings() {
   const [loading, setLoading] = useState(true)
   const [lastBackup, setLastBackup] = useState(null)
   const [backingUp, setBackingUp] = useState(false)
-const [expenseCount, setExpenseCount] = useState(0)
+  const [expenseCount, setExpenseCount] = useState(0)
+  const [isUpToDate, setIsUpToDate] = useState(false)
+  const [isOnline, setIsOnline] = useState(true)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
+
+  async function checkOnlineStatus() {
+    try {
+      await fetch('https://www.google.com', { method: 'HEAD', cache: 'no-cache' })
+      return true
+    } catch {
+      return false
+    }
+  }
 
   async function loadNotificationPrefs() {
     try {
       const granted = await isNotificationGranted()
       setNotificationsEnabled(granted)
       if (granted) {
-        // Load saved budget alerts preference — default true if never set
         const savedBudgetAlerts = await AsyncStorage.getItem(BUDGET_ALERTS_KEY)
         setBudgetAlerts(savedBudgetAlerts !== 'false')
       } else {
@@ -62,7 +72,6 @@ const [expenseCount, setExpenseCount] = useState(0)
 
   async function fetchUser(forceRefresh = false) {
     await loadNotificationPrefs()
-
     if (!forceRefresh) {
       const cached = await loadCache(CACHE_KEY)
       if (cached) {
@@ -80,7 +89,8 @@ const [expenseCount, setExpenseCount] = useState(0)
 
   async function syncFromAuth() {
     try {
-      const u = await getUser(true)
+      const u = getCachedUser() || await getUser(true)
+      if (!u) { setLoading(false); return }
       setUser(u)
       const name = u.user_metadata?.display_name ||
         u.user_metadata?.full_name ||
@@ -93,24 +103,39 @@ const [expenseCount, setExpenseCount] = useState(0)
       await saveCache(CACHE_KEY, {
         user: u, displayName: name, phone: ph, currency: savedCurrency,
       })
-      // Show cached timestamp instantly
-AsyncStorage.getItem('savr_last_backup').then(cached => {
-  if (cached) setLastBackup(cached)
-})
-// Silently verify with Drive in background
-checkBackupExists().then(info => {
-  if (info?.modifiedTime) setLastBackup(info.modifiedTime)
-}).catch(() => {})
 
-try {
-  const u = getCachedUser()
-  if (u) {
-    const expenses = await getExpenses(u.id)
-    setExpenseCount(expenses.length)
-  }
-} catch {}
+      // Load expense count
+      try {
+        const expenses = await getExpenses(u.id)
+        setExpenseCount(expenses.length)
+
+        // Check if backup is up to date
+        const lastBackupTime = await AsyncStorage.getItem('savr_last_backup')
+        if (lastBackupTime) {
+          setLastBackup(lastBackupTime)
+          if (expenses.length > 0) {
+            const lastExpenseTime = expenses
+              .map(e => new Date(e.updated_at || e.created_at || e.date).getTime())
+              .sort((a, b) => b - a)[0]
+            const backupTime = new Date(lastBackupTime).getTime()
+            setIsUpToDate(lastExpenseTime <= backupTime)
+          } else {
+            setIsUpToDate(true)
+          }
+        } else {
+          setIsUpToDate(false)
+        }
+      } catch {}
+
+      // Check online status
+      checkOnlineStatus().then(online => setIsOnline(online)).catch(() => setIsOnline(false))
+
+      // Silently verify with Drive in background
+      checkBackupExists().then(info => {
+        if (info?.modifiedTime) setLastBackup(info.modifiedTime)
+      }).catch(() => {})
+
     } catch {
-      // Silently fail
     } finally {
       setLoading(false)
     }
@@ -135,12 +160,10 @@ try {
         }
       })
       if (error) { showAlert('Error', error.message); return }
-
       setDisplayName(editName.trim())
       setPhone(editPhone.trim())
       setProfileModalVisible(false)
       clearUserCache()
-
       const now = new Date()
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
       await clearCache(`savr_cache_dashboard_${currentMonth}`)
@@ -148,7 +171,7 @@ try {
         user, displayName: editName.trim(),
         phone: editPhone.trim(), currency,
       })
-      showAlert('\u2705 Saved!', 'Your profile has been updated.')
+      showAlert('✅ Saved!', 'Your profile has been updated.')
     } catch {
       showAlert('Error', 'Failed to save. Please try again.')
     } finally {
@@ -171,46 +194,47 @@ try {
     try {
       const { Share } = await import('react-native')
       await Share.share({
-        message: `Savr \u2014 Expense Tracker & Budget Planner\n\nTrack expenses, set budgets, and get spending insights \u2014 all stored privately on your device.\n\nDownload free on Google Play:\nhttps://play.google.com/store/apps/details?id=com.saver.savr`,
+        message: `Savr — Expense Tracker & Budget Planner\n\nTrack expenses, set budgets, and get spending insights — all stored privately on your device.\n\nDownload free on Google Play:\nhttps://play.google.com/store/apps/details?id=com.saver.savr`,
         title: 'Check out Savr!',
       })
     } catch {}
   }
 
   async function handleManualBackup() {
-  if (expenseCount === 0) {
-    showAlert('No Data', 'You have no expenses to back up yet.')
-    return
+    if (expenseCount === 0) {
+      showAlert('No Data', 'You have no expenses to back up yet.')
+      return
+    }
+    if (!isOnline) {
+      showAlert('No Internet', 'You\'re offline. Please connect to the internet to backup your data.')
+      return
+    }
+    if (isUpToDate) {
+      showAlert('Already Up To Date', 'Your backup is already up to date.')
+      return
+    }
+    setBackingUp(true)
+    const result = await backupToDrive()
+    setBackingUp(false)
+    if (result.success) {
+      setLastBackup(result.backedUpAt)
+      setIsUpToDate(true)
+      showAlert('✅ Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
+    } else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
+      showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again to re-enable backup.')
+    } else {
+      showAlert('Backup Failed', result.error || 'Something went wrong.')
+    }
   }
-  try {
-  await fetch('https://www.google.com', { method: 'HEAD' })
-} catch {
-  showAlert('No Internet', 'You\'re offline. Please connect to the internet to backup your data.')
-  return
-}
-setBackingUp(true)
-const result = await backupToDrive()
-  setBackingUp(false)
-  if (result.success) {
-    setLastBackup(result.backedUpAt)
-    showAlert('\u2705 Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
-  } else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
-    showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again to re-enable backup.')
-  } else {
-    showAlert('Backup Failed', result.error || 'Something went wrong.')
-  }
-}
 
   async function handleNotificationToggle(val) {
     if (val) {
       const status = await requestNotificationPermission()
       if (status === 'granted') {
         setNotificationsEnabled(true)
-        // Restore saved budget alerts preference
         const savedBudgetAlerts = await AsyncStorage.getItem(BUDGET_ALERTS_KEY)
         setBudgetAlerts(savedBudgetAlerts !== 'false')
       } else if (status === 'denied') {
-        // Permanently denied — must go to device settings
         setNotificationsEnabled(false)
         showAlert(
           'Permission Denied',
@@ -222,7 +246,6 @@ const result = await backupToDrive()
         )
       }
     } else {
-      // Can't disable programmatically on Android — guide user to settings
       setNotificationsEnabled(false)
       setBudgetAlerts(false)
       await AsyncStorage.setItem(BUDGET_ALERTS_KEY, 'false')
@@ -252,9 +275,10 @@ const result = await backupToDrive()
   function formatBackupDate(dateStr) {
     try {
       const d = new Date(dateStr)
+      if (isNaN(d.getTime())) return 'No backup yet — tap Backup Now'
       return `Last backup: ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}`
     } catch {
-      return 'No backup yet \u2014 tap Backup Now'
+      return 'No backup yet — tap Backup Now'
     }
   }
 
@@ -295,7 +319,7 @@ const result = await backupToDrive()
           <Text style={styles.email}>{user?.email}</Text>
           {phone
             ? <View style={styles.phoneRow}><Ionicons name="phone-portrait-outline" size={13} color={COLORS.textMuted} /><Text style={styles.phoneText}> {phone}</Text></View>
-: <View style={styles.phoneRow}><Ionicons name="phone-portrait-outline" size={13} color={COLORS.accent} /><Text style={styles.phoneAdd}> Add phone number</Text></View>
+            : <View style={styles.phoneRow}><Ionicons name="phone-portrait-outline" size={13} color={COLORS.accent} /><Text style={styles.phoneAdd}> Add phone number</Text></View>
           }
         </View>
         <View style={styles.editProfileBtn}>
@@ -356,8 +380,8 @@ const result = await backupToDrive()
             <View>
               <Text style={styles.rowTitle}>Currency</Text>
               <Text style={styles.rowSubtitle}>
-  {selectedCurrency?.flag + ' ' + currency + ' \u2014 ' + (selectedCurrency?.name || '')}
-</Text>
+                {selectedCurrency?.flag + ' ' + currency + ' — ' + (selectedCurrency?.name || '')}
+              </Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
@@ -382,10 +406,10 @@ const result = await backupToDrive()
         <View style={styles.divider} />
 
         <TouchableOpacity
-  style={[styles.row, expenseCount === 0 && { opacity: 0.4 }]}
-  onPress={handleManualBackup}
-  disabled={backingUp}
->
+          style={[styles.row, (expenseCount === 0 || isUpToDate) && { opacity: 0.4 }]}
+          onPress={handleManualBackup}
+          disabled={backingUp}
+        >
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#34C75922' }]}>
               {backingUp
@@ -393,7 +417,11 @@ const result = await backupToDrive()
                 : <Ionicons name="cloud-upload-outline" size={18} color="#34C759" />
               }
             </View>
-            <Text style={styles.rowTitle}>{backingUp ? 'Backing up...' : 'Backup Now'}</Text>
+            <View>
+              <Text style={styles.rowTitle}>{backingUp ? 'Backing up...' : 'Backup Now'}</Text>
+              {isUpToDate && <Text style={styles.rowSubtitle}>Already up to date</Text>}
+              {!isOnline && <Text style={[styles.rowSubtitle, { color: COLORS.accentRed }]}>You're offline</Text>}
+            </View>
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
         </TouchableOpacity>
@@ -409,7 +437,7 @@ const result = await backupToDrive()
             </View>
             <View>
               <Text style={styles.rowTitle}>Version</Text>
-              <Text style={styles.rowSubtitle}>{'Savr v' + APP_VERSION + ' \u2014 Latest'}</Text>
+              <Text style={styles.rowSubtitle}>{'Savr v' + APP_VERSION + ' — Latest'}</Text>
             </View>
           </View>
           <View style={styles.versionPill}>
@@ -492,7 +520,7 @@ const result = await backupToDrive()
       </View>
 
       <View style={styles.footer}>
-        <Text style={styles.footerSub}>{'Savr v' + APP_VERSION + ' \u00B7 \u00A9 2026'}</Text>
+        <Text style={styles.footerSub}>{'Savr v' + APP_VERSION + ' · © 2026'}</Text>
       </View>
 
       {/* Currency Bottom Sheet */}
