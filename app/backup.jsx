@@ -73,6 +73,8 @@ export default function BackupScreen() {
       showAlert('✅ Backup Successful', 'Your data has been backed up to Google Drive.')
     } else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
       showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again.')
+    } else if (result.error === 'NO_DATA') {
+      showAlert('Nothing to Backup', 'Add some expenses first before backing up.')
     } else {
       showAlert('Backup Failed', result.error || 'Something went wrong. Please try again.')
     }
@@ -112,7 +114,9 @@ export default function BackupScreen() {
             </View>
             <View style={styles.infoText}>
               <Text style={styles.infoLabel}>Last Backup</Text>
-              {backupDate ? (
+              {loading ? (
+                <View style={{ height: 18, width: 140, backgroundColor: COLORS.border, borderRadius: 4, marginTop: 2 }} />
+              ) : backupDate ? (
                 <>
                   <Text style={styles.infoValue}>{backupDate.date}</Text>
                   <Text style={styles.infoSub}>{backupDate.time}</Text>
@@ -140,7 +144,7 @@ export default function BackupScreen() {
             : <Ionicons name="cloud-upload-outline" size={20} color="#fff" style={{ marginRight: 10 }} />
           }
           <Text style={styles.backupBtnText}>
-            {backingUp ? 'Backing up...' : isUpToDate ? 'Already Up To Date' : 'Backup Now'}
+            {backingUp ? 'Backing up...' : loading ? 'Loading...' : isUpToDate ? 'Already Up To Date' : 'Backup Now'}
           </Text>
         </TouchableOpacity>
 
