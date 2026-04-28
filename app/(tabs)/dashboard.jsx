@@ -378,14 +378,14 @@ export default function Dashboard() {
             <View style={styles.recurringRow}>
               <View style={styles.recurringDivider} />
               <View style={styles.recurringContent}>
-                <Text style={styles.totalLabel}>MONTHLY RECURRING</Text>
-                <View style={styles.recurringValueRow}>
-                  <CountUp value={recurringTotal} style={styles.totalAmount} symbol={currencySymbol} currencyCode={currencyCode} />
-                  <View style={styles.recurringBadge}>
-                    <Text style={styles.recurringBadgeText}>{recurringCount} active</Text>
-                  </View>
-                </View>
-              </View>
+  <View style={styles.recurringLeft}>
+    <Text style={styles.totalLabel}>MONTHLY RECURRING</Text>
+    <CountUp value={recurringTotal} style={styles.totalAmount} symbol={currencySymbol} currencyCode={currencyCode} />
+  </View>
+  <View style={styles.recurringBadge}>
+    <Text style={styles.recurringBadgeText}>{recurringCount} {recurringCount === 1 ? 'expense' : 'expenses'} active</Text>
+  </View>
+</View>
             </View>
           )}
         </LinearGradient>
@@ -601,11 +601,12 @@ const styles = StyleSheet.create({
   totalAmount: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.5, width: '100%', textAlign: 'center' },
   totalSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
   recurringRow: { marginTop: 16 },
-  recurringDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginBottom: 16 },
-  recurringContent: { alignItems: 'center' },
-  recurringValueRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  recurringBadge: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingVertical: 3, paddingHorizontal: 8 },
-  recurringBadgeText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
+recurringDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginBottom: 12 },
+recurringContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+recurringLeft: { flex: 1 },
+recurringValueRow: { flexDirection: 'row', alignItems: 'center' },
+recurringBadge: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10, marginLeft: 8 },
+recurringBadgeText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
   goalCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   goalCardExceeded: { borderColor: COLORS.accentRed + '66' },
   goalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },

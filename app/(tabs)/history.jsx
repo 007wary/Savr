@@ -17,7 +17,7 @@ import * as Sharing from 'expo-sharing'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { getExpenses, updateExpense, deleteExpense } from '../../src/services/sqliteService'
+import { getExpenses, updateExpense, deleteExpense, deleteRecurring, getRecurring } from '../../src/services/sqliteService'
 
 const CACHE_KEY = 'savr_cache_history'
 
@@ -140,6 +140,23 @@ export default function History() {
     const dashCached = await loadCache(dashCacheKey)
     if (dashCached) {
       const currentMonthExpenses = updatedExpenses.filter(e => e.date.startsWith(currentMonth))
+      // Also refresh recurring total in dashboard cache
+      try {
+        const user = getCachedUser() || userRef.current || await getUser()
+        if (user) {
+          const { getRecurring: getrec } = await import('../../src/services/sqliteService')
+          const recurringItems = await getrec(user.id)
+          const recTotal = recurringItems.reduce((sum, r) => sum + parseFloat(r.amount), 0)
+          const recCount = recurringItems.length
+          await saveCache(dashCacheKey, {
+            ...dashCached,
+            expenses: currentMonthExpenses,
+            recurringTotal: recTotal,
+            recurringCount: recCount,
+          })
+          return
+        }
+      } catch {}
       await saveCache(dashCacheKey, { ...dashCached, expenses: currentMonthExpenses })
     }
   }
@@ -160,6 +177,21 @@ export default function History() {
           await clearCache(`savr_cache_reports_${currentMonth}`)
           try {
   await deleteExpense(id)
+  // If this was a recurring expense, deactivate the recurring entry too
+  const deletedExpense = (expenses || []).find(e => e.id === id)
+  if (deletedExpense?.recurring_id) {
+    await deleteRecurring(deletedExpense.recurring_id).catch(() => {})
+  } else if (deletedExpense?.is_recurring) {
+    // fallback — find by matching amount and category
+    const user = getCachedUser() || userRef.current || await getUser()
+    if (user) {
+      const recurringItems = await getRecurring(user.id)
+      const match = recurringItems.find(r =>
+        r.amount === deletedExpense.amount && r.category === deletedExpense.category
+      )
+      if (match) await deleteRecurring(match.id).catch(() => {})
+    }
+  }
   await AsyncStorage.removeItem('savr_last_backup_count')
 } catch (e) {
   setExpenses(expenses)
