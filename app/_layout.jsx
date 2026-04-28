@@ -298,13 +298,13 @@ setTimeout(async () => {
 
   return (
     <Stack screenOptions={{ headerShown: false, animation: 'none', contentStyle: { backgroundColor: COLORS.bg } }}>
-      <Stack.Screen name="(auth)" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="webview" />
+      <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
+      <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
+      <Stack.Screen name="webview" options={{ animation: 'default' }} />
       <Stack.Screen name="index" />
       <Stack.Screen name="onboarding" />
-      <Stack.Screen name="recurring" />
-      <Stack.Screen name="backup" />
+      <Stack.Screen name="recurring" options={{ animation: 'default' }} />
+      <Stack.Screen name="backup" options={{ animation: 'default' }} />
     </Stack>
   )
 }
