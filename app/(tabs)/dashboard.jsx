@@ -131,17 +131,17 @@ export default function Dashboard() {
         const { checkBackupExists } = await import('../../src/services/driveBackupService')
         const backupInfo = await checkBackupExists()
         if (backupInfo?.exists) {
-          await AsyncStorageModule.setItem('savr_restore_offered', 'true')
           showAlert(
             '☁️ Backup Found!',
             'We found a Savr backup in your Google Drive. Would you like to restore your data?',
             [
-              { text: 'Skip', style: 'cancel' },
+              { text: 'Skip', style: 'cancel', onPress: async () => { await AsyncStorageModule.setItem('savr_restore_offered', 'true') } },
               {
                 text: 'Restore',
                 onPress: async () => {
                   try {
                     const { restoreFromDrive } = await import('../../src/services/driveBackupService')
+                    await AsyncStorageModule.setItem('savr_restore_offered', 'true')
                     const result = await restoreFromDrive()
                     if (result.success) {
                       showAlert('✅ Restored!', `${result.expenseCount} expenses restored successfully.`, [
