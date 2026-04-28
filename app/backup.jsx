@@ -5,7 +5,6 @@ import {
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
 import { COLORS, SCREEN } from '../src/constants/theme'
 import { getUser, getCachedUser } from '../src/lib/auth'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -105,30 +104,6 @@ export default function BackupScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
 
-        {/* Status Card */}
-        <LinearGradient
-          colors={isUpToDate ? ['#1a3a2a', '#0f2a1a'] : ['#1a1a2a', '#0f0f1a']}
-          style={styles.statusCard}
-        >
-          <View style={styles.statusIconBox}>
-            {loading ? (
-              <ActivityIndicator size="large" color={COLORS.accent} />
-            ) : (
-              <Ionicons
-                name={isUpToDate ? 'checkmark-circle' : lastBackup ? 'cloud-upload-outline' : 'cloud-offline-outline'}
-                size={48}
-                color={isUpToDate ? COLORS.accentGreen : COLORS.accent}
-              />
-            )}
-          </View>
-          <Text style={styles.statusTitle}>
-            {loading ? 'Checking...' : isUpToDate ? 'Up to date' : lastBackup ? 'Changes pending' : 'Never backed up'}
-          </Text>
-          <Text style={styles.statusSub}>
-            {loading ? '' : isUpToDate ? 'Your data is safely backed up to Google Drive' : lastBackup ? 'You have unsaved changes since last backup' : 'Back up your data to keep it safe'}
-          </Text>
-        </LinearGradient>
-
         {/* Last Backup Info */}
         <View style={styles.infoCard}>
           <View style={styles.infoRow}>
@@ -145,38 +120,6 @@ export default function BackupScreen() {
               ) : (
                 <Text style={styles.infoValue}>Never</Text>
               )}
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.infoRow}>
-            <View style={[styles.infoIconBox, { backgroundColor: '#5B9BD522' }]}>
-              <Ionicons name="cloud-outline" size={18} color="#5B9BD5" />
-            </View>
-            <View style={styles.infoText}>
-              <Text style={styles.infoLabel}>Storage</Text>
-              <Text style={styles.infoValue}>Google Drive</Text>
-              <Text style={styles.infoSub}>Stored in your personal Drive</Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.infoRow}>
-            <View style={[styles.infoIconBox, { backgroundColor: isOnline ? '#34C75922' : '#FF5C5C22' }]}>
-              <Ionicons
-                name={isOnline ? 'wifi-outline' : 'cloud-offline-outline'}
-                size={18}
-                color={isOnline ? '#34C759' : COLORS.accentRed}
-              />
-            </View>
-            <View style={styles.infoText}>
-              <Text style={styles.infoLabel}>Connection</Text>
-              <Text style={[styles.infoValue, { color: isOnline ? COLORS.accentGreen : COLORS.accentRed }]}>
-                {isOnline ? 'Online' : 'Offline'}
-              </Text>
-              {!isOnline && <Text style={styles.infoSub}>Connect to internet to backup</Text>}
             </View>
           </View>
         </View>

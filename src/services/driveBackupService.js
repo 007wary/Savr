@@ -216,16 +216,21 @@ export async function saveBackupHash(userId) {
 
 export async function backupToDrive() {
   try {
+    const user = getCachedUser() || await getUser()
+    if (!user) return { success: false, error: 'No user found' }
+
+    // Never backup empty database — prevents overwriting real backup
+    const data = await getAllDataFromSQLite(user.id)
+    if (!data.expenses || data.expenses.length === 0) {
+      return { success: false, error: 'NO_DATA' }
+    }
+
     const accessToken = await getAccessToken()
     if (!accessToken) return { success: false, error: 'NO_TOKEN' }
 
     const isValid = await verifyToken(accessToken)
     if (!isValid) return { success: false, error: 'SESSION_EXPIRED' }
 
-    const user = getCachedUser() || await getUser()
-if (!user) return { success: false, error: 'No user found' }
-
-    const data = await getAllDataFromSQLite(user.id)
     const backupPayload = {
       version: 1,
       userId: user.id,

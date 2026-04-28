@@ -17,21 +17,33 @@ export async function processDueRecurring(userId) {
 
     for (const item of recurring) {
       if (item.next_due > todayStr) continue
-      if (item.last_logged === todayStr) continue
 
       try {
-        await addExpense(userId, {
-          amount: item.amount,
-          category: item.category,
-          note: item.note || `Auto: ${item.category}`,
-          date: todayStr,
-          is_recurring: 1,
-          recurring_id: item.id,
-        })
+        let currentDue = item.next_due
+        let lastLogged = item.last_logged
 
-        const nextDue = calculateNextDue(item.next_due, item.frequency)
-        await updateRecurringAfterLog(item.id, nextDue, todayStr)
-        logged++
+        // Log all missed entries up to today
+        while (currentDue <= todayStr) {
+          if (lastLogged === currentDue) {
+            currentDue = calculateNextDue(currentDue, item.frequency)
+            continue
+          }
+
+          await addExpense(userId, {
+            amount: item.amount,
+            category: item.category,
+            note: item.note || `Auto: ${item.category}`,
+            date: currentDue,
+            is_recurring: 1,
+            recurring_id: item.id,
+          })
+
+          lastLogged = currentDue
+          currentDue = calculateNextDue(currentDue, item.frequency)
+          logged++
+        }
+
+        await updateRecurringAfterLog(item.id, currentDue, lastLogged)
       } catch {}
     }
 
