@@ -41,13 +41,13 @@
                                  "expo-router",
                                  "expo-notifications",
                                  "expo-secure-store",
-                                 "expo-font",
                                  [
                                      "expo-splash-screen",
                                      {
                                          "backgroundColor":  "#0F0F0F",
                                          "image":  "./assets/icon.png",
-                                         "imageWidth":  80
+                                         "imageWidth":  80,
+                                         "resizeMode": "contain"
                                      }
                                  ],
                                  "expo-web-browser",

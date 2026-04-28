@@ -387,6 +387,20 @@ if (!online) {
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
         </TouchableOpacity>
+        <View style={styles.divider} />
+
+<TouchableOpacity style={styles.row} onPress={() => router.push('/recurring')}>
+  <View style={styles.rowLeft}>
+    <View style={[styles.rowIcon, { backgroundColor: COLORS.accent + '22' }]}>
+      <Ionicons name="repeat-outline" size={18} color={COLORS.accent} />
+    </View>
+    <View>
+      <Text style={styles.rowTitle}>Manage Recurring</Text>
+      <Text style={styles.rowSubtitle}>View, edit or delete recurring expenses</Text>
+    </View>
+  </View>
+  <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+</TouchableOpacity>
       </View>
 
       {/* Backup & Restore */}

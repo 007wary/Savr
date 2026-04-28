@@ -232,6 +232,19 @@ export async function deleteRecurring(id) {
   )
 }
 
+export async function getInactiveRecurring(userId) {
+  const database = await getDB()
+  return await database.getAllAsync(
+    `SELECT * FROM recurring_expenses WHERE user_id = ? AND is_active = 0 ORDER BY updated_at DESC`,
+    [userId]
+  )
+}
+
+export async function permanentDeleteRecurring(id) {
+  const database = await getDB()
+  await database.runAsync(`DELETE FROM recurring_expenses WHERE id = ?`, [id])
+}
+
 // ─── SPENDING GOALS ─────────────────────────────────────────
 export async function getSpendingGoal(userId) {
   const database = await getDB()

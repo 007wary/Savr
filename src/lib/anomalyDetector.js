@@ -13,7 +13,7 @@ export function detectAnomaly(newAmount, category, allExpenses) {
     const historicalExpenses = allExpenses.filter(e =>
       e.category === category &&
       e.date >= ninetyDaysAgoStr &&
-      e.date < todayStr
+      e.date <= todayStr
     )
 
     // Need at least 3 historical expenses to detect anomaly

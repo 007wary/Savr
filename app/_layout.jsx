@@ -73,6 +73,29 @@ export default function RootLayout() {
         }).catch(() => {})
       }
 
+      // One-time cleanup of orphaned recurring entries
+setTimeout(async () => {
+  try {
+    const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
+    const cleaned = await AsyncStorageModule.getItem('savr_recurring_cleaned_v1')
+    if (cleaned) return
+    const { getRecurring, getExpenses, deleteRecurring } = await import('../src/services/sqliteService')
+    const user = getCachedUser()
+    if (!user) return
+    const [recurringItems, allExpenses] = await Promise.all([
+      getRecurring(user.id),
+      getExpenses(user.id),
+    ])
+    for (const item of recurringItems) {
+      const hasExpense = allExpenses.some(e => e.recurring_id === item.id || (e.is_recurring && e.amount === item.amount && e.category === item.category))
+      if (!hasExpense) {
+        await deleteRecurring(item.id).catch(() => {})
+      }
+    }
+    await AsyncStorageModule.setItem('savr_recurring_cleaned_v1', 'true')
+  } catch {}
+}, 3000)
+
       // Deferred tasks — run after UI is shown
       setTimeout(() => {
         import('../src/lib/userProfile').then(({ updateLastActive }) => {
@@ -274,6 +297,7 @@ export default function RootLayout() {
       <Stack.Screen name="webview" />
       <Stack.Screen name="index" />
       <Stack.Screen name="onboarding" />
+      <Stack.Screen name="recurring" />
     </Stack>
   )
 }
