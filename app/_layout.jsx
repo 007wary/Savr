@@ -149,6 +149,7 @@ setTimeout(async () => {
           setUserId(session.user.id).catch(() => {})
         }
         Analytics.login()
+        router.replace('/(tabs)/dashboard')
 
         recurringProcessedRef.current = false
 
