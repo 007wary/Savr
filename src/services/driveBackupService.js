@@ -183,6 +183,37 @@ async function restoreAllDataToSQLite(userId, data) {
   })
 }
 
+export async function generateDataHash(userId) {
+  try {
+    const db = await getDB()
+    const result = await db.getFirstAsync(
+      `SELECT COUNT(*) as count, MAX(updated_at) as latest FROM expenses WHERE user_id = ?`,
+      [userId]
+    )
+    return `${result?.count || 0}_${result?.latest || ''}`
+  } catch {
+    return null
+  }
+}
+
+export async function hasDataChanged(userId) {
+  try {
+    const currentHash = await generateDataHash(userId)
+    if (!currentHash) return true // if error, assume changed
+    const lastHash = await AsyncStorage.getItem('savr_last_backup_hash')
+    return currentHash !== lastHash
+  } catch {
+    return true // if error, assume changed
+  }
+}
+
+export async function saveBackupHash(userId) {
+  try {
+    const hash = await generateDataHash(userId)
+    if (hash) await AsyncStorage.setItem('savr_last_backup_hash', hash)
+  } catch {}
+}
+
 export async function backupToDrive() {
   try {
     const accessToken = await getAccessToken()
@@ -254,11 +285,10 @@ if (!user) return { success: false, error: 'No user found' }
     }
 
     await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
-await AsyncStorage.setItem('savr_last_backup_count', String(data.expenses.length))
+await saveBackupHash(user.id)
 return {
   success: true,
   backedUpAt: backupPayload.backedUpAt,
-  expenseCount: data.expenses.length,
 }
   } catch (e) {
     return { success: false, error: e.message }

@@ -4,7 +4,7 @@ import {
   TouchableOpacity, TextInput, RefreshControl, KeyboardAvoidingView, Platform
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
-import { COLORS, CATEGORIES } from '../../src/constants/theme'
+import { COLORS, CATEGORIES, SCREEN } from '../../src/constants/theme'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import { BudgetsSkeleton } from '../../src/components/SkeletonLoader'
 import { Ionicons } from '@expo/vector-icons'
@@ -399,7 +399,7 @@ export default function Budgets() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
+  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8, marginBottom: 4 },
   subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 24 },
   recommendCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: COLORS.accent + '44' },

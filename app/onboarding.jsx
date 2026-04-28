@@ -6,7 +6,7 @@ import {
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
-import { COLORS } from '../src/constants/theme'
+import { COLORS, SCREEN } from '../src/constants/theme'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const { width } = Dimensions.get('window')

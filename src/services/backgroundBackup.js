@@ -7,19 +7,25 @@ const LAST_BACKUP_TRIGGER_KEY = 'savr_last_backup_trigger'
 
 TaskManager.defineTask(BACKUP_TASK_NAME, async () => {
   try {
-    const now = new Date()
-    const hour = now.getHours()
-    const today = now.toISOString().split('T')[0]
+    const today = new Date().toISOString().split('T')[0]
 
-    // Only run between 1:00 AM - 1:59 AM
-    if (hour !== 1) return BackgroundFetch.BackgroundFetchResult.NoData
-
+    // Only run once per day
     const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
     if (lastTrigger === today) return BackgroundFetch.BackgroundFetchResult.NoData
 
-    const { backupToDrive } = await import('./driveBackupService')
-    const result = await backupToDrive()
+    // Check if data changed before backing up
+    const { getCachedUser } = await import('../lib/auth')
+    const user = getCachedUser()
+    if (!user) return BackgroundFetch.BackgroundFetchResult.NoData
 
+    const { hasDataChanged, backupToDrive } = await import('./driveBackupService')
+    const changed = await hasDataChanged(user.id)
+    if (!changed) {
+      await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
+      return BackgroundFetch.BackgroundFetchResult.NoData
+    }
+
+    const result = await backupToDrive()
     if (result.success) {
       await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
       return BackgroundFetch.BackgroundFetchResult.NewData
@@ -43,7 +49,7 @@ export async function registerBackupTask() {
     const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKUP_TASK_NAME)
     if (!isRegistered) {
       await BackgroundFetch.registerTaskAsync(BACKUP_TASK_NAME, {
-        minimumInterval: 60 * 60, // check every hour so it catches the 1 AM window
+        minimumInterval: 60 * 60 * 24, // once per day
         stopOnTerminate: false,
         startOnBoot: true,
       })

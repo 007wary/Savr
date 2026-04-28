@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { View, Animated, StyleSheet } from 'react-native'
-import { COLORS } from '../constants/theme'
+import { COLORS, SCREEN } from '../constants/theme'
 
 function SkeletonBox({ width, height, borderRadius = 8, style }) {
   const opacity = useRef(new Animated.Value(0.3)).current
@@ -174,7 +174,7 @@ export function SettingsSkeleton() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
+  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
   headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   monthNav: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

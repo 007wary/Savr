@@ -6,7 +6,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, CATEGORIES } from '../../src/constants/theme'
+import { COLORS, CATEGORIES, SCREEN } from '../../src/constants/theme'
 import { HistorySkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import BottomSheet from '../../src/components/BottomSheet'
@@ -542,7 +542,7 @@ export default function History() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
+  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
   headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
   exportBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },

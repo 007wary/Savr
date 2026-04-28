@@ -97,6 +97,13 @@ setTimeout(async () => {
 }, 3000)
 
       // Deferred tasks — run after UI is shown
+      // Schedule daily 12 PM reminder
+setTimeout(async () => {
+  try {
+    const { handleDailyReminderOnOpen } = await import('../src/lib/notifications')
+    handleDailyReminderOnOpen().catch(() => {})
+  } catch {}
+}, 2000)
       setTimeout(() => {
         import('../src/lib/userProfile').then(({ updateLastActive }) => {
           updateLastActive(cachedSession.user.id)
@@ -172,22 +179,19 @@ setTimeout(async () => {
           } catch {}
         })()
 
-        // Daily auto backup if user has data
+        // Daily auto backup with hash check
         ;(async () => {
           try {
-            const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
-            const { getExpenses } = await import('../src/services/sqliteService')
+            const today = new Date().toISOString().split('T')[0]
+            const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
+            if (lastTrigger === today) return
             const user = session?.user
             if (!user) return
-            const localExpenses = await getExpenses(user.id)
-            if (localExpenses.length === 0) return
-            const lastTrigger = await AsyncStorageModule.getItem(LAST_BACKUP_TRIGGER_KEY)
-            const today = new Date().toISOString().split('T')[0]
-            if (lastTrigger !== today) {
-              await AsyncStorageModule.setItem(LAST_BACKUP_TRIGGER_KEY, today)
-              const { backupToDrive } = await import('../src/services/driveBackupService')
-              backupToDrive().catch(() => {})
-            }
+            const { hasDataChanged, backupToDrive } = await import('../src/services/driveBackupService')
+            const changed = await hasDataChanged(user.id)
+            if (!changed) return
+            await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
+            backupToDrive().catch(() => {})
           } catch {}
         })()
       }
@@ -201,7 +205,8 @@ setTimeout(async () => {
         AsyncStorage.removeItem(LAST_RECURRING_CHECK_KEY).catch(() => {})
         AsyncStorage.removeItem('savr_restore_offered').catch(() => {})
         AsyncStorage.removeItem('savr_last_backup').catch(() => {})
-        AsyncStorage.removeItem('savr_last_backup_count').catch(() => {})
+        AsyncStorage.removeItem('savr_last_backup_hash').catch(() => {})
+        import('../src/lib/notifications').then(({ cancelDailyReminder }) => cancelDailyReminder()).catch(() => {})
         unregisterBackupTask().catch(() => {})
         recurringProcessedRef.current = false
         router.replace('/(auth)/login')
@@ -298,6 +303,7 @@ setTimeout(async () => {
       <Stack.Screen name="index" />
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="recurring" />
+      <Stack.Screen name="backup" />
     </Stack>
   )
 }

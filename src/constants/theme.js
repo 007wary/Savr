@@ -1,3 +1,18 @@
+import { Platform, StatusBar, Dimensions } from 'react-native'
+import Constants from 'expo-constants'
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
+
+export const SCREEN = {
+  width: SCREEN_WIDTH,
+  height: SCREEN_HEIGHT,
+  paddingTop: Constants.statusBarHeight + 16,
+  paddingHorizontal: SCREEN_WIDTH < 380 ? 16 : 20,
+  maxWidth: 500,
+  isSmall: SCREEN_WIDTH < 360,
+  isTablet: SCREEN_WIDTH >= 600,
+}
+
 export const COLORS = {
   bg: '#0F0F0F',
   card: '#1A1A1A',

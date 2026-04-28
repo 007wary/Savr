@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, A
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, CATEGORIES } from '../../src/constants/theme'
+import { COLORS, CATEGORIES, SCREEN } from '../../src/constants/theme'
 import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import { saveCache, loadCache } from '../../src/lib/cache'
@@ -583,7 +583,7 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
+  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
   header: { marginBottom: 16 },
   greeting: { fontSize: 26, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 14, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },

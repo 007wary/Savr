@@ -5,7 +5,7 @@ import {
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, CATEGORIES } from '../src/constants/theme'
+import { COLORS, CATEGORIES, SCREEN } from '../src/constants/theme'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../src/lib/currency'
 import { getUser, getCachedUser } from '../src/lib/auth'
 import CustomAlert from '../src/components/CustomAlert'
@@ -336,7 +336,7 @@ export default function RecurringScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
+  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
   backBtn: { padding: 4 },
   heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },

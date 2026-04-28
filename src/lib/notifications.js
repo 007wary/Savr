@@ -107,6 +107,73 @@ export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
   }
 }
 
+const DAILY_REMINDER_ID_KEY = 'savr_daily_reminder_id'
+const LAST_APP_OPEN_KEY = 'savr_last_app_open'
+
+export async function recordAppOpen() {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    await AsyncStorage.setItem(LAST_APP_OPEN_KEY, today)
+  } catch {}
+}
+
+export async function scheduleDailyReminder() {
+  try {
+    const granted = await isNotificationGranted()
+    if (!granted) return
+
+    // Cancel existing reminder first to avoid duplicates
+    const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
+    if (existingId) {
+      await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {})
+    }
+
+    const id = await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "Don't forget to log your expenses! 💰",
+        body: "Tap to add today's expenses and stay on track.",
+        sound: true,
+        data: { type: 'daily_reminder' },
+      },
+      trigger: {
+        type: 'daily',
+        hour: 12,
+        minute: 0,
+        repeats: true,
+      },
+    })
+
+    await AsyncStorage.setItem(DAILY_REMINDER_ID_KEY, id)
+  } catch {}
+}
+
+export async function cancelDailyReminder() {
+  try {
+    const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
+    if (existingId) {
+      await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {})
+      await AsyncStorage.removeItem(DAILY_REMINDER_ID_KEY)
+    }
+  } catch {}
+}
+
+export async function handleDailyReminderOnOpen() {
+  try {
+    const granted = await isNotificationGranted()
+    if (!granted) return
+
+    // Record today's app open
+    await recordAppOpen()
+
+    // Check if reminder is already scheduled
+    const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
+    if (!existingId) {
+      // Schedule it if not already scheduled
+      await scheduleDailyReminder()
+    }
+  } catch {}
+}
+
 export async function checkWeeklySummary(expenses) {
   try {
     const granted = await isNotificationGranted()

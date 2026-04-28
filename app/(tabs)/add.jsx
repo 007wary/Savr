@@ -7,7 +7,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
-import { COLORS, CATEGORIES } from '../../src/constants/theme'
+import { COLORS, CATEGORIES, SCREEN } from '../../src/constants/theme'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { clearCache, saveCache, loadCache } from '../../src/lib/cache'
@@ -393,7 +393,7 @@ const anomaly = detectAnomaly(expenseData.amount, selectedCategory, allExpenses)
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 24, paddingTop: 60 },
+  container: { padding: 24, paddingTop: SCREEN.paddingTop },
   heading: { fontSize: 26, fontWeight: '700', color: COLORS.text, marginBottom: 28 },
   label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
   input: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 20 },

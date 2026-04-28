@@ -10,7 +10,7 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { supabase } from '../../src/lib/supabase'
-import { COLORS, CURRENCIES } from '../../src/constants/theme'
+import { COLORS, CURRENCIES, SCREEN } from '../../src/constants/theme'
 import { requestNotificationPermission, isNotificationGranted, BUDGET_ALERTS_KEY } from '../../src/lib/notifications'
 import { saveCurrency, loadCurrency } from '../../src/lib/currency'
 import BottomSheet from '../../src/components/BottomSheet'
@@ -41,10 +41,6 @@ export default function Settings() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [lastBackup, setLastBackup] = useState(null)
-  const [backingUp, setBackingUp] = useState(false)
-  const [expenseCount, setExpenseCount] = useState(0)
-  const [isUpToDate, setIsUpToDate] = useState(false)
-  const [isOnline, setIsOnline] = useState(true)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
@@ -197,35 +193,6 @@ if (lastBackupTime) {
         title: 'Check out Savr!',
       })
     } catch {}
-  }
-
-  async function handleManualBackup() {
-    if (expenseCount === 0) {
-      showAlert('No Data', 'You have no expenses to back up yet.')
-      return
-    }
-    const online = await checkOnlineStatus()
-if (!online) {
-  showAlert('No Internet', 'You\'re offline. Please connect to the internet to backup your data.')
-  return
-}
-    if (isUpToDate) {
-      showAlert('Already Up To Date', 'Your backup is already up to date.')
-      return
-    }
-    setBackingUp(true)
-    const result = await backupToDrive()
-    setBackingUp(false)
-    if (result.success) {
-  setLastBackup(result.backedUpAt)
-  setExpenseCount(result.expenseCount)
-  setIsUpToDate(true)
-  showAlert('✅ Backup Successful', `${result.expenseCount} expenses backed up to Google Drive.`)
-} else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
-      showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again to re-enable backup.')
-    } else {
-      showAlert('Backup Failed', result.error || 'Something went wrong.')
-    }
   }
 
   async function handleNotificationToggle(val) {
@@ -403,10 +370,10 @@ if (!online) {
 </TouchableOpacity>
       </View>
 
-      {/* Backup & Restore */}
-      <Text style={styles.sectionLabel}>BACKUP & RESTORE</Text>
+      {/* Backup */}
+      <Text style={styles.sectionLabel}>BACKUP</Text>
       <View style={styles.card}>
-        <View style={styles.row}>
+        <TouchableOpacity style={styles.row} onPress={() => router.push('/backup')}>
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#34C75922' }]}>
               <Ionicons name="cloud-outline" size={18} color="#34C759" />
@@ -414,28 +381,6 @@ if (!online) {
             <View>
               <Text style={styles.rowTitle}>Google Drive Backup</Text>
               <Text style={styles.rowSubtitle}>{formatBackupDate(lastBackup)}</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.divider} />
-
-        <TouchableOpacity
-          style={[styles.row, (expenseCount === 0 || isUpToDate) && { opacity: 0.4 }]}
-          onPress={handleManualBackup}
-          disabled={backingUp}
-        >
-          <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#34C75922' }]}>
-              {backingUp
-                ? <ActivityIndicator size="small" color="#34C759" />
-                : <Ionicons name="cloud-upload-outline" size={18} color="#34C759" />
-              }
-            </View>
-            <View>
-              <Text style={styles.rowTitle}>{backingUp ? 'Backing up...' : 'Backup Now'}</Text>
-              {isUpToDate && <Text style={styles.rowSubtitle}>Already up to date</Text>}
-              {!isOnline && <Text style={[styles.rowSubtitle, { color: COLORS.accentRed }]}>You're offline</Text>}
             </View>
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
@@ -658,7 +603,7 @@ if (!online) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: 60, paddingHorizontal: 20 },
+  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
   appHeader: { flexDirection: 'row', alignItems: 'center', borderRadius: 20, padding: 20, marginBottom: 20, gap: 14 },
   appIcon: { width: 52, height: 52, borderRadius: 14, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' },
   appHeaderInfo: { flex: 1 },
