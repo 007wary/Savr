@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, ScrollView
@@ -20,6 +20,16 @@ export default function BackupScreen() {
   const [loading, setLoading] = useState(true)
   const [backingUp, setBackingUp] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
+
+  // Preload last backup time instantly on mount
+  useEffect(() => {
+    AsyncStorage.getItem('savr_last_backup').then(time => {
+      if (time) {
+        setLastBackup(time)
+        setLoading(false)
+      }
+    }).catch(() => {})
+  }, [])
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 

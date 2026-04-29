@@ -42,100 +42,96 @@ export default function RootLayout() {
 
   useEffect(() => {
     async function init() {
-  clearExpiredCache().catch(() => {})
+      clearExpiredCache().catch(() => {})
 
-  const [, done] = await Promise.all([
-    initializeDatabase().catch(() => initializeDatabase().catch(() => {})),
-    AsyncStorage.getItem('savr_onboarding_done'),
-  ])
-  setOnboardingDone(done === 'true')
+      // Check cached user immediately before anything else
+      const cachedUser = getCachedUser()
+      const onboardingDoneRaw = await AsyncStorage.getItem('savr_onboarding_done')
+      setOnboardingDone(onboardingDoneRaw === 'true')
 
-  try {
-    const { data: { session: cachedSession } } = await supabase.auth.getSession()
+      // Initialize database in parallel — don't block startup
+      const dbReady = initializeDatabase().catch(() => initializeDatabase().catch(() => {}))
 
-    if (cachedSession) {
-      const expiresAt = cachedSession.expires_at
-      const now = Math.floor(Date.now() / 1000)
+      try {
+        if (cachedUser) {
+          // Instant startup — use cached user immediately
+          initialSessionLoadedRef.current = true
+          setCachedUser(cachedUser)
+          setSession({ user: cachedUser, expires_at: 9999999999 })
+          SplashScreen.hideAsync().catch(() => {})
 
-      // Set session immediately — don't wait for token refresh
-      initialSessionLoadedRef.current = true
-      setCachedUser(cachedSession.user)
-      setSession(cachedSession)
-      SplashScreen.hideAsync().catch(() => {})
+          // Verify and update real session in background
+          supabase.auth.getSession().then(({ data: { session: realSession } }) => {
+            if (realSession) {
+              setCachedUser(realSession.user)
+              setSession(realSession)
+              const expiresAt = realSession.expires_at
+              const now = Math.floor(Date.now() / 1000)
+              if (expiresAt && expiresAt < now) {
+                supabase.auth.refreshSession().then(({ data: refreshed, error }) => {
+                  if (!error && refreshed.session) {
+                    setCachedUser(refreshed.session.user)
+                    setSession(refreshed.session)
+                  }
+                }).catch(() => {})
+              }
+            }
+          }).catch(() => {})
 
-      // Refresh token in background — don't block UI
-      if (expiresAt && expiresAt < now) {
-        supabase.auth.refreshSession().then(({ data: refreshed, error }) => {
-          if (!error && refreshed.session) {
-            setCachedUser(refreshed.session.user)
-            setSession(refreshed.session)
+          // Deferred tasks — run after UI is shown
+          setTimeout(async () => {
+            try {
+              const { handleDailyReminderOnOpen } = await import('../src/lib/notifications')
+              handleDailyReminderOnOpen().catch(() => {})
+            } catch {}
+          }, 2000)
+
+          setTimeout(() => {
+            import('../src/lib/userProfile').then(({ updateLastActive }) => {
+              updateLastActive(cachedUser.id)
+            }).catch(() => {})
+          }, 3000)
+
+          setTimeout(async () => {
+            try {
+              await dbReady
+              const today = new Date().toISOString().split('T')[0]
+              const lastCheck = await AsyncStorage.getItem(LAST_RECURRING_CHECK_KEY)
+              if (lastCheck !== today) {
+                await AsyncStorage.setItem(LAST_RECURRING_CHECK_KEY, today)
+                processDueRecurring(cachedUser.id).catch(() => {})
+              }
+            } catch {}
+          }, 2000)
+
+          setTimeout(() => {
+            import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+          }, 2000)
+
+        } else {
+          // No cached user — wait for Supabase with timeout
+          await dbReady
+          const sessionPromise = supabase.auth.getSession()
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+          const { data: { session: cachedSession } } = await Promise.race([sessionPromise, timeoutPromise]).catch(() => ({ data: { session: null } }))
+
+          if (cachedSession) {
+            initialSessionLoadedRef.current = true
+            setCachedUser(cachedSession.user)
+            setSession(cachedSession)
+            SplashScreen.hideAsync().catch(() => {})
+          } else {
+            initialSessionLoadedRef.current = true
+            setSession(null)
+            SplashScreen.hideAsync().catch(() => {})
           }
-        }).catch(() => {})
-      }
-
-      // One-time cleanup of orphaned recurring entries
-setTimeout(async () => {
-  try {
-    const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
-    const cleaned = await AsyncStorageModule.getItem('savr_recurring_cleaned_v1')
-    if (cleaned) return
-    const { getRecurring, getExpenses, deleteRecurring } = await import('../src/services/sqliteService')
-    const user = getCachedUser()
-    if (!user) return
-    const [recurringItems, allExpenses] = await Promise.all([
-      getRecurring(user.id),
-      getExpenses(user.id),
-    ])
-    for (const item of recurringItems) {
-      const hasExpense = allExpenses.some(e => e.recurring_id === item.id || (e.is_recurring && e.amount === item.amount && e.category === item.category))
-      if (!hasExpense) {
-        await deleteRecurring(item.id).catch(() => {})
+        }
+      } catch {
+        initialSessionLoadedRef.current = true
+        setSession(null)
+        SplashScreen.hideAsync().catch(() => {})
       }
     }
-    await AsyncStorageModule.setItem('savr_recurring_cleaned_v1', 'true')
-  } catch {}
-}, 3000)
-
-      // Deferred tasks — run after UI is shown
-      // Schedule daily 12 PM reminder
-setTimeout(async () => {
-  try {
-    const { handleDailyReminderOnOpen } = await import('../src/lib/notifications')
-    handleDailyReminderOnOpen().catch(() => {})
-  } catch {}
-}, 2000)
-      setTimeout(() => {
-        import('../src/lib/userProfile').then(({ updateLastActive }) => {
-          updateLastActive(cachedSession.user.id)
-        }).catch(() => {})
-      }, 3000)
-
-      setTimeout(async () => {
-        try {
-          const today = new Date().toISOString().split('T')[0]
-          const lastCheck = await AsyncStorage.getItem(LAST_RECURRING_CHECK_KEY)
-          if (lastCheck !== today) {
-            await AsyncStorage.setItem(LAST_RECURRING_CHECK_KEY, today)
-            processDueRecurring(cachedSession.user.id).catch(() => {})
-          }
-        } catch {}
-      }, 2000)
-
-      setTimeout(() => {
-        import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
-      }, 2000)
-
-    } else {
-      initialSessionLoadedRef.current = true
-      setSession(null)
-      SplashScreen.hideAsync().catch(() => {})
-    }
-  } catch {
-    initialSessionLoadedRef.current = true
-    setSession(null)
-    SplashScreen.hideAsync().catch(() => {})
-  }
-}
 
     init()
 
