@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { initializeDatabase } from '../src/services/sqliteService'
 import { registerBackupTask, unregisterBackupTask } from '../src/services/backgroundBackup'
 import { Analytics, setUserId } from '../src/lib/analytics'
-import { setCachedUser } from '../src/lib/auth'
+import { setCachedUser, getCachedUser } from '../src/lib/auth'
 
 SplashScreen.preventAutoHideAsync()
 

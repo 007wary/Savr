@@ -107,17 +107,8 @@ if (!userRef.current) userRef.current = user
           frequency,
           next_due: expenseData.date,
         })
-        // Only add to expenses if date is today or past — future recurring stays hidden until due
-        const todayStr = new Date().toISOString().split('T')[0]
-        if (expenseData.date <= todayStr) {
-          await addExpense(user.id, {
-            amount: expenseData.amount,
-            category: expenseData.category,
-            note: expenseData.note || `Auto: ${expenseData.category}`,
-            date: expenseData.date,
-            is_recurring: 1,
-          })
-        }
+        const { processDueRecurring } = await import('../../src/lib/recurring')
+        await processDueRecurring(user.id)
       } else {
         await addExpense(user.id, expenseData)
       }
