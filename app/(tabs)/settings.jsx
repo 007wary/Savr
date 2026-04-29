@@ -397,7 +397,7 @@ if (lastBackupTime) {
             </View>
             <View>
               <Text style={styles.rowTitle}>Version</Text>
-              <Text style={styles.rowSubtitle}>{'Savr v' + APP_VERSION + ' — Latest'}</Text>
+              <Text style={styles.rowSubtitle}>{'Savr v' + APP_VERSION}</Text>
             </View>
           </View>
           <View style={styles.versionPill}>
