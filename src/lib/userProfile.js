@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import * as Device from 'expo-device'
 import Constants from 'expo-constants'
+import * as Localization from 'expo-localization'
 import messaging from '@react-native-firebase/messaging'
 
 export async function syncUserProfile(user) {
@@ -23,6 +24,10 @@ export async function syncUserProfile(user) {
       app_version: Constants.expoConfig?.version || '1.0',
       device_model: Device.modelName || null,
       android_version: String(Device.osVersion) || null,
+      timezone: Localization.getCalendars()[0]?.timeZone || null,
+      country: Localization.getLocales()[0]?.regionCode || null,
+      timezone: Localization.getCalendars()[0]?.timeZone || null,
+      country: Localization.getLocales()[0]?.regionCode || null,
       last_active: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'id' })
