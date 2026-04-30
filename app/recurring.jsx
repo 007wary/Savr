@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, RefreshControl, TextInput
@@ -10,8 +10,8 @@ import { getCurrencySymbol, loadCurrency, formatAmount } from '../src/lib/curren
 import { getUser, getCachedUser } from '../src/lib/auth'
 import CustomAlert from '../src/components/CustomAlert'
 import useAlert from '../src/hooks/useAlert'
-import { getRecurring, getInactiveRecurring, deleteRecurring, permanentDeleteRecurring, updateRecurringAfterLog } from '../src/services/sqliteService'
-import { loadCache, saveCache, clearCache } from '../src/lib/cache'
+import { getRecurring, getInactiveRecurring, deleteRecurring, permanentDeleteRecurring } from '../src/services/sqliteService'
+import { loadCache, saveCache } from '../src/lib/cache'
 
 const FREQUENCIES = ['daily', 'weekly', 'monthly']
 
@@ -42,7 +42,7 @@ export default function RecurringScreen() {
   const [editFrequency, setEditFrequency] = useState('monthly')
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
-  const userRef = { current: null }
+  const userRef = useRef(null)
 
   async function fetchData(forceRefresh = false) {
     try {
@@ -198,7 +198,6 @@ export default function RecurringScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(true) }} tintColor={COLORS.accent} />
         }
       >
-        {/* Active Section */}
         <Text style={styles.sectionLabel}>ACTIVE ({activeItems.length})</Text>
 
         {activeItems.length === 0 && (
@@ -288,7 +287,6 @@ export default function RecurringScreen() {
           )
         })}
 
-        {/* Inactive Section */}
         {inactiveItems.length > 0 && (
           <>
             <Text style={[styles.sectionLabel, { marginTop: 24 }]}>INACTIVE ({inactiveItems.length})</Text>

@@ -3,7 +3,7 @@ import Constants from 'expo-constants'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Switch, TextInput,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
+  KeyboardAvoidingView, Platform,
   Linking
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
@@ -18,8 +18,7 @@ import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { getUser, getCachedUser, clearUserCache } from '../../src/lib/auth'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
-import { backupToDrive, checkBackupExists } from '../../src/services/driveBackupService'
-import { getExpenses } from '../../src/services/sqliteService'
+import { checkBackupExists } from '../../src/services/driveBackupService'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const APP_VERSION = Constants.expoConfig?.version || '1.0'
@@ -98,31 +97,6 @@ export default function Settings() {
       await saveCache(CACHE_KEY, {
         user: u, displayName: name, phone: ph, currency: savedCurrency,
       })
-
-      // Load expense count
-      try {
-        const expenses = await getExpenses(u.id)
-        setExpenseCount(expenses.length)
-
-        // Check if backup is up to date
-const lastBackupTime = await AsyncStorage.getItem('savr_last_backup')
-const lastBackupCount = await AsyncStorage.getItem('savr_last_backup_count')
-if (lastBackupTime) {
-  setLastBackup(lastBackupTime)
-  if (expenses.length > 0) {
-    const lastExpenseTime = expenses
-      .map(e => new Date(e.updated_at || e.created_at || e.date).getTime())
-      .sort((a, b) => b - a)[0]
-    const backupTime = new Date(lastBackupTime).getTime()
-    const countMatches = lastBackupCount !== null && parseInt(lastBackupCount) === expenses.length
-    setIsUpToDate(lastExpenseTime <= backupTime && countMatches)
-  } else {
-    setIsUpToDate(true)
-  }
-} else {
-  setIsUpToDate(false)
-}
-      } catch {}
 
       // Silently verify with Drive in background
       checkBackupExists().then(info => {
@@ -580,13 +554,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
   header: { marginBottom: 24 },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
-  appHeader: { flexDirection: 'row', alignItems: 'center', borderRadius: 20, padding: 20, marginBottom: 20, gap: 14 },
-  appIcon: { width: 52, height: 52, borderRadius: 14, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' },
-  appHeaderInfo: { flex: 1 },
-  appName: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.5 },
-  appTagline: { fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
-  versionBadge: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
-  versionBadgeText: { fontSize: 12, color: '#fff', fontWeight: '700' },
   profileCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 16, padding: 20, marginBottom: 28, borderWidth: 1, borderColor: COLORS.border },
   avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
   avatarText: { fontSize: 20, fontWeight: '700', color: '#fff' },

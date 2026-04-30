@@ -302,14 +302,6 @@ export default function Dashboard() {
     return CATEGORIES.find(c => c.label === label) || { icon: 'grid-outline', color: '#888' }
   }
 
-  function getGreeting() {
-    const hour = new Date().getHours()
-    if (hour < 12) return 'Good morning'
-    if (hour < 17) return 'Good afternoon'
-    if (hour < 21) return 'Good evening'
-    return 'Good night'
-  }
-
   function formatDate(dateStr) {
     const today = new Date()
     const todayStr = today.toISOString().split('T')[0]
@@ -585,7 +577,6 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
   header: { marginBottom: 16 },
-  greeting: { fontSize: 26, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
   brandText: { fontSize: 32, fontWeight: '900', color: COLORS.accent, letterSpacing: -1 },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 14, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },
   monthNavBtn: { padding: 4 },
@@ -605,7 +596,6 @@ const styles = StyleSheet.create({
 recurringDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginBottom: 12 },
 recurringContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
 recurringLeft: { flex: 1 },
-recurringValueRow: { flexDirection: 'row', alignItems: 'center' },
 recurringBadge: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10, marginLeft: 8 },
 recurringBadgeText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
   goalCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
