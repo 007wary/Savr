@@ -86,6 +86,30 @@ export default function RootLayout() {
             } catch {}
           }, 2000)
 
+          // Request FCM permission
+          setTimeout(async () => {
+            try {
+              const { default: messaging } = await import('@react-native-firebase/messaging')
+              const authStatus = await messaging().requestPermission()
+              const enabled =
+                authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+                authStatus === messaging.AuthorizationStatus.PROVISIONAL
+              if (enabled) {
+                const fcmToken = await messaging().getToken()
+                if (fcmToken) {
+                  const { supabase } = await import('../src/lib/supabase')
+                  const user = getCachedUser()
+                  if (user) {
+                    await supabase
+                      .from('user_profiles')
+                      .update({ fcm_token: fcmToken })
+                      .eq('id', user.id)
+                  }
+                }
+              }
+            } catch {}
+          }, 3000)
+
           setTimeout(() => {
             import('../src/lib/userProfile').then(({ updateLastActive }) => {
               updateLastActive(cachedUser.id)

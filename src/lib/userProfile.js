@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import * as Device from 'expo-device'
 import Constants from 'expo-constants'
+import messaging from '@react-native-firebase/messaging'
 
 export async function syncUserProfile(user) {
   try {
@@ -25,6 +26,18 @@ export async function syncUserProfile(user) {
       last_active: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'id' })
+
+    // Save FCM token for push notifications
+    try {
+      const fcmToken = await messaging().getToken()
+      if (fcmToken) {
+        await supabase
+          .from('user_profiles')
+          .update({ fcm_token: fcmToken })
+          .eq('id', user.id)
+      }
+    } catch {}
+
   } catch {}
 }
 
