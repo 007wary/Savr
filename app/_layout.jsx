@@ -171,6 +171,19 @@ export default function RootLayout() {
         Analytics.login()
         router.replace('/(tabs)/dashboard')
 
+        // Set online status
+setTimeout(async () => {
+  try {
+    const { supabase: sb } = await import('../src/lib/supabase')
+    if (session?.user?.id) {
+      sb.from('user_profiles').update({
+        is_online: true,
+        online_at: new Date().toISOString(),
+      }).eq('id', session.user.id).then(() => {}).catch(() => {})
+    }
+  } catch {}
+}, 2000)
+
         recurringProcessedRef.current = false
 
         setTimeout(async () => {
@@ -220,6 +233,13 @@ export default function RootLayout() {
       if (event === 'SIGNED_OUT') {
         Analytics.logout()
         await clearAllCache()
+        // Set offline status
+try {
+  const offlineUser = getCachedUser()
+  if (offlineUser) {
+    supabase.from('user_profiles').update({ is_online: false }).eq('id', offlineUser.id).then(() => {}).catch(() => {})
+  }
+} catch {}
         AsyncStorage.removeItem('savr_google_token').catch(() => {})
         AsyncStorage.removeItem('savr_notif_asked').catch(() => {})
         AsyncStorage.removeItem(LAST_BACKUP_TRIGGER_KEY).catch(() => {})
@@ -275,20 +295,38 @@ export default function RootLayout() {
     const linkSub = Linking.addEventListener('url', ({ url }) => { handleDeepLink(url) })
 
     const handleAppStateChange = async (nextAppState) => {
-      if (nextAppState !== 'active') return
-      try {
-        const today = new Date().toISOString().split('T')[0]
-        const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
-        if (lastTrigger === today) return
-        const user = getCachedUser()
-        if (!user) return
-        const { hasDataChanged, backupToDrive } = await import('../src/services/driveBackupService')
-        const changed = await hasDataChanged(user.id)
-        if (!changed) return
-        await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
-        backupToDrive().catch(() => {})
-      } catch {}
+  try {
+    const user = getCachedUser()
+    if (user) {
+      const { supabase } = await import('../src/lib/supabase')
+      if (nextAppState === 'active') {
+        supabase.from('user_profiles').update({
+          is_online: true,
+          online_at: new Date().toISOString(),
+          last_active: new Date().toISOString(),
+        }).eq('id', user.id).then(() => {}).catch(() => {})
+      } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+        supabase.from('user_profiles').update({
+          is_online: false,
+        }).eq('id', user.id).then(() => {}).catch(() => {})
+      }
     }
+  } catch {}
+
+  if (nextAppState !== 'active') return
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
+    if (lastTrigger === today) return
+    const user = getCachedUser()
+    if (!user) return
+    const { hasDataChanged, backupToDrive } = await import('../src/services/driveBackupService')
+    const changed = await hasDataChanged(user.id)
+    if (!changed) return
+    await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
+    backupToDrive().catch(() => {})
+  } catch {}
+}
     const appStateSub = AppState.addEventListener('change', handleAppStateChange)
 
     return () => {
