@@ -165,11 +165,32 @@ export async function handleDailyReminderOnOpen() {
     // Record today's app open
     await recordAppOpen()
 
-    // Check if reminder is already scheduled
-    const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
-    if (!existingId) {
-      // Schedule it if not already scheduled
-      await scheduleDailyReminder()
+    const now = new Date()
+    const hour = now.getHours()
+    const minute = now.getMinutes()
+    const today = now.toISOString().split('T')[0]
+
+    const suppressedDate = await AsyncStorage.getItem('savr_reminder_suppressed_date')
+
+    if (hour < 12) {
+      // User opened before 12 PM — suppress today's reminder
+      if (suppressedDate !== today) {
+        // Cancel existing scheduled reminder
+        const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
+        if (existingId) {
+          await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {})
+          await AsyncStorage.removeItem(DAILY_REMINDER_ID_KEY)
+        }
+        // Mark today as suppressed so we don't cancel again unnecessarily
+        await AsyncStorage.setItem('savr_reminder_suppressed_date', today)
+      }
+      // Don't schedule — will be scheduled on a future open after 12 PM
+    } else {
+      // User opened at or after 12 PM — ensure reminder is scheduled for future days
+      const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
+      if (!existingId) {
+        await scheduleDailyReminder()
+      }
     }
   } catch {}
 }

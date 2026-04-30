@@ -3,12 +3,11 @@ import Constants from 'expo-constants'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Switch, TextInput,
-  KeyboardAvoidingView, Platform, Image, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ActivityIndicator,
   Linking
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, CURRENCIES, SCREEN } from '../../src/constants/theme'
 import { requestNotificationPermission, isNotificationGranted, BUDGET_ALERTS_KEY } from '../../src/lib/notifications'
@@ -261,21 +260,9 @@ if (lastBackupTime) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
 
-      <LinearGradient
-        colors={['#7C75FF', '#6C63FF', '#5A50FF']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.appHeader}
-      >
-        <Image source={require('../../assets/icon.png')} style={styles.appIcon} />
-        <View style={styles.appHeaderInfo}>
-          <Text style={styles.appName}>Savr</Text>
-          <Text style={styles.appTagline}>Spend smart, save more</Text>
-        </View>
-        <View style={styles.versionBadge}>
-          <Text style={styles.versionBadgeText}>v{APP_VERSION}</Text>
-        </View>
-      </LinearGradient>
+      <View style={styles.header}>
+        <Text style={styles.heading}>Settings</Text>
+      </View>
 
       {/* Profile Card */}
       <TouchableOpacity style={styles.profileCard} onPress={openProfileModal} activeOpacity={0.8}>
@@ -356,31 +343,14 @@ if (lastBackupTime) {
         </TouchableOpacity>
         <View style={styles.divider} />
 
-<TouchableOpacity style={styles.row} onPress={() => router.push('/recurring')}>
-  <View style={styles.rowLeft}>
-    <View style={[styles.rowIcon, { backgroundColor: COLORS.accent + '22' }]}>
-      <Ionicons name="repeat-outline" size={18} color={COLORS.accent} />
-    </View>
-    <View>
-      <Text style={styles.rowTitle}>Manage Recurring</Text>
-      <Text style={styles.rowSubtitle}>View, edit or delete recurring expenses</Text>
-    </View>
-  </View>
-  <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-</TouchableOpacity>
-      </View>
-
-      {/* Backup */}
-      <Text style={styles.sectionLabel}>BACKUP</Text>
-      <View style={styles.card}>
-        <TouchableOpacity style={styles.row} onPress={() => router.push('/backup')}>
+        <TouchableOpacity style={styles.row} onPress={() => router.push('/manage-data')}>
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#34C75922' }]}>
-              <Ionicons name="cloud-outline" size={18} color="#34C759" />
+            <View style={[styles.rowIcon, { backgroundColor: '#5B9BD522' }]}>
+              <Ionicons name="server-outline" size={18} color="#5B9BD5" />
             </View>
             <View>
-              <Text style={styles.rowTitle}>Google Drive Backup</Text>
-              <Text style={styles.rowSubtitle}>{formatBackupDate(lastBackup)}</Text>
+              <Text style={styles.rowTitle}>Manage Data</Text>
+              <Text style={styles.rowSubtitle}>Backup and recurring expenses</Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
@@ -452,17 +422,21 @@ if (lastBackupTime) {
 
         <View style={styles.divider} />
 
-        <View style={styles.row}>
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => Linking.openURL('https://play.google.com/store/apps/details?id=com.saver.savr')}
+        >
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#FF8C4222' }]}>
-              <Ionicons name="code-slash-outline" size={18} color='#FF8C42' />
+            <View style={[styles.rowIcon, { backgroundColor: '#FFD70022' }]}>
+              <Ionicons name="star-outline" size={18} color='#FFD700' />
             </View>
             <View>
-              <Text style={styles.rowTitle}>Developer</Text>
-              <Text style={styles.rowSubtitle}>Wary Dev.</Text>
+              <Text style={styles.rowTitle}>Rate Savr</Text>
+              <Text style={styles.rowSubtitle}>Enjoying the app? Leave a review</Text>
             </View>
           </View>
-        </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
       </View>
 
       {/* Account */}
@@ -604,6 +578,8 @@ if (lastBackupTime) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
+  header: { marginBottom: 24 },
+  heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
   appHeader: { flexDirection: 'row', alignItems: 'center', borderRadius: 20, padding: 20, marginBottom: 20, gap: 14 },
   appIcon: { width: 52, height: 52, borderRadius: 14, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' },
   appHeaderInfo: { flex: 1 },

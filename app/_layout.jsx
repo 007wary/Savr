@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../src/lib/supabase'
-import { View } from 'react-native'
+import { View, AppState } from 'react-native'
 import { COLORS } from '../src/constants/theme'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { initializeDatabase } from '../src/services/sqliteService'
 import { registerBackupTask, unregisterBackupTask } from '../src/services/backgroundBackup'
 import { Analytics, setUserId } from '../src/lib/analytics'
-import { setCachedUser, getCachedUser } from '../src/lib/auth'
+import { setCachedUser, getCachedUser, loadCachedUser } from '../src/lib/auth'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -45,7 +45,7 @@ export default function RootLayout() {
       clearExpiredCache().catch(() => {})
 
       // Check cached user immediately before anything else
-      const cachedUser = getCachedUser()
+      const cachedUser = await loadCachedUser()
       const onboardingDoneRaw = await AsyncStorage.getItem('savr_onboarding_done')
       setOnboardingDone(onboardingDoneRaw === 'true')
 
@@ -203,6 +203,7 @@ export default function RootLayout() {
         AsyncStorage.removeItem('savr_restore_offered').catch(() => {})
         AsyncStorage.removeItem('savr_last_backup').catch(() => {})
         AsyncStorage.removeItem('savr_last_backup_hash').catch(() => {})
+        AsyncStorage.removeItem('savr_reminder_suppressed_date').catch(() => {})
         import('../src/lib/notifications').then(({ cancelDailyReminder }) => cancelDailyReminder()).catch(() => {})
         unregisterBackupTask().catch(() => {})
         recurringProcessedRef.current = false
@@ -249,10 +250,28 @@ export default function RootLayout() {
     Linking.getInitialURL().then(url => { if (url) handleDeepLink(url) })
     const linkSub = Linking.addEventListener('url', ({ url }) => { handleDeepLink(url) })
 
+    const handleAppStateChange = async (nextAppState) => {
+      if (nextAppState !== 'active') return
+      try {
+        const today = new Date().toISOString().split('T')[0]
+        const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
+        if (lastTrigger === today) return
+        const user = getCachedUser()
+        if (!user) return
+        const { hasDataChanged, backupToDrive } = await import('../src/services/driveBackupService')
+        const changed = await hasDataChanged(user.id)
+        if (!changed) return
+        await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
+        backupToDrive().catch(() => {})
+      } catch {}
+    }
+    const appStateSub = AppState.addEventListener('change', handleAppStateChange)
+
     return () => {
       subscription.unsubscribe()
       linkSub.remove()
       clearInterval(refreshInterval)
+      appStateSub.remove()
     }
   }, [])
 

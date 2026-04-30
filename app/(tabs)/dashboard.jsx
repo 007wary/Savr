@@ -333,7 +333,7 @@ export default function Dashboard() {
         }
       >
         <View style={styles.header}>
-          <Text style={styles.greeting}>{getGreeting()}, {userName} 👋</Text>
+          <Text style={styles.brandText}>Savr</Text>
         </View>
 
         <View style={styles.monthNav}>
@@ -586,6 +586,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
   header: { marginBottom: 16 },
   greeting: { fontSize: 26, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
+  brandText: { fontSize: 32, fontWeight: '900', color: COLORS.accent, letterSpacing: -1 },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 14, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },
   monthNavBtn: { padding: 4 },
   monthNavBtnDisabled: { opacity: 0.3 },

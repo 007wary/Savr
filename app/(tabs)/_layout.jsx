@@ -84,7 +84,7 @@ export default function TabsLayout() {
         options={{
           title: 'Settings',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="person-circle" color={color} focused={focused} />
+            <TabIcon name="settings" color={color} focused={focused} />
           ),
         }}
       />
