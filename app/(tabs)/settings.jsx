@@ -579,7 +579,7 @@ if (lastBackupTime) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
   header: { marginBottom: 24 },
-  heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
+  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
   appHeader: { flexDirection: 'row', alignItems: 'center', borderRadius: 20, padding: 20, marginBottom: 20, gap: 14 },
   appIcon: { width: 52, height: 52, borderRadius: 14, borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)' },
   appHeaderInfo: { flex: 1 },
