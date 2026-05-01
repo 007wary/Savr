@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView,
-  Platform, Switch, ActivityIndicator
+  StyleSheet, Platform, Switch, ActivityIndicator
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import DateTimePicker from '@react-native-community/datetimepicker'
@@ -377,10 +376,8 @@ export default function AddExpense() {
         <View style={{ width: 40 }} />
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-
-        {/* Scrollable content */}
-        <KeyboardAwareScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100}>
+      {/* Scrollable content */}
+        <KeyboardAwareScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100} style={{ flex: 1 }}>
 
           {/* ── TRANSFER TAB ── */}
           {activeTab === 'transfer' && (
@@ -721,8 +718,8 @@ export default function AddExpense() {
           )}
         </KeyboardAwareScrollView>
 
-        {/* ── BOTTOM TAB SWITCHER ── */}
-        <View style={styles.bottomTabRow}>
+      {/* ── BOTTOM TAB SWITCHER ── */}
+      <View style={styles.bottomTabRow}>
           {[
             { key: 'income', label: 'Income', icon: 'arrow-down-circle-outline', color: '#4CAF50' },
             { key: 'expense', label: 'Expense', icon: 'arrow-up-circle-outline', color: COLORS.accent },
@@ -744,8 +741,6 @@ export default function AddExpense() {
             </TouchableOpacity>
           ))}
         </View>
-
-      </KeyboardAvoidingView>
 
       <CustomAlert
         visible={alertConfig.visible}

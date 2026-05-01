@@ -81,12 +81,12 @@ export default function ManageDataScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
+  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24, paddingHorizontal: SCREEN.paddingHorizontal },
   backBtn: { padding: 4 },
   heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
   card: {},
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: SCREEN.paddingHorizontal },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
   rowIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   rowTitle: { fontSize: 15, color: COLORS.text, fontWeight: '500' },

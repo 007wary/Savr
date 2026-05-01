@@ -403,7 +403,7 @@ export default function Budgets() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
-  scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal },
+  scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal, backgroundColor: COLORS.bg },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8, marginBottom: 4 },
   subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 16 },
   recommendCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: COLORS.accent + '44' },
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
   applyBtnText: { fontSize: 12, color: COLORS.accent, fontWeight: '700' },
   applyAllBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.accent, borderRadius: 12, padding: 14, marginTop: 8 },
   applyAllBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  card: { backgroundColor: COLORS.card + '88', borderRadius: 12, padding: 16, marginBottom: 8 },
+  card: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, marginBottom: 8 },
   cardOver: { borderLeftWidth: 3, borderLeftColor: COLORS.accentRed },
   cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
