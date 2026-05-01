@@ -383,6 +383,7 @@ try {
       <Stack.Screen name="recurring" options={{ animation: 'default' }} />
       <Stack.Screen name="backup" options={{ animation: 'default' }} />
       <Stack.Screen name="manage-data" options={{ animation: 'default' }} />
+      <Stack.Screen name="accounts" options={{ animation: 'default' }} />
     </Stack>
   )
 }

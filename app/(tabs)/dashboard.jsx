@@ -10,7 +10,7 @@ import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import { checkWeeklySummary } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
-import { getExpenses, getMonthlyTotal, getRecurring } from '../../src/services/sqliteService'
+import { getExpenses, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal } from '../../src/services/sqliteService'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 
@@ -57,6 +57,7 @@ export default function Dashboard() {
   const [goalInput, setGoalInput] = useState('')
   const [recurringTotal, setRecurringTotal] = useState(0)
   const [recurringCount, setRecurringCount] = useState(0)
+  const [monthlyIncome, setMonthlyIncome] = useState(0)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
   const userRef = useRef(null)
@@ -177,6 +178,7 @@ export default function Dashboard() {
         setCurrencyCode(cached.currencyCode || 'INR')
         setRecurringTotal(cached.recurringTotal || 0)
         setRecurringCount(cached.recurringCount || 0)
+        setMonthlyIncome(cached.monthlyIncome || 0)
         setLoading(false)
         setMonthLoading(false)
         setTimeout(() => syncFromSQLite(cacheKey), 100)
@@ -197,10 +199,11 @@ export default function Dashboard() {
       const symbol = await getCurrencySymbol()
       const code = await loadCurrency()
       const lastMonthInfo = getMonthInfo(monthOffset - 1)
-      const [currentExpenses, lastTotal, recurringItems] = await Promise.all([
+      const [currentExpenses, lastTotal, recurringItems, incomeTotal] = await Promise.all([
         getExpenses(user.id, { month: currentMonth }),
         getMonthlyTotal(user.id, lastMonthInfo.month),
         getRecurring(user.id),
+        getMonthlyIncomeTotal(user.id, currentMonth),
       ])
       const filtered = sortExpenses(currentExpenses)
       const now = new Date()
@@ -224,11 +227,12 @@ export default function Dashboard() {
       setCurrencyCode(code)
       setRecurringTotal(recTotal)
       setRecurringCount(recCount)
+      setMonthlyIncome(incomeTotal)
 
       await saveCache(cacheKey, {
         expenses: filtered, userName: firstName, lastMonthTotal: lastTotal,
         daysInMonth: daysElapsed, currencySymbol: symbol, currencyCode: code,
-        recurringTotal: recTotal, recurringCount: recCount,
+        recurringTotal: recTotal, recurringCount: recCount, monthlyIncome: incomeTotal,
       })
 
       if (monthOffset === 0) {
@@ -513,6 +517,50 @@ export default function Dashboard() {
           </View>
         )}
 
+        {(monthlyIncome > 0 || total > 0) && (
+          <View style={styles.cashFlowCard}>
+            <View style={styles.cashFlowTitleRow}>
+              <Ionicons name="swap-vertical-outline" size={16} color={COLORS.textMuted} />
+              <Text style={styles.cashFlowTitle}>Cash Flow — {monthName}</Text>
+            </View>
+            <View style={styles.cashFlowRow}>
+              <View style={styles.cashFlowItem}>
+                <View style={[styles.cashFlowIconBox, { backgroundColor: '#4CAF5022' }]}>
+                  <Ionicons name="arrow-down-circle-outline" size={20} color="#4CAF50" />
+                </View>
+                <Text style={styles.cashFlowLabel}>Income</Text>
+                <Text style={[styles.cashFlowAmount, { color: '#4CAF50' }]}>
+                  {formatAmount(monthlyIncome, currencySymbol, currencyCode)}
+                </Text>
+              </View>
+              <View style={styles.cashFlowDivider} />
+              <View style={styles.cashFlowItem}>
+                <View style={[styles.cashFlowIconBox, { backgroundColor: COLORS.accentRed + '22' }]}>
+                  <Ionicons name="arrow-up-circle-outline" size={20} color={COLORS.accentRed} />
+                </View>
+                <Text style={styles.cashFlowLabel}>Expenses</Text>
+                <Text style={[styles.cashFlowAmount, { color: COLORS.accentRed }]}>
+                  {formatAmount(total, currencySymbol, currencyCode)}
+                </Text>
+              </View>
+              <View style={styles.cashFlowDivider} />
+              <View style={styles.cashFlowItem}>
+                <View style={[styles.cashFlowIconBox, { backgroundColor: monthlyIncome >= total ? '#4CAF5022' : COLORS.accentRed + '22' }]}>
+                  <Ionicons
+                    name={monthlyIncome >= total ? 'trending-up-outline' : 'trending-down-outline'}
+                    size={20}
+                    color={monthlyIncome >= total ? '#4CAF50' : COLORS.accentRed}
+                  />
+                </View>
+                <Text style={styles.cashFlowLabel}>Net</Text>
+                <Text style={[styles.cashFlowAmount, { color: monthlyIncome >= total ? '#4CAF50' : COLORS.accentRed }]}>
+                  {monthlyIncome >= total ? '+' : '-'}{formatAmount(Math.abs(monthlyIncome - total), currencySymbol, currencyCode)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {expenses.length === 0 && (
           <View style={styles.empty}>
             <Ionicons name="stats-chart-outline" size={56} color={COLORS.border} />
@@ -658,4 +706,13 @@ recurringBadgeText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight:
   modalSaveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   modalClearBtn: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   modalClearBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 14 },
+  cashFlowCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
+  cashFlowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
+  cashFlowTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.3 },
+  cashFlowRow: { flexDirection: 'row', alignItems: 'center' },
+  cashFlowItem: { flex: 1, alignItems: 'center', gap: 6 },
+  cashFlowIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  cashFlowLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
+  cashFlowAmount: { fontSize: 13, fontWeight: '800', letterSpacing: -0.3, textAlign: 'center' },
+  cashFlowDivider: { width: 1, height: 60, backgroundColor: COLORS.border, marginHorizontal: 4 },
 })

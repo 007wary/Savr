@@ -546,7 +546,7 @@ const styles = StyleSheet.create({
   transferIconBox: { width: 80, height: 80, borderRadius: 24, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
   transferTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 10, textAlign: 'center' },
   transferSub: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22 },
-  bottomTabRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border, height: 64, paddingBottom: 8 },
+  bottomTabRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border, height: 80, paddingBottom: 24 },
   bottomTabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 6 },
   bottomTabText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
 })

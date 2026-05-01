@@ -329,6 +329,21 @@ export default function Settings() {
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
         </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        <TouchableOpacity style={styles.row} onPress={() => router.push('/accounts')}>
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#4CAF5022' }]}>
+              <Ionicons name="card-outline" size={18} color="#4CAF50" />
+            </View>
+            <View>
+              <Text style={styles.rowTitle}>Accounts</Text>
+              <Text style={styles.rowSubtitle}>Manage your cash, bank and cards</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
       </View>
 
       {/* About */}

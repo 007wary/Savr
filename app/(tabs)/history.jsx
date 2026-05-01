@@ -17,7 +17,7 @@ import * as Sharing from 'expo-sharing'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { getExpenses, updateExpense, deleteExpense, deleteRecurring, getRecurring } from '../../src/services/sqliteService'
+import { getExpenses, updateExpense, deleteExpense, deleteRecurring, getRecurring, getIncome } from '../../src/services/sqliteService'
 
 const CACHE_KEY = 'savr_cache_history'
 
@@ -37,6 +37,7 @@ export default function History() {
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [selectedMonth, setSelectedMonth] = useState('All')
   const [showFilters, setShowFilters] = useState(false)
+  const [selectedType, setSelectedType] = useState('all')
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const userRef = useRef(null)
 
@@ -64,12 +65,19 @@ export default function History() {
   }
 
   async function loadFromSQLite() {
-  try {
-    const user = getCachedUser() || userRef.current || await getUser()
-    if (!user) { setRefreshing(false); return }
-    if (!userRef.current) userRef.current = user
-      const data = await getExpenses(user.id)
-      const sorted = sortExpenses(data)
+    try {
+      const user = getCachedUser() || userRef.current || await getUser()
+      if (!user) { setRefreshing(false); return }
+      if (!userRef.current) userRef.current = user
+      const [expenseData, incomeData] = await Promise.all([
+        getExpenses(user.id),
+        getIncome(user.id),
+      ])
+      const merged = [
+        ...expenseData.map(e => ({ ...e, type: 'expense' })),
+        ...incomeData.map(i => ({ ...i, type: 'income' })),
+      ]
+      const sorted = sortExpenses(merged)
       setExpenses(sorted)
       await saveCache(CACHE_KEY, sorted)
     } catch (e) {
@@ -106,7 +114,8 @@ export default function History() {
       String(parseFloat(e.amount).toFixed(0)).includes(cleanSearch)
     const matchCategory = selectedCategory === 'All' || e.category === selectedCategory
     const matchMonth = selectedMonth === 'All' || e.date.startsWith(selectedMonth)
-    return matchSearch && matchCategory && matchMonth
+    const matchType = selectedType === 'all' || e.type === selectedType
+    return matchSearch && matchCategory && matchMonth && matchType
   })
 
   function groupByDate(data) {
@@ -126,6 +135,7 @@ export default function History() {
 
   const sections = groupByDate(filtered)
   const activeFilters = (selectedCategory !== 'All' ? 1 : 0) + (selectedMonth !== 'All' ? 1 : 0)
+  const incomeCategories = ['Salary', 'Freelance', 'Business', 'Investment', 'Rental', 'Gift', 'Other']
 
   function clearFilters() {
     setSelectedCategory('All')
@@ -278,22 +288,41 @@ export default function History() {
   }
 
   function renderItem({ item }) {
-    const cat = getCategoryInfo(item.category)
+    const isIncome = item.type === 'income'
+    const cat = isIncome
+      ? { icon: 'arrow-down-circle-outline', color: '#4CAF50' }
+      : getCategoryInfo(item.category)
+
     return (
-      <TouchableOpacity style={styles.card} onPress={() => openEdit(item)}>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => { if (!isIncome) openEdit(item) }}
+        activeOpacity={isIncome ? 1 : 0.7}
+      >
         <View style={[styles.iconBox, { backgroundColor: cat.color + '22' }]}>
           <Ionicons name={cat.icon} size={20} color={cat.color} />
         </View>
         <View style={styles.info}>
-          <Text style={styles.category}>{item.category}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={styles.category}>{item.category}</Text>
+            {isIncome && (
+              <View style={styles.incomeBadge}>
+                <Text style={styles.incomeBadgeText}>Income</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.note}>{item.note || formatDate(item.date)}</Text>
         </View>
         <View style={styles.right}>
-          <Text style={styles.amount}>{formatAmount(item.amount, currencySymbol, currencyCode)}</Text>
+          <Text style={[styles.amount, isIncome && { color: '#4CAF50' }]}>
+            {isIncome ? '+' : ''}{formatAmount(item.amount, currencySymbol, currencyCode)}
+          </Text>
         </View>
-        <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}>
-          <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
-        </TouchableOpacity>
+        {!isIncome && (
+          <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}>
+            <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
+          </TouchableOpacity>
+        )}
       </TouchableOpacity>
     )
   }
@@ -333,6 +362,24 @@ export default function History() {
           <Ionicons name="options-outline" size={18} color={activeFilters > 0 ? '#fff' : COLORS.text} />
           {activeFilters > 0 && <Text style={styles.filterBadge}>{activeFilters}</Text>}
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.typeRow}>
+        {[
+          { key: 'all', label: 'All' },
+          { key: 'expense', label: 'Expenses' },
+          { key: 'income', label: 'Income' },
+        ].map(t => (
+          <TouchableOpacity
+            key={t.key}
+            style={[styles.typeBtn, selectedType === t.key && styles.typeBtnActive(t.key)]}
+            onPress={() => setSelectedType(t.key)}
+          >
+            <Text style={[styles.typeBtnText, selectedType === t.key && { color: '#fff' }]}>
+              {t.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {activeFilters > 0 && (
@@ -595,4 +642,13 @@ const styles = StyleSheet.create({
   cancelText: { color: COLORS.textMuted, fontWeight: '600', fontSize: 15 },
   saveBtn: { flex: 1, backgroundColor: COLORS.accent, borderRadius: 12, padding: 14, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  typeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  typeBtn: { flex: 1, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, alignItems: 'center' },
+  typeBtnActive: (key) => ({
+    backgroundColor: key === 'income' ? '#4CAF50' : key === 'expense' ? COLORS.accentRed : COLORS.accent,
+    borderColor: key === 'income' ? '#4CAF50' : key === 'expense' ? COLORS.accentRed : COLORS.accent,
+  }),
+  typeBtnText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
+  incomeBadge: { backgroundColor: '#4CAF5022', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 },
+  incomeBadgeText: { fontSize: 10, color: '#4CAF50', fontWeight: '700' },
 })
