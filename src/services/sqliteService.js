@@ -4,26 +4,37 @@ import { v4 as uuidv4 } from 'uuid'
 import { AppState } from 'react-native'
 
 let db = null
+let dbInitPromise = null
 
 AppState.addEventListener('change', (nextState) => {
   if (nextState === 'active') {
     db = null
+    dbInitPromise = null
   }
 })
 
 export const getDB = async () => {
-  if (!db) {
-    db = await SQLite.openDatabaseAsync('savr.db')
-    return db
-  }
-  try {
-    await db.getFirstAsync('SELECT 1')
-    return db
-  } catch {
-    db = null
-    db = await SQLite.openDatabaseAsync('savr.db')
-    return db
-  }
+  if (dbInitPromise) return dbInitPromise
+
+  dbInitPromise = (async () => {
+    if (!db) {
+      db = await SQLite.openDatabaseAsync('savr.db')
+      dbInitPromise = null
+      return db
+    }
+    try {
+      await db.getFirstAsync('SELECT 1')
+      dbInitPromise = null
+      return db
+    } catch {
+      db = null
+      db = await SQLite.openDatabaseAsync('savr.db')
+      dbInitPromise = null
+      return db
+    }
+  })()
+
+  return dbInitPromise
 }
 
 export const initializeDatabase = async () => {

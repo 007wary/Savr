@@ -76,7 +76,7 @@ export default function RecurringScreen() {
       setInactiveItems(inactive)
       setActiveIncomeItems(activeIncome)
       setInactiveIncomeItems(inactiveIncome)
-    } catch (e) { console.error('RECURRING ERROR:', e?.message, e?.stack) }
+    } catch {}
     finally { setLoading(false); setRefreshing(false) }
   }
 
