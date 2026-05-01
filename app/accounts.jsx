@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, KeyboardAvoidingView, Platform, ActivityIndicator
@@ -36,7 +36,7 @@ export default function Accounts() {
   const [currencyCode, setCurrencyCode] = useState('INR')
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
-  const userRef = { current: null }
+  const userRef = useRef(null)
 
   async function fetchAccounts() {
     try {
@@ -53,7 +53,10 @@ export default function Accounts() {
     finally { setLoading(false) }
   }
 
-  useFocusEffect(useCallback(() => { fetchAccounts() }, []))
+  useFocusEffect(useCallback(() => {
+    setLoading(true)
+    fetchAccounts()
+  }, []))
 
   function openAdd() {
     setEditingAccount(null)

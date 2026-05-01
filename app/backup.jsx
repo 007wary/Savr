@@ -23,12 +23,17 @@ export default function BackupScreen() {
 
   // Preload last backup time instantly on mount
   useEffect(() => {
-    AsyncStorage.getItem('savr_last_backup').then(time => {
-      if (time) {
-        setLastBackup(time)
-        setLoading(false)
-      }
-    }).catch(() => {})
+    async function preload() {
+      try {
+        const [time, cached] = await Promise.all([
+          AsyncStorage.getItem('savr_last_backup'),
+          AsyncStorage.getItem('savr_is_up_to_date'),
+        ])
+        if (time) { setLastBackup(time); setLoading(false) }
+        if (cached === 'true') { setIsUpToDate(true); setChecking(false) }
+      } catch {}
+    }
+    preload()
   }, [])
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
@@ -52,10 +57,13 @@ export default function BackupScreen() {
         const user = getCachedUser() || await getUser()
         if (user) {
           const changed = await hasDataChanged(user.id)
-          setIsUpToDate(!changed)
+          const upToDate = !changed
+          setIsUpToDate(upToDate)
+          await AsyncStorage.setItem('savr_is_up_to_date', upToDate ? 'true' : 'false')
         }
       } else {
         setIsUpToDate(false)
+        await AsyncStorage.setItem('savr_is_up_to_date', 'false')
       }
     } catch {}
     finally {
@@ -79,6 +87,7 @@ export default function BackupScreen() {
     if (result.success) {
       setLastBackup(result.backedUpAt)
       setIsUpToDate(true)
+      await AsyncStorage.setItem('savr_is_up_to_date', 'true')
       await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, new Date().toISOString().split('T')[0])
       showAlert('✅ Backup Successful', 'Your data has been backed up to Google Drive.')
     } else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
@@ -154,7 +163,7 @@ export default function BackupScreen() {
             : <Ionicons name="cloud-upload-outline" size={20} color="#fff" style={{ marginRight: 10 }} />
           }
           <Text style={styles.backupBtnText}>
-            {backingUp ? 'Backing up...' : loading ? 'Loading...' : isUpToDate ? 'Already Up To Date' : 'Backup Now'}
+            {backingUp ? 'Backing up...' : isUpToDate ? 'Already Up To Date' : 'Backup Now'}
           </Text>
         </TouchableOpacity>
 

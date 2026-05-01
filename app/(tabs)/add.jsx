@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ScrollView, KeyboardAvoidingView,
@@ -6,7 +6,7 @@ import {
 } from 'react-native'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { Ionicons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
+import { useRouter, useFocusEffect } from 'expo-router'
 import { COLORS, CATEGORIES, SCREEN } from '../../src/constants/theme'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
@@ -69,17 +69,23 @@ export default function AddExpense() {
       setCurrencySymbol(symbol)
       setCurrencyCode(code)
       setQuickAmounts(getQuickAmounts(code))
-      const user = getCachedUser() || await getUser()
-      userRef.current = user
-      if (user) {
-        try {
-          const accs = await getAccounts(user.id)
-          setAccounts(accs)
-        } catch {}
-      }
+      userRef.current = getCachedUser() || await getUser()
     }
     init()
   }, [])
+
+  useFocusEffect(useCallback(() => {
+    async function refreshAccounts() {
+      try {
+        const user = getCachedUser() || userRef.current || await getUser()
+        if (!user) return
+        userRef.current = user
+        const accs = await getAccounts(user.id)
+        setAccounts(accs)
+      } catch {}
+    }
+    refreshAccounts()
+  }, []))
 
   function handleTabSwitch(tab) {
     setActiveTab(tab)
@@ -370,7 +376,7 @@ export default function AddExpense() {
         <View style={{ width: 40 }} />
       </View>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
 
         {/* Scrollable content */}
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
@@ -567,46 +573,50 @@ export default function AddExpense() {
                 ))}
               </View>
 
-              <View style={styles.recurringToggleRow}>
-                <View style={styles.recurringToggleLeft}>
-                  <View style={[styles.recurringIconBox, { backgroundColor: '#4CAF5022' }]}>
-                    <Ionicons name="repeat" size={18} color="#4CAF50" />
+              {activeTab === 'income' && (
+                <>
+                  <View style={styles.recurringToggleRow}>
+                    <View style={styles.recurringToggleLeft}>
+                      <View style={[styles.recurringIconBox, { backgroundColor: '#4CAF5022' }]}>
+                        <Ionicons name="repeat" size={18} color="#4CAF50" />
+                      </View>
+                      <View>
+                        <Text style={styles.recurringToggleTitle}>Repeat this income</Text>
+                        <Text style={styles.recurringToggleSub}>Auto-log daily, weekly or monthly</Text>
+                      </View>
+                    </View>
+                    <Switch
+                      value={isRecurringIncome}
+                      onValueChange={setIsRecurringIncome}
+                      trackColor={{ false: COLORS.border, true: '#4CAF50' }}
+                      thumbColor="#fff"
+                    />
                   </View>
-                  <View>
-                    <Text style={styles.recurringToggleTitle}>Repeat this income</Text>
-                    <Text style={styles.recurringToggleSub}>Auto-log daily, weekly or monthly</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={isRecurringIncome}
-                  onValueChange={setIsRecurringIncome}
-                  trackColor={{ false: COLORS.border, true: '#4CAF50' }}
-                  thumbColor="#fff"
-                />
-              </View>
 
-              {isRecurringIncome && (
-                <View style={styles.frequencySection}>
-                  <Text style={styles.label}>Repeat every</Text>
-                  <View style={styles.freqRow}>
-                    {FREQUENCIES.map(f => (
-                      <TouchableOpacity
-                        key={f.value}
-                        style={[styles.freqBtn, incomeFrequency === f.value && { backgroundColor: '#4CAF50', borderColor: '#4CAF50' }]}
-                        onPress={() => setIncomeFrequency(f.value)}
-                      >
-                        <Ionicons name={f.icon} size={16} color={incomeFrequency === f.value ? '#fff' : COLORS.textMuted} />
-                        <Text style={[styles.freqLabel, incomeFrequency === f.value && { color: '#fff' }]}>{f.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
+                  {isRecurringIncome && (
+                    <View style={styles.frequencySection}>
+                      <Text style={styles.label}>Repeat every</Text>
+                      <View style={styles.freqRow}>
+                        {FREQUENCIES.map(f => (
+                          <TouchableOpacity
+                            key={f.value}
+                            style={[styles.freqBtn, incomeFrequency === f.value && { backgroundColor: '#4CAF50', borderColor: '#4CAF50' }]}
+                            onPress={() => setIncomeFrequency(f.value)}
+                          >
+                            <Ionicons name={f.icon} size={16} color={incomeFrequency === f.value ? '#fff' : COLORS.textMuted} />
+                            <Text style={[styles.freqLabel, incomeFrequency === f.value && { color: '#fff' }]}>{f.label}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+                </>
               )}
 
               {accounts.length > 0 && (
                 <>
                   <Text style={styles.label}>Account (optional)</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20, marginTop: -12 }}>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20 }}>
                     <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4 }}>
                       <TouchableOpacity
                         style={[styles.accountPill, selectedAccountId === null && styles.accountPillActive(tabColor)]}

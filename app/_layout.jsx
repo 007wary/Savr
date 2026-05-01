@@ -247,6 +247,7 @@ try {
         AsyncStorage.removeItem(LAST_RECURRING_CHECK_KEY).catch(() => {})
         AsyncStorage.removeItem('savr_restore_offered').catch(() => {})
         AsyncStorage.removeItem('savr_last_backup').catch(() => {})
+        AsyncStorage.removeItem('savr_is_up_to_date').catch(() => {})
         AsyncStorage.removeItem('savr_last_backup_hash').catch(() => {})
         AsyncStorage.removeItem('savr_reminder_suppressed_date').catch(() => {})
         import('../src/lib/notifications').then(({ cancelDailyReminder }) => cancelDailyReminder()).catch(() => {})

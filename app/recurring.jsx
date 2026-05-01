@@ -79,7 +79,10 @@ export default function RecurringScreen() {
     finally { setLoading(false); setRefreshing(false) }
   }
 
-  useFocusEffect(useCallback(() => { fetchData() }, []))
+  useFocusEffect(useCallback(() => {
+    setLoading(true)
+    fetchData()
+  }, []))
 
   function getCategoryInfo(label, isIncome = false) {
     if (isIncome) return INCOME_CATEGORIES.find(c => c.label === label) || { icon: 'cash-outline', color: '#4CAF50' }
@@ -318,7 +321,7 @@ export default function RecurringScreen() {
 
   if (loading) {
     return (
-      <View style={styles.container}>
+      <View style={{ flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal }}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color={COLORS.text} />
