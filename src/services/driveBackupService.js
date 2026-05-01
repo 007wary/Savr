@@ -136,7 +136,11 @@ async function getAllDataFromSQLite(userId) {
   const budgets = await db.getAllAsync('SELECT * FROM budgets WHERE user_id = ?', [userId])
   const recurring = await db.getAllAsync('SELECT * FROM recurring_expenses WHERE user_id = ?', [userId])
   const goals = await db.getAllAsync('SELECT * FROM spending_goals WHERE user_id = ?', [userId])
-  return { expenses, budgets, recurring, goals }
+  const accounts = await db.getAllAsync('SELECT * FROM accounts WHERE user_id = ?', [userId])
+  const income = await db.getAllAsync('SELECT * FROM income WHERE user_id = ?', [userId])
+  const transfers = await db.getAllAsync('SELECT * FROM transfers WHERE user_id = ?', [userId])
+  const recurringIncome = await db.getAllAsync('SELECT * FROM recurring_income WHERE user_id = ?', [userId])
+  return { expenses, budgets, recurring, goals, accounts, income, transfers, recurringIncome }
 }
 
 async function restoreAllDataToSQLite(userId, data) {
@@ -148,12 +152,16 @@ async function restoreAllDataToSQLite(userId, data) {
     await db.runAsync('DELETE FROM budgets WHERE user_id = ?', [userId])
     await db.runAsync('DELETE FROM recurring_expenses WHERE user_id = ?', [userId])
     await db.runAsync('DELETE FROM spending_goals WHERE user_id = ?', [userId])
+    await db.runAsync('DELETE FROM accounts WHERE user_id = ?', [userId])
+    await db.runAsync('DELETE FROM income WHERE user_id = ?', [userId])
+    await db.runAsync('DELETE FROM transfers WHERE user_id = ?', [userId])
+    await db.runAsync('DELETE FROM recurring_income WHERE user_id = ?', [userId])
 
     for (const e of (data.expenses || [])) {
       await db.runAsync(
-        `INSERT OR REPLACE INTO expenses (id, user_id, amount, category, note, date, is_recurring, recurring_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [e.id, userId, e.amount, e.category, e.note, e.date, e.is_recurring || 0, e.recurring_id, e.created_at || now, e.updated_at || now]
+        `INSERT OR REPLACE INTO expenses (id, user_id, amount, category, note, date, is_recurring, recurring_id, account_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [e.id, userId, e.amount, e.category, e.note, e.date, e.is_recurring || 0, e.recurring_id, e.account_id || null, e.created_at || now, e.updated_at || now]
       )
     }
 
@@ -180,17 +188,51 @@ async function restoreAllDataToSQLite(userId, data) {
         [g.id, userId, g.title, g.target_amount, g.current_amount || 0, g.deadline, g.created_at || now, g.updated_at || now]
       )
     }
+
+    for (const a of (data.accounts || [])) {
+      await db.runAsync(
+        `INSERT OR REPLACE INTO accounts (id, user_id, name, type, balance, currency, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [a.id, userId, a.name, a.type, a.balance || 0, a.currency || 'INR', a.created_at || now, a.updated_at || now]
+      )
+    }
+
+    for (const i of (data.income || [])) {
+      await db.runAsync(
+        `INSERT OR REPLACE INTO income (id, user_id, amount, category, note, date, account_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [i.id, userId, i.amount, i.category, i.note, i.date, i.account_id || null, i.created_at || now, i.updated_at || now]
+      )
+    }
+
+    for (const t of (data.transfers || [])) {
+      await db.runAsync(
+        `INSERT OR REPLACE INTO transfers (id, user_id, from_account_id, to_account_id, amount, note, date, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [t.id, userId, t.from_account_id, t.to_account_id, t.amount, t.note || null, t.date, t.created_at || now, t.updated_at || now]
+      )
+    }
+
+    for (const ri of (data.recurringIncome || [])) {
+      await db.runAsync(
+        `INSERT OR REPLACE INTO recurring_income (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [ri.id, userId, ri.amount, ri.category, ri.note, ri.frequency, ri.next_due, ri.last_logged, ri.is_active ?? 1, ri.created_at || now, ri.updated_at || now]
+      )
+    }
   })
 }
 
 export async function generateDataHash(userId) {
   try {
     const db = await getDB()
-    const result = await db.getFirstAsync(
-      `SELECT COUNT(*) as count, MAX(updated_at) as latest FROM expenses WHERE user_id = ?`,
-      [userId]
-    )
-    return `${result?.count || 0}_${result?.latest || ''}`
+    const [exp, inc, acc, tr] = await Promise.all([
+      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM expenses WHERE user_id = ?`, [userId]),
+      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM income WHERE user_id = ?`, [userId]),
+      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM accounts WHERE user_id = ?`, [userId]),
+      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM transfers WHERE user_id = ?`, [userId]),
+    ])
+    return `${exp?.count || 0}_${exp?.latest || ''}_${inc?.count || 0}_${inc?.latest || ''}_${acc?.count || 0}_${acc?.latest || ''}_${tr?.count || 0}_${tr?.latest || ''}`
   } catch {
     return null
   }
@@ -232,7 +274,7 @@ export async function backupToDrive() {
     if (!isValid) return { success: false, error: 'SESSION_EXPIRED' }
 
     const backupPayload = {
-      version: 1,
+      version: 2,
       userId: user.id,
       email: user.email,
       backedUpAt: new Date().toISOString(),

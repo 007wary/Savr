@@ -17,7 +17,7 @@ import * as Sharing from 'expo-sharing'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { getExpenses, updateExpense, deleteExpense, deleteRecurring, getRecurring, getIncome } from '../../src/services/sqliteService'
+import { getExpenses, updateExpense, deleteExpense, deleteRecurring, getRecurring, getIncome, getTransfers, getAccounts } from '../../src/services/sqliteService'
 
 const CACHE_KEY = 'savr_cache_history'
 
@@ -69,13 +69,22 @@ export default function History() {
       const user = getCachedUser() || userRef.current || await getUser()
       if (!user) { setRefreshing(false); return }
       if (!userRef.current) userRef.current = user
-      const [expenseData, incomeData] = await Promise.all([
+      const [expenseData, incomeData, transferData, accountData] = await Promise.all([
         getExpenses(user.id),
         getIncome(user.id),
+        getTransfers(user.id),
+        getAccounts(user.id),
       ])
+      const accountMap = {}
+      accountData.forEach(a => { accountMap[a.id] = a.name })
       const merged = [
         ...expenseData.map(e => ({ ...e, type: 'expense' })),
         ...incomeData.map(i => ({ ...i, type: 'income' })),
+        ...transferData.map(t => ({
+          ...t,
+          type: 'transfer',
+          category: `${accountMap[t.from_account_id] || 'Unknown'} → ${accountMap[t.to_account_id] || 'Unknown'}`,
+        })),
       ]
       const sorted = sortExpenses(merged)
       setExpenses(sorted)
@@ -289,36 +298,44 @@ export default function History() {
 
   function renderItem({ item }) {
     const isIncome = item.type === 'income'
+    const isTransfer = item.type === 'transfer'
     const cat = isIncome
       ? { icon: 'arrow-down-circle-outline', color: '#4CAF50' }
-      : getCategoryInfo(item.category)
+      : isTransfer
+        ? { icon: 'swap-horizontal-outline', color: '#607D8B' }
+        : getCategoryInfo(item.category)
 
     return (
       <TouchableOpacity
         style={styles.card}
-        onPress={() => { if (!isIncome) openEdit(item) }}
-        activeOpacity={isIncome ? 1 : 0.7}
+        onPress={() => { if (!isIncome && !isTransfer) openEdit(item) }}
+        activeOpacity={isIncome || isTransfer ? 1 : 0.7}
       >
         <View style={[styles.iconBox, { backgroundColor: cat.color + '22' }]}>
           <Ionicons name={cat.icon} size={20} color={cat.color} />
         </View>
         <View style={styles.info}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={styles.category}>{item.category}</Text>
+            <Text style={styles.category} numberOfLines={1}>{item.category}</Text>
             {isIncome && (
               <View style={styles.incomeBadge}>
                 <Text style={styles.incomeBadgeText}>Income</Text>
+              </View>
+            )}
+            {isTransfer && (
+              <View style={styles.transferBadge}>
+                <Text style={styles.transferBadgeText}>Transfer</Text>
               </View>
             )}
           </View>
           <Text style={styles.note}>{item.note || formatDate(item.date)}</Text>
         </View>
         <View style={styles.right}>
-          <Text style={[styles.amount, isIncome && { color: '#4CAF50' }]}>
+          <Text style={[styles.amount, isIncome && { color: '#4CAF50' }, isTransfer && { color: '#607D8B' }]}>
             {isIncome ? '+' : ''}{formatAmount(item.amount, currencySymbol, currencyCode)}
           </Text>
         </View>
-        {!isIncome && (
+        {!isIncome && !isTransfer && (
           <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}>
             <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
           </TouchableOpacity>
@@ -369,6 +386,7 @@ export default function History() {
           { key: 'all', label: 'All' },
           { key: 'expense', label: 'Expenses' },
           { key: 'income', label: 'Income' },
+          { key: 'transfer', label: 'Transfers' },
         ].map(t => (
           <TouchableOpacity
             key={t.key}
@@ -645,10 +663,12 @@ const styles = StyleSheet.create({
   typeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   typeBtn: { flex: 1, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, alignItems: 'center' },
   typeBtnActive: (key) => ({
-    backgroundColor: key === 'income' ? '#4CAF50' : key === 'expense' ? COLORS.accentRed : COLORS.accent,
-    borderColor: key === 'income' ? '#4CAF50' : key === 'expense' ? COLORS.accentRed : COLORS.accent,
+    backgroundColor: key === 'income' ? '#4CAF50' : key === 'expense' ? COLORS.accentRed : key === 'transfer' ? '#607D8B' : COLORS.accent,
+    borderColor: key === 'income' ? '#4CAF50' : key === 'expense' ? COLORS.accentRed : key === 'transfer' ? '#607D8B' : COLORS.accent,
   }),
   typeBtnText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
   incomeBadge: { backgroundColor: '#4CAF5022', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 },
   incomeBadgeText: { fontSize: 10, color: '#4CAF50', fontWeight: '700' },
+  transferBadge: { backgroundColor: '#607D8B22', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 },
+  transferBadgeText: { fontSize: 10, color: '#607D8B', fontWeight: '700' },
 })

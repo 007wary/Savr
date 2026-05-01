@@ -320,17 +320,18 @@ export default function Dashboard() {
   if (loading) return <DashboardSkeleton />
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.outerContainer}>
+      <View style={styles.header}>
+        <Text style={styles.brandText}>Savr</Text>
+      </View>
+
       <ScrollView
-        style={styles.container}
+        style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(true) }} tintColor={COLORS.accent} />
         }
       >
-        <View style={styles.header}>
-          <Text style={styles.brandText}>Savr</Text>
-        </View>
 
         <View style={styles.monthNav}>
           <TouchableOpacity style={styles.monthNavBtn} onPress={() => setMonthOffset(o => o - 1)}>
@@ -623,8 +624,10 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
-  header: { marginBottom: 16 },
+  outerContainer: { flex: 1, backgroundColor: COLORS.bg },
+  container: { flex: 1, backgroundColor: COLORS.bg, paddingHorizontal: SCREEN.paddingHorizontal },
+  scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal },
+  header: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
   brandText: { fontSize: 32, fontWeight: '900', color: COLORS.accent, letterSpacing: -1 },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 14, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },
   monthNavBtn: { padding: 4 },
