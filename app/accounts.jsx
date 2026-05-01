@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, KeyboardAvoidingView, Platform, ActivityIndicator
@@ -53,10 +53,9 @@ export default function Accounts() {
     finally { setLoading(false) }
   }
 
-  useFocusEffect(useCallback(() => {
-    setLoading(true)
+  useFocusEffect(() => {
     fetchAccounts()
-  }, []))
+  })
 
   function openAdd() {
     setEditingAccount(null)

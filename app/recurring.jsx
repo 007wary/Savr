@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useRef } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, RefreshControl, TextInput
@@ -79,10 +79,9 @@ export default function RecurringScreen() {
     finally { setLoading(false); setRefreshing(false) }
   }
 
-  useFocusEffect(useCallback(() => {
-    setLoading(true)
+  useFocusEffect(() => {
     fetchData()
-  }, []))
+  })
 
   function getCategoryInfo(label, isIncome = false) {
     if (isIncome) return INCOME_CATEGORIES.find(c => c.label === label) || { icon: 'cash-outline', color: '#4CAF50' }
