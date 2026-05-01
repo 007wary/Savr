@@ -16,7 +16,7 @@ import { getCurrencySymbol, loadCurrency, formatAmount, getQuickAmounts } from '
 import { detectCategory } from '../../src/lib/categoryDetector'
 import { detectAnomaly } from '../../src/lib/anomalyDetector'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
-import { addExpense, addRecurring, getExpenses, getBudgets } from '../../src/services/sqliteService'
+import { addExpense, addRecurring, addIncome, getExpenses, getBudgets } from '../../src/services/sqliteService'
 import { Analytics } from '../../src/lib/analytics'
 
 const FREQUENCIES = [
@@ -25,7 +25,18 @@ const FREQUENCIES = [
   { label: 'Monthly', value: 'monthly', icon: 'calendar-number-outline' },
 ]
 
+const INCOME_CATEGORIES = [
+  { label: 'Salary', icon: 'briefcase-outline', color: '#4CAF50' },
+  { label: 'Freelance', icon: 'laptop-outline', color: '#2196F3' },
+  { label: 'Business', icon: 'storefront-outline', color: '#FF9800' },
+  { label: 'Investment', icon: 'trending-up-outline', color: '#9C27B0' },
+  { label: 'Rental', icon: 'home-outline', color: '#00BCD4' },
+  { label: 'Gift', icon: 'gift-outline', color: '#E91E63' },
+  { label: 'Other', icon: 'ellipsis-horizontal-outline', color: '#607D8B' },
+]
+
 export default function AddExpense() {
+  const [activeTab, setActiveTab] = useState('expense')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(null)
@@ -54,15 +65,28 @@ export default function AddExpense() {
     init()
   }, [])
 
+  function handleTabSwitch(tab) {
+    setActiveTab(tab)
+    setAmount('')
+    setNote('')
+    setSelectedCategory(null)
+    setAutoDetected(false)
+    setDate(new Date())
+    setIsRecurring(false)
+    setFrequency('monthly')
+  }
+
   function handleNoteChange(text) {
     setNote(text)
-    const detected = detectCategory(text)
-    if (detected) {
-      setSelectedCategory(detected)
-      setAutoDetected(true)
-    } else if (autoDetected) {
-      setSelectedCategory(null)
-      setAutoDetected(false)
+    if (activeTab === 'expense') {
+      const detected = detectCategory(text)
+      if (detected) {
+        setSelectedCategory(detected)
+        setAutoDetected(true)
+      } else if (autoDetected) {
+        setSelectedCategory(null)
+        setAutoDetected(false)
+      }
     }
   }
 
@@ -92,12 +116,12 @@ export default function AddExpense() {
   async function saveExpense(expenseData, expenseMonth, currentMonth) {
     try {
       const user = getCachedUser() || userRef.current || await getUser()
-if (!user) {
-  showAlert('Error', 'Could not save expense. Please try again.')
-  setSubmitting(false)
-  return
-}
-if (!userRef.current) userRef.current = user
+      if (!user) {
+        showAlert('Error', 'Could not save expense. Please try again.')
+        setSubmitting(false)
+        return
+      }
+      if (!userRef.current) userRef.current = user
 
       if (isRecurring) {
         await addRecurring(user.id, {
@@ -155,8 +179,34 @@ if (!userRef.current) userRef.current = user
     }
   }
 
+  async function saveIncome(incomeData, incomeMonth, currentMonth) {
+    try {
+      const user = getCachedUser() || userRef.current || await getUser()
+      if (!user) {
+        showAlert('Error', 'Could not save income. Please try again.')
+        setSubmitting(false)
+        return
+      }
+      if (!userRef.current) userRef.current = user
+
+      await addIncome(user.id, incomeData)
+
+      await clearCache(`savr_cache_dashboard_${incomeMonth}`)
+      await clearCache(`savr_cache_reports_${incomeMonth}`)
+
+      router.replace('/(tabs)/dashboard')
+    } catch (e) {
+      showAlert('Error', 'Could not save income. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   async function handleAdd() {
     if (submitting) return
+
+    if (activeTab === 'transfer') return
+
     if (!amount || !selectedCategory) {
       return showAlert('Missing info', 'Please enter an amount and select a category')
     }
@@ -165,10 +215,22 @@ if (!userRef.current) userRef.current = user
     }
 
     setSubmitting(true)
-    const expenseDate = new Date(date)
-    const expenseMonth = `${expenseDate.getFullYear()}-${String(expenseDate.getMonth() + 1).padStart(2, '0')}`
+    const entryDate = new Date(date)
+    const entryMonth = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, '0')}`
     const now = new Date()
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+    if (activeTab === 'income') {
+      const incomeData = {
+        amount: parseFloat(amount),
+        category: selectedCategory,
+        note: note.trim(),
+        date: formatDateStr(date),
+      }
+      resetForm()
+      await saveIncome(incomeData, entryMonth, currentMonth)
+      return
+    }
 
     const expenseData = {
       amount: parseFloat(amount),
@@ -180,8 +242,8 @@ if (!userRef.current) userRef.current = user
     if (!isRecurring) {
       try {
         const user = getCachedUser() || userRef.current || await getUser()
-const allExpenses = user ? await getExpenses(user.id) : []
-const anomaly = detectAnomaly(expenseData.amount, selectedCategory, allExpenses)
+        const allExpenses = user ? await getExpenses(user.id) : []
+        const anomaly = detectAnomaly(expenseData.amount, selectedCategory, allExpenses)
         if (anomaly) {
           setSubmitting(false)
           showAlert(
@@ -195,7 +257,7 @@ const anomaly = detectAnomaly(expenseData.amount, selectedCategory, allExpenses)
                   try {
                     setSubmitting(true)
                     resetForm()
-                    await saveExpense(expenseData, expenseMonth, currentMonth)
+                    await saveExpense(expenseData, entryMonth, currentMonth)
                   } catch {
                     setSubmitting(false)
                     showAlert('Error', 'Could not save expense. Please try again.')
@@ -210,166 +272,259 @@ const anomaly = detectAnomaly(expenseData.amount, selectedCategory, allExpenses)
     }
 
     resetForm()
-    await saveExpense(expenseData, expenseMonth, currentMonth)
+    await saveExpense(expenseData, entryMonth, currentMonth)
   }
 
   const selectedCat = CATEGORIES.find(c => c.label === selectedCategory)
+  const selectedIncomeCat = INCOME_CATEGORIES.find(c => c.label === selectedCategory)
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <Text style={styles.heading}>Add Expense</Text>
 
-        <Text style={styles.label}>Amount ({currencySymbol})</Text>
-        <TextInput
-          style={styles.input}
-          placeholder={`${currencySymbol}0.00`}
-          placeholderTextColor={COLORS.textMuted}
-          value={amount}
-          onChangeText={setAmount}
-          keyboardType="numeric"
-        />
-
-        <View style={styles.quickAmounts}>
-          {quickAmounts.map(q => (
+        {/* Tab Switcher */}
+        <View style={styles.tabRow}>
+          {['income', 'expense', 'transfer'].map(tab => (
             <TouchableOpacity
-              key={q}
-              style={[styles.quickBtn, amount === q && styles.quickBtnActive]}
-              onPress={() => setAmount(q)}
+              key={tab}
+              style={[styles.tabBtn, activeTab === tab && styles.tabBtnActive(tab)]}
+              onPress={() => handleTabSwitch(tab)}
             >
-              <Text style={[styles.quickText, amount === q && styles.quickTextActive]}>
-                {currencySymbol}{q}
+              <Ionicons
+                name={tab === 'income' ? 'arrow-down-circle-outline' : tab === 'expense' ? 'arrow-up-circle-outline' : 'swap-horizontal-outline'}
+                size={15}
+                color={activeTab === tab ? '#fff' : COLORS.textMuted}
+                style={{ marginRight: 5 }}
+              />
+              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        <Text style={styles.label}>Note (optional)</Text>
-        <View style={styles.noteContainer}>
-          <TextInput
-            style={[styles.input, styles.noteInput]}
-            placeholder="What was this for? (e.g. Swiggy, Petrol, Amazon)"
-            placeholderTextColor={COLORS.textMuted}
-            value={note}
-            onChangeText={handleNoteChange}
-            multiline
-          />
-          {autoDetected && selectedCategory && (
-            <View style={styles.autoDetectBadge}>
-              <Ionicons name="flash" size={12} color={COLORS.accentGreen} />
-              <Text style={styles.autoDetectText}>
-                Auto-detected: {selectedCat && <Ionicons name={selectedCat.icon} size={12} color={COLORS.accentGreen} />} {selectedCategory}
-              </Text>
+        {/* ── TRANSFER TAB ── */}
+        {activeTab === 'transfer' && (
+          <View style={styles.transferStub}>
+            <View style={styles.transferIconBox}>
+              <Ionicons name="swap-horizontal-outline" size={40} color={COLORS.textMuted} />
             </View>
-          )}
-        </View>
-
-        <View style={styles.categoryHeader}>
-          <Text style={styles.label}>Category</Text>
-          {autoDetected && (
-            <View style={styles.autoDetectHintRow}>
-              <Ionicons name="flash" size={11} color={COLORS.accentGreen} />
-              <Text style={styles.autoDetectHint}> Auto-selected from your note</Text>
-            </View>
-          )}
-        </View>
-        <View style={styles.categoryGrid}>
-          {CATEGORIES.map((cat) => (
-            <TouchableOpacity
-              key={cat.label}
-              style={[
-                styles.categoryBtn,
-                selectedCategory === cat.label && { backgroundColor: cat.color + '22', borderColor: cat.color, borderWidth: 2 },
-                selectedCategory === cat.label && autoDetected && styles.categoryBtnAutoDetected,
-              ]}
-              onPress={() => handleCategorySelect(cat.label)}
-            >
-              <View style={[styles.categoryIconBox, { backgroundColor: selectedCategory === cat.label ? cat.color : COLORS.cardAlt }]}>
-                <Ionicons
-                  name={cat.icon}
-                  size={20}
-                  color={selectedCategory === cat.label ? '#fff' : cat.color}
-                />
-              </View>
-              <Text style={[styles.categoryLabel, selectedCategory === cat.label && { color: COLORS.text, fontWeight: '700' }]}>
-                {cat.label}
-              </Text>
-              {selectedCategory === cat.label && autoDetected && <View style={styles.autoDetectDot} />}
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <Text style={styles.label}>{isRecurring ? 'First Due Date' : 'Date'}</Text>
-        <TouchableOpacity style={styles.datePicker} onPress={() => setShowDatePicker(true)}>
-          <Text style={styles.dateText}>{formatDisplayDate(date)}</Text>
-          <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} />
-        </TouchableOpacity>
-
-        {showDatePicker && (
-          <DateTimePicker
-            value={date}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(event, selectedDate) => {
-              setShowDatePicker(Platform.OS === 'ios')
-              if (selectedDate) setDate(selectedDate)
-            }}
-          />
+            <Text style={styles.transferTitle}>Transfers coming soon</Text>
+            <Text style={styles.transferSub}>You'll be able to move money between accounts once you set up your accounts.</Text>
+          </View>
         )}
 
-        <View style={styles.recurringToggleRow}>
-          <View style={styles.recurringToggleLeft}>
-            <View style={styles.recurringIconBox}>
-              <Ionicons name="repeat" size={18} color={COLORS.accent} />
-            </View>
-            <View>
-              <Text style={styles.recurringToggleTitle}>Repeat this expense</Text>
-              <Text style={styles.recurringToggleSub}>Auto-log daily, weekly or monthly</Text>
-            </View>
-          </View>
-          <Switch
-            value={isRecurring}
-            onValueChange={setIsRecurring}
-            trackColor={{ false: COLORS.border, true: COLORS.accent }}
-            thumbColor="#fff"
-          />
-        </View>
+        {/* ── INCOME & EXPENSE TABS ── */}
+        {activeTab !== 'transfer' && (
+          <>
+            <Text style={styles.heading}>
+              {activeTab === 'income' ? 'Add Income' : 'Add Expense'}
+            </Text>
 
-        {isRecurring && (
-          <View style={styles.frequencySection}>
-            <Text style={styles.label}>Repeat every</Text>
-            <View style={styles.freqRow}>
-              {FREQUENCIES.map(f => (
+            <Text style={styles.label}>Amount ({currencySymbol})</Text>
+            <TextInput
+              style={styles.input}
+              placeholder={`${currencySymbol}0.00`}
+              placeholderTextColor={COLORS.textMuted}
+              value={amount}
+              onChangeText={setAmount}
+              keyboardType="numeric"
+            />
+
+            <View style={styles.quickAmounts}>
+              {quickAmounts.map(q => (
                 <TouchableOpacity
-                  key={f.value}
-                  style={[styles.freqBtn, frequency === f.value && styles.freqBtnActive]}
-                  onPress={() => setFrequency(f.value)}
+                  key={q}
+                  style={[styles.quickBtn, amount === q && styles.quickBtnActive]}
+                  onPress={() => setAmount(q)}
                 >
-                  <Ionicons
-                    name={f.icon}
-                    size={16}
-                    color={frequency === f.value ? '#fff' : COLORS.textMuted}
-                  />
-                  <Text style={[styles.freqLabel, frequency === f.value && { color: '#fff' }]}>{f.label}</Text>
+                  <Text style={[styles.quickText, amount === q && styles.quickTextActive]}>
+                    {currencySymbol}{q}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
-          </View>
-        )}
 
-        <TouchableOpacity
-          style={[styles.btn, isRecurring && { backgroundColor: COLORS.accentGreen }, submitting && { opacity: 0.6 }]}
-          onPress={handleAdd}
-          disabled={submitting}
-        >
-          {submitting
-            ? <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-            : <Ionicons name={isRecurring ? 'repeat' : 'checkmark'} size={18} color="#fff" style={{ marginRight: 8 }} />
-          }
-          <Text style={styles.btnText}>
-            {submitting ? 'Saving...' : isRecurring ? 'Add Recurring Expense' : 'Add Expense'}
-          </Text>
-        </TouchableOpacity>
+            <Text style={styles.label}>Note (optional)</Text>
+            <View style={styles.noteContainer}>
+              <TextInput
+                style={[styles.input, styles.noteInput]}
+                placeholder={activeTab === 'income' ? 'e.g. Monthly salary, Client payment' : 'What was this for? (e.g. Swiggy, Petrol, Amazon)'}
+                placeholderTextColor={COLORS.textMuted}
+                value={note}
+                onChangeText={handleNoteChange}
+                multiline
+              />
+              {activeTab === 'expense' && autoDetected && selectedCategory && (
+                <View style={styles.autoDetectBadge}>
+                  <Ionicons name="flash" size={12} color={COLORS.accentGreen} />
+                  <Text style={styles.autoDetectText}>
+                    Auto-detected: {selectedCat && <Ionicons name={selectedCat.icon} size={12} color={COLORS.accentGreen} />} {selectedCategory}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View style={styles.categoryHeader}>
+              <Text style={styles.label}>Category</Text>
+              {activeTab === 'expense' && autoDetected && (
+                <View style={styles.autoDetectHintRow}>
+                  <Ionicons name="flash" size={11} color={COLORS.accentGreen} />
+                  <Text style={styles.autoDetectHint}> Auto-selected from your note</Text>
+                </View>
+              )}
+            </View>
+
+            {/* Income categories */}
+            {activeTab === 'income' && (
+              <View style={styles.categoryGrid}>
+                {INCOME_CATEGORIES.map((cat) => (
+                  <TouchableOpacity
+                    key={cat.label}
+                    style={[
+                      styles.categoryBtn,
+                      selectedCategory === cat.label && { backgroundColor: cat.color + '22', borderColor: cat.color, borderWidth: 2 },
+                    ]}
+                    onPress={() => handleCategorySelect(cat.label)}
+                  >
+                    <View style={[styles.categoryIconBox, { backgroundColor: selectedCategory === cat.label ? cat.color : COLORS.cardAlt }]}>
+                      <Ionicons
+                        name={cat.icon}
+                        size={20}
+                        color={selectedCategory === cat.label ? '#fff' : cat.color}
+                      />
+                    </View>
+                    <Text style={[styles.categoryLabel, selectedCategory === cat.label && { color: COLORS.text, fontWeight: '700' }]}>
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            {/* Expense categories */}
+            {activeTab === 'expense' && (
+              <View style={styles.categoryGrid}>
+                {CATEGORIES.map((cat) => (
+                  <TouchableOpacity
+                    key={cat.label}
+                    style={[
+                      styles.categoryBtn,
+                      selectedCategory === cat.label && { backgroundColor: cat.color + '22', borderColor: cat.color, borderWidth: 2 },
+                      selectedCategory === cat.label && autoDetected && styles.categoryBtnAutoDetected,
+                    ]}
+                    onPress={() => handleCategorySelect(cat.label)}
+                  >
+                    <View style={[styles.categoryIconBox, { backgroundColor: selectedCategory === cat.label ? cat.color : COLORS.cardAlt }]}>
+                      <Ionicons
+                        name={cat.icon}
+                        size={20}
+                        color={selectedCategory === cat.label ? '#fff' : cat.color}
+                      />
+                    </View>
+                    <Text style={[styles.categoryLabel, selectedCategory === cat.label && { color: COLORS.text, fontWeight: '700' }]}>
+                      {cat.label}
+                    </Text>
+                    {selectedCategory === cat.label && autoDetected && <View style={styles.autoDetectDot} />}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <Text style={styles.label}>{isRecurring ? 'First Due Date' : 'Date'}</Text>
+            <TouchableOpacity style={styles.datePicker} onPress={() => setShowDatePicker(true)}>
+              <Text style={styles.dateText}>{formatDisplayDate(date)}</Text>
+              <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} />
+            </TouchableOpacity>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(Platform.OS === 'ios')
+                  if (selectedDate) setDate(selectedDate)
+                }}
+              />
+            )}
+
+            {/* Recurring toggle — expense only */}
+            {activeTab === 'expense' && (
+              <>
+                <View style={styles.recurringToggleRow}>
+                  <View style={styles.recurringToggleLeft}>
+                    <View style={styles.recurringIconBox}>
+                      <Ionicons name="repeat" size={18} color={COLORS.accent} />
+                    </View>
+                    <View>
+                      <Text style={styles.recurringToggleTitle}>Repeat this expense</Text>
+                      <Text style={styles.recurringToggleSub}>Auto-log daily, weekly or monthly</Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={isRecurring}
+                    onValueChange={setIsRecurring}
+                    trackColor={{ false: COLORS.border, true: COLORS.accent }}
+                    thumbColor="#fff"
+                  />
+                </View>
+
+                {isRecurring && (
+                  <View style={styles.frequencySection}>
+                    <Text style={styles.label}>Repeat every</Text>
+                    <View style={styles.freqRow}>
+                      {FREQUENCIES.map(f => (
+                        <TouchableOpacity
+                          key={f.value}
+                          style={[styles.freqBtn, frequency === f.value && styles.freqBtnActive]}
+                          onPress={() => setFrequency(f.value)}
+                        >
+                          <Ionicons
+                            name={f.icon}
+                            size={16}
+                            color={frequency === f.value ? '#fff' : COLORS.textMuted}
+                          />
+                          <Text style={[styles.freqLabel, frequency === f.value && { color: '#fff' }]}>{f.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </>
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.btn,
+                activeTab === 'income' && { backgroundColor: '#4CAF50' },
+                isRecurring && activeTab === 'expense' && { backgroundColor: COLORS.accentGreen },
+                submitting && { opacity: 0.6 },
+              ]}
+              onPress={handleAdd}
+              disabled={submitting}
+            >
+              {submitting
+                ? <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+                : <Ionicons
+                    name={activeTab === 'income' ? 'arrow-down-circle-outline' : isRecurring ? 'repeat' : 'checkmark'}
+                    size={18}
+                    color="#fff"
+                    style={{ marginRight: 8 }}
+                  />
+              }
+              <Text style={styles.btnText}>
+                {submitting
+                  ? 'Saving...'
+                  : activeTab === 'income'
+                    ? 'Add Income'
+                    : isRecurring
+                      ? 'Add Recurring Expense'
+                      : 'Add Expense'}
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
 
       <CustomAlert
@@ -385,6 +540,13 @@ const anomaly = detectAnomaly(expenseData.amount, selectedCategory, allExpenses)
 
 const styles = StyleSheet.create({
   container: { padding: 24, paddingTop: SCREEN.paddingTop },
+  tabRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderRadius: 14, padding: 4, marginBottom: 28, borderWidth: 1, borderColor: COLORS.border },
+  tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 10 },
+  tabBtnActive: (tab) => ({
+    backgroundColor: tab === 'income' ? '#4CAF50' : tab === 'expense' ? COLORS.accent : '#607D8B',
+  }),
+  tabText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
+  tabTextActive: { color: '#fff' },
   heading: { fontSize: 26, fontWeight: '700', color: COLORS.text, marginBottom: 28 },
   label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
   input: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 20 },
@@ -420,4 +582,8 @@ const styles = StyleSheet.create({
   freqLabel: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
   btn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, marginTop: 8, marginBottom: 40 },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  transferStub: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, paddingHorizontal: 32 },
+  transferIconBox: { width: 80, height: 80, borderRadius: 24, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  transferTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 10, textAlign: 'center' },
+  transferSub: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22 },
 })

@@ -89,6 +89,33 @@ export const initializeDatabase = async () => {
     CREATE INDEX IF NOT EXISTS idx_budgets_user_month ON budgets(user_id, month);
     CREATE INDEX IF NOT EXISTS idx_recurring_user ON recurring_expenses(user_id, is_active);
     CREATE INDEX IF NOT EXISTS idx_goals_user ON spending_goals(user_id);
+
+    CREATE TABLE IF NOT EXISTS accounts (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
+      balance REAL DEFAULT 0,
+      currency TEXT DEFAULT 'INR',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS income (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      category TEXT NOT NULL,
+      note TEXT,
+      date TEXT NOT NULL,
+      account_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id);
+    CREATE INDEX IF NOT EXISTS idx_income_user_id ON income(user_id);
+    CREATE INDEX IF NOT EXISTS idx_income_date ON income(user_id, date);
   `)
 
   return database
@@ -293,4 +320,97 @@ export async function setMeta(key, value) {
     `INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`,
     [key, String(value)]
   )
+}
+
+// ─── ACCOUNTS ───────────────────────────────────────────────
+export async function addAccount(userId, { name, type, balance = 0, currency = 'INR' }) {
+  const database = await getDB()
+  const newId = id()
+  const ts = now()
+  await database.runAsync(
+    `INSERT INTO accounts (id, user_id, name, type, balance, currency, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [newId, userId, name, type, balance, currency, ts, ts]
+  )
+  return newId
+}
+
+export async function getAccounts(userId) {
+  const database = await getDB()
+  return await database.getAllAsync(
+    `SELECT * FROM accounts WHERE user_id = ? ORDER BY created_at ASC`,
+    [userId]
+  )
+}
+
+export async function updateAccount(id, { name, type, balance, currency }) {
+  const database = await getDB()
+  await database.runAsync(
+    `UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, updated_at = ? WHERE id = ?`,
+    [name, type, balance, currency, now(), id]
+  )
+}
+
+export async function updateAccountBalance(id, delta) {
+  const database = await getDB()
+  await database.runAsync(
+    `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+    [delta, now(), id]
+  )
+}
+
+export async function deleteAccount(id) {
+  const database = await getDB()
+  await database.runAsync(`DELETE FROM accounts WHERE id = ?`, [id])
+}
+
+// ─── INCOME ─────────────────────────────────────────────────
+export async function addIncome(userId, { amount, category, note, date, account_id = null }) {
+  const database = await getDB()
+  const newId = id()
+  const ts = now()
+  await database.runAsync(
+    `INSERT INTO income (id, user_id, amount, category, note, date, account_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [newId, userId, amount, category, note || null, date, account_id, ts, ts]
+  )
+  return newId
+}
+
+export async function getIncome(userId) {
+  const database = await getDB()
+  return await database.getAllAsync(
+    `SELECT * FROM income WHERE user_id = ? ORDER BY date DESC, created_at DESC`,
+    [userId]
+  )
+}
+
+export async function getIncomeByMonth(userId, month) {
+  const database = await getDB()
+  return await database.getAllAsync(
+    `SELECT * FROM income WHERE user_id = ? AND date LIKE ? ORDER BY date DESC, created_at DESC`,
+    [userId, `${month}%`]
+  )
+}
+
+export async function getMonthlyIncomeTotal(userId, month) {
+  const database = await getDB()
+  const result = await database.getFirstAsync(
+    `SELECT SUM(amount) as total FROM income WHERE user_id = ? AND date LIKE ?`,
+    [userId, `${month}%`]
+  )
+  return result?.total || 0
+}
+
+export async function updateIncome(id, { amount, category, note, date, account_id }) {
+  const database = await getDB()
+  await database.runAsync(
+    `UPDATE income SET amount = ?, category = ?, note = ?, date = ?, account_id = ?, updated_at = ? WHERE id = ?`,
+    [amount, category, note || null, date, account_id || null, now(), id]
+  )
+}
+
+export async function deleteIncome(id) {
+  const database = await getDB()
+  await database.runAsync(`DELETE FROM income WHERE id = ?`, [id])
 }
