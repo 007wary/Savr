@@ -11,7 +11,7 @@ export default function BottomSheet({ visible, onClose, children, maxHeight = '8
     >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <TouchableOpacity
           style={styles.overlay}

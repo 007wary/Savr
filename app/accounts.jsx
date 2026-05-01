@@ -131,8 +131,10 @@ export default function Accounts() {
   }
 
   const totalBalance = accounts.reduce((sum, a) => {
-    const isLiability = a.type === 'Loan' || a.type === 'Credit Card'
-    return isLiability ? sum - parseFloat(a.balance) : sum + parseFloat(a.balance)
+    const balance = parseFloat(a.balance)
+    if (a.type === 'Loan') return sum - balance
+    if (a.type === 'Credit Card') return balance < 0 ? sum + balance : sum + balance
+    return sum + balance
   }, 0)
 
   function getTypeInfo(typeLabel) {
@@ -187,7 +189,10 @@ export default function Accounts() {
           ) : (
             accounts.map(account => {
               const typeInfo = getTypeInfo(account.type)
-              const isLiability = account.type === 'Loan' || account.type === 'Credit Card'
+              const isLoan = account.type === 'Loan'
+              const isCreditCard = account.type === 'Credit Card'
+              const balance = parseFloat(account.balance)
+              const isNegative = balance < 0
               return (
                 <TouchableOpacity key={account.id} style={styles.accountCard} onPress={() => openEdit(account)}>
                   <View style={[styles.accountIcon, { backgroundColor: typeInfo.color + '22' }]}>
@@ -198,8 +203,8 @@ export default function Accounts() {
                     <Text style={styles.accountType}>{account.type}</Text>
                   </View>
                   <View style={styles.accountRight}>
-                    <Text style={[styles.accountBalance, { color: isLiability ? COLORS.accentRed : COLORS.text }]}>
-                      {isLiability ? '-' : ''}{formatAmount(parseFloat(account.balance), currencySymbol, currencyCode)}
+                    <Text style={[styles.accountBalance, { color: isLoan || isNegative ? COLORS.accentRed : COLORS.text }]}>
+                      {isLoan ? '-' : ''}{formatAmount(Math.abs(balance), currencySymbol, currencyCode)}
                     </Text>
                   </View>
                   <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(account)}>

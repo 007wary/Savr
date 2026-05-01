@@ -4,23 +4,54 @@ import { v4 as uuidv4 } from 'uuid'
 
 let db = null
 
+function wrapDB(database) {
+  const isRetryable = (e) =>
+    e?.message?.includes('NullPointer') ||
+    e?.message?.includes('prepareAsync') ||
+    e?.message?.includes('database') ||
+    e?.message?.includes('closed')
+
+  const wrap = (fn) => async (...args) => {
+    try {
+      return await fn.apply(database, args)
+    } catch (e) {
+      if (isRetryable(e)) {
+        db = null
+        db = await SQLite.openDatabaseAsync('savr.db')
+        return await fn.apply(db, args)
+      }
+      throw e
+    }
+  }
+
+  return {
+    ...database,
+    getAllAsync: wrap(database.getAllAsync),
+    getFirstAsync: wrap(database.getFirstAsync),
+    runAsync: wrap(database.runAsync),
+    execAsync: wrap(database.execAsync),
+    withTransactionAsync: database.withTransactionAsync.bind(database),
+  }
+}
+
 export const getDB = async () => {
   if (!db) {
     db = await SQLite.openDatabaseAsync('savr.db')
-    return db
+    return wrapDB(db)
   }
   try {
     await db.getFirstAsync('SELECT 1')
+    return wrapDB(db)
   } catch {
+    db = null
     try {
-      db = null
       db = await SQLite.openDatabaseAsync('savr.db')
+      return wrapDB(db)
     } catch {
       db = null
       throw new Error('Failed to reopen database')
     }
   }
-  return db
 }
 
 export const initializeDatabase = async () => {
