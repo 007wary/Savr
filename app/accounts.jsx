@@ -145,8 +145,8 @@ export default function Accounts() {
 
       {/* Header */}
       <View style={[styles.header, { paddingTop: SCREEN.paddingTop }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="chevron-back" size={26} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Accounts</Text>
         <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
@@ -218,7 +218,7 @@ export default function Accounts() {
 
       {/* Add / Edit Bottom Sheet */}
       <BottomSheet visible={showSheet} onClose={() => setShowSheet(false)} maxHeight="90%">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView keyboardShouldPersistTaps="handled">
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>{editingAccount ? 'Edit Account' : 'Add Account'}</Text>
@@ -293,7 +293,6 @@ export default function Accounts() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
-  backBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text },
   addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' },
   container: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },

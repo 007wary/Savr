@@ -85,11 +85,11 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
   backBtn: { padding: 4 },
   heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
-  card: { backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' },
+  card: {},
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
   rowIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   rowTitle: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
   rowSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 1 },
-  divider: { height: 1, backgroundColor: COLORS.border, marginLeft: 66 },
+  divider: { height: 1, backgroundColor: COLORS.border },
 })

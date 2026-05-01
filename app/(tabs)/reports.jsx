@@ -238,15 +238,18 @@ if (!userRef.current) userRef.current = user
   if (loading) return <ReportsSkeleton />
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 60 }}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(true) }} tintColor={COLORS.accent} />
-      }
-    >
-      <Text style={styles.heading}>Reports</Text>
-      <Text style={styles.subheading}>{monthName}</Text>
+    <View style={styles.outerContainer}>
+      <View style={styles.stickyHeader}>
+        <Text style={styles.heading}>Reports</Text>
+        <Text style={styles.subheading}>{monthName}</Text>
+      </View>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: 60 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(true) }} tintColor={COLORS.accent} />
+        }
+      >
 
       {expenses.length === 0 ? (
         <View style={styles.empty}>
@@ -574,13 +577,17 @@ if (!userRef.current) userRef.current = user
         </>
       )}
     </ScrollView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  outerContainer: { flex: 1, backgroundColor: COLORS.bg },
+  stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
+  scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8, marginBottom: 4 },
-  subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 24 },
+  subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 16 },
   totalCard: { borderRadius: 24, padding: 28, marginBottom: 16, alignItems: 'center' },
   totalLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 8, letterSpacing: 1.5, textTransform: 'uppercase' },
   totalAmount: { fontSize: 42, fontWeight: '900', color: '#fff', letterSpacing: -2, width: '100%', textAlign: 'center' },

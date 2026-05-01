@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, ScrollView, KeyboardAvoidingView,
+  StyleSheet, KeyboardAvoidingView,
   Platform, Switch, ActivityIndicator
 } from 'react-native'
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
@@ -367,8 +368,8 @@ export default function AddExpense() {
 
       {/* Back button header */}
       <View style={[styles.header, { paddingTop: SCREEN.paddingTop }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.replace('/(tabs)/dashboard')}>
-          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+        <TouchableOpacity onPress={() => router.replace('/(tabs)/dashboard')}>
+          <Ionicons name="chevron-back" size={26} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
           {activeTab === 'income' ? 'Add Income' : activeTab === 'transfer' ? 'Transfer' : 'Add Expense'}
@@ -379,7 +380,7 @@ export default function AddExpense() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
 
         {/* Scrollable content */}
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100}>
 
           {/* ── TRANSFER TAB ── */}
           {activeTab === 'transfer' && (
@@ -718,7 +719,7 @@ export default function AddExpense() {
               </TouchableOpacity>
             </>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
 
         {/* ── BOTTOM TAB SWITCHER ── */}
         <View style={styles.bottomTabRow}>
@@ -761,7 +762,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
   backBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text },
-  container: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 20 },
+  container: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 40 },
   label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
   input: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 20 },
   noteContainer: { marginBottom: 20 },

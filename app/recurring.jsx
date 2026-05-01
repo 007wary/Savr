@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react'
 import {
-  View, Text, StyleSheet, ScrollView,
+  View, Text, StyleSheet,
   TouchableOpacity, RefreshControl, TextInput
 } from 'react-native'
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, CATEGORIES, SCREEN } from '../src/constants/theme'
@@ -341,8 +342,11 @@ export default function RecurringScreen() {
           <Text style={styles.heading}>Recurring</Text>
         </View>
 
-        <ScrollView
+        <KeyboardAwareScrollView
           contentContainerStyle={{ paddingBottom: 80 }}
+          enableOnAndroid
+          extraScrollHeight={100}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData() }} tintColor={COLORS.accent} />
           }
@@ -365,7 +369,7 @@ export default function RecurringScreen() {
               {currentInactive.map(item => renderInactiveItem(item, isIncome))}
             </>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
 
       {/* Bottom tab switcher */}

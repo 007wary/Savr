@@ -232,11 +232,11 @@ export default function Settings() {
   if (loading) return <SettingsSkeleton />
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 60 }}>
-
-      <View style={styles.header}>
+    <View style={styles.outerContainer}>
+      <View style={styles.stickyHeader}>
         <Text style={styles.heading}>Settings</Text>
       </View>
+      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 60 }}>
 
       {/* Profile Card */}
       <TouchableOpacity style={styles.profileCard} onPress={openProfileModal} activeOpacity={0.8}>
@@ -446,6 +446,8 @@ export default function Settings() {
         <Text style={styles.footerSub}>{'Savr v' + APP_VERSION + ' · © 2026'}</Text>
       </View>
 
+      </ScrollView>
+
       {/* Currency Bottom Sheet */}
       <BottomSheet
         visible={showCurrencyModal}
@@ -561,15 +563,17 @@ export default function Settings() {
         buttons={alertConfig.buttons}
         onClose={hideAlert}
       />
-    </ScrollView>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
-  header: { marginBottom: 24 },
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  outerContainer: { flex: 1, backgroundColor: COLORS.bg },
+  stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
+  scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
-  profileCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 16, padding: 20, marginBottom: 28, borderWidth: 1, borderColor: COLORS.border },
+  profileCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20, marginBottom: 0, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
   avatarText: { fontSize: 20, fontWeight: '700', color: '#fff' },
   profileInfo: { flex: 1 },
@@ -580,14 +584,14 @@ const styles = StyleSheet.create({
   phoneAdd: { fontSize: 13, color: COLORS.accent, marginTop: 2 },
   editProfileBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   editProfileText: { fontSize: 13, color: COLORS.accent, fontWeight: '600' },
-  sectionLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1.2, marginBottom: 10, marginLeft: 4 },
-  card: { backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 24, overflow: 'hidden' },
+  sectionLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1.2, marginTop: 24, marginBottom: 10, marginLeft: 4 },
+  card: { marginBottom: 24 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
   rowIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   rowTitle: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
   rowSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 1 },
-  divider: { height: 1, backgroundColor: COLORS.border, marginLeft: 66 },
+  divider: { height: 1, backgroundColor: COLORS.border },
   versionPill: { backgroundColor: COLORS.accent + '22', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: COLORS.accent + '44' },
   versionPillText: { fontSize: 12, color: COLORS.accent, fontWeight: '700' },
   footer: { alignItems: 'center', marginTop: 8, marginBottom: 32 },

@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, SectionList, TouchableOpacity,
   RefreshControl, TextInput, ScrollView, Platform
 } from 'react-native'
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -522,7 +523,7 @@ export default function History() {
             <Ionicons name="close" size={22} color={COLORS.textMuted} />
           </TouchableOpacity>
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100}>
           <Text style={styles.filterLabel}>Amount ({currencySymbol})</Text>
           <TextInput
             style={styles.input}
@@ -592,7 +593,7 @@ export default function History() {
               <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save'}</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </BottomSheet>
 
       <CustomAlert
@@ -655,7 +656,7 @@ const styles = StyleSheet.create({
   categoryBtn: { width: '22%', alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt, gap: 8 },
   categoryIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
-  modalBtns: { flexDirection: 'row', gap: 12, marginTop: 8, marginBottom: 20 },
+  modalBtns: { flexDirection: 'row', gap: 12, marginTop: 8, marginBottom: 60 },
   cancelBtn: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
   cancelText: { color: COLORS.textMuted, fontWeight: '600', fontSize: 15 },
   saveBtn: { flex: 1, backgroundColor: COLORS.accent, borderRadius: 12, padding: 14, alignItems: 'center' },

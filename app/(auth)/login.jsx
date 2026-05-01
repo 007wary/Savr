@@ -85,7 +85,6 @@ export default function Login() {
       }
     } catch (error) {
       showAlert('Error', error.message)
-    } finally {
       setGoogleLoading(false)
     }
   }
