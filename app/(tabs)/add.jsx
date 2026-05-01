@@ -16,7 +16,7 @@ import { getCurrencySymbol, loadCurrency, formatAmount, getQuickAmounts } from '
 import { detectCategory } from '../../src/lib/categoryDetector'
 import { detectAnomaly } from '../../src/lib/anomalyDetector'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
-import { addExpense, addRecurring, addIncome, getExpenses, getBudgets } from '../../src/services/sqliteService'
+import { addExpense, addRecurring, addIncome, addTransfer, getExpenses, getBudgets, getAccounts, updateAccountBalance } from '../../src/services/sqliteService'
 import { Analytics } from '../../src/lib/analytics'
 
 const FREQUENCIES = [
@@ -49,6 +49,13 @@ export default function AddExpense() {
   const [currencySymbol, setCurrencySymbol] = useState('₹')
   const [currencyCode, setCurrencyCode] = useState('INR')
   const [quickAmounts, setQuickAmounts] = useState(['50', '100', '200', '500', '1000', '2000'])
+  const [accounts, setAccounts] = useState([])
+  const [selectedAccountId, setSelectedAccountId] = useState(null)
+  const [transferFromId, setTransferFromId] = useState(null)
+  const [transferToId, setTransferToId] = useState(null)
+  const [transferNote, setTransferNote] = useState('')
+  const [transferDate, setTransferDate] = useState(new Date())
+  const [showTransferDatePicker, setShowTransferDatePicker] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
   const userRef = useRef(null)
@@ -60,7 +67,14 @@ export default function AddExpense() {
       setCurrencySymbol(symbol)
       setCurrencyCode(code)
       setQuickAmounts(getQuickAmounts(code))
-      userRef.current = getCachedUser() || await getUser()
+      const user = getCachedUser() || await getUser()
+      userRef.current = user
+      if (user) {
+        try {
+          const accs = await getAccounts(user.id)
+          setAccounts(accs)
+        } catch {}
+      }
     }
     init()
   }, [])
@@ -74,6 +88,11 @@ export default function AddExpense() {
     setDate(new Date())
     setIsRecurring(false)
     setFrequency('monthly')
+    setSelectedAccountId(null)
+    setTransferFromId(null)
+    setTransferToId(null)
+    setTransferNote('')
+    setTransferDate(new Date())
   }
 
   function handleNoteChange(text) {
@@ -111,6 +130,7 @@ export default function AddExpense() {
     setDate(new Date())
     setIsRecurring(false)
     setFrequency('monthly')
+    setSelectedAccountId(null)
   }
 
   async function saveExpense(expenseData, expenseMonth, currentMonth) {
@@ -134,7 +154,8 @@ export default function AddExpense() {
         const { processDueRecurring } = await import('../../src/lib/recurring')
         await processDueRecurring(user.id)
       } else {
-        await addExpense(user.id, expenseData)
+        await addExpense(user.id, { ...expenseData, account_id: selectedAccountId })
+        if (selectedAccountId) await updateAccountBalance(selectedAccountId, -expenseData.amount)
       }
 
       Analytics.addExpense(expenseData.category, expenseData.amount)
@@ -189,7 +210,8 @@ export default function AddExpense() {
       }
       if (!userRef.current) userRef.current = user
 
-      await addIncome(user.id, incomeData)
+      await addIncome(user.id, { ...incomeData, account_id: selectedAccountId })
+        if (selectedAccountId) await updateAccountBalance(selectedAccountId, incomeData.amount)
 
       await clearCache(`savr_cache_dashboard_${incomeMonth}`)
       await clearCache(`savr_cache_reports_${incomeMonth}`)
@@ -202,9 +224,47 @@ export default function AddExpense() {
     }
   }
 
+  async function saveTransfer() {
+    if (!transferFromId || !transferToId) {
+      return showAlert('Missing info', 'Please select both From and To accounts')
+    }
+    if (transferFromId === transferToId) {
+      return showAlert('Invalid', 'From and To accounts cannot be the same')
+    }
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      return showAlert('Invalid amount', 'Please enter a valid amount')
+    }
+    setSubmitting(true)
+    try {
+      const user = getCachedUser() || userRef.current || await getUser()
+      if (!user) { showAlert('Error', 'Could not save transfer.'); setSubmitting(false); return }
+      const transferAmount = parseFloat(amount)
+      const dateStr = `${transferDate.getFullYear()}-${String(transferDate.getMonth() + 1).padStart(2, '0')}-${String(transferDate.getDate()).padStart(2, '0')}`
+      await addTransfer(user.id, {
+        from_account_id: transferFromId,
+        to_account_id: transferToId,
+        amount: transferAmount,
+        note: transferNote.trim(),
+        date: dateStr,
+      })
+      await updateAccountBalance(transferFromId, -transferAmount)
+      await updateAccountBalance(transferToId, transferAmount)
+      setAmount('')
+      setTransferNote('')
+      setTransferFromId(null)
+      setTransferToId(null)
+      setTransferDate(new Date())
+      router.replace('/(tabs)/dashboard')
+    } catch {
+      showAlert('Error', 'Could not save transfer. Please try again.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   async function handleAdd() {
     if (submitting) return
-    if (activeTab === 'transfer') return
+    if (activeTab === 'transfer') { await saveTransfer(); return }
 
     if (!amount || !selectedCategory) {
       return showAlert('Missing info', 'Please enter an amount and select a category')
@@ -299,13 +359,115 @@ export default function AddExpense() {
 
           {/* ── TRANSFER TAB ── */}
           {activeTab === 'transfer' && (
-            <View style={styles.transferStub}>
-              <View style={styles.transferIconBox}>
-                <Ionicons name="swap-horizontal-outline" size={40} color={COLORS.textMuted} />
-              </View>
-              <Text style={styles.transferTitle}>Transfers coming soon</Text>
-              <Text style={styles.transferSub}>You'll be able to move money between accounts once you set up your accounts.</Text>
-            </View>
+            <>
+              {accounts.length < 2 ? (
+                <View style={styles.transferStub}>
+                  <View style={styles.transferIconBox}>
+                    <Ionicons name="swap-horizontal-outline" size={40} color={COLORS.textMuted} />
+                  </View>
+                  <Text style={styles.transferTitle}>No accounts yet</Text>
+                  <Text style={styles.transferSub}>You need at least 2 accounts to make a transfer.</Text>
+                  <TouchableOpacity style={styles.transferSetupBtn} onPress={() => router.push('/accounts')}>
+                    <Ionicons name="card-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                    <Text style={styles.transferSetupBtnText}>Set Up Accounts</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.label}>Amount ({currencySymbol})</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder={`${currencySymbol}0.00`}
+                    placeholderTextColor={COLORS.textMuted}
+                    value={amount}
+                    onChangeText={setAmount}
+                    keyboardType="numeric"
+                  />
+
+                  <View style={styles.quickAmounts}>
+                    {quickAmounts.map(q => (
+                      <TouchableOpacity
+                        key={q}
+                        style={[styles.quickBtn, amount === q && { backgroundColor: '#607D8B', borderColor: '#607D8B' }]}
+                        onPress={() => setAmount(q)}
+                      >
+                        <Text style={[styles.quickText, amount === q && styles.quickTextActive]}>
+                          {currencySymbol}{q}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text style={styles.label}>From Account</Text>
+                  <View style={styles.accountSelectGrid}>
+                    {accounts.map(acc => (
+                      <TouchableOpacity
+                        key={acc.id}
+                        style={[styles.accountSelectBtn, transferFromId === acc.id && styles.accountSelectBtnActive('#F44336')]}
+                        onPress={() => setTransferFromId(acc.id)}
+                      >
+                        <Ionicons name="arrow-up-circle-outline" size={16} color={transferFromId === acc.id ? '#fff' : COLORS.textMuted} style={{ marginRight: 6 }} />
+                        <Text style={[styles.accountSelectText, transferFromId === acc.id && { color: '#fff' }]}>{acc.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text style={styles.label}>To Account</Text>
+                  <View style={styles.accountSelectGrid}>
+                    {accounts.map(acc => (
+                      <TouchableOpacity
+                        key={acc.id}
+                        style={[styles.accountSelectBtn, transferToId === acc.id && styles.accountSelectBtnActive('#4CAF50')]}
+                        onPress={() => setTransferToId(acc.id)}
+                      >
+                        <Ionicons name="arrow-down-circle-outline" size={16} color={transferToId === acc.id ? '#fff' : COLORS.textMuted} style={{ marginRight: 6 }} />
+                        <Text style={[styles.accountSelectText, transferToId === acc.id && { color: '#fff' }]}>{acc.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Text style={styles.label}>Note (optional)</Text>
+                  <TextInput
+                    style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                    placeholder="e.g. Moving savings to wallet"
+                    placeholderTextColor={COLORS.textMuted}
+                    value={transferNote}
+                    onChangeText={setTransferNote}
+                    multiline
+                  />
+
+                  <Text style={styles.label}>Date</Text>
+                  <TouchableOpacity style={styles.datePicker} onPress={() => setShowTransferDatePicker(true)}>
+                    <Text style={styles.dateText}>{formatDisplayDate(transferDate)}</Text>
+                    <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} />
+                  </TouchableOpacity>
+
+                  {showTransferDatePicker && (
+                    <DateTimePicker
+                      value={transferDate}
+                      mode="date"
+                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                      onChange={(event, selectedDate) => {
+                        setShowTransferDatePicker(Platform.OS === 'ios')
+                        if (selectedDate) setTransferDate(selectedDate)
+                      }}
+                    />
+                  )}
+
+                  <TouchableOpacity
+                    style={[styles.btn, { backgroundColor: '#607D8B' }, submitting && { opacity: 0.6 }]}
+                    onPress={saveTransfer}
+                    disabled={submitting}
+                  >
+                    {submitting
+                      ? <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+                      : <Ionicons name="swap-horizontal-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+                    }
+                    <Text style={styles.btnText}>{submitting ? 'Saving...' : 'Transfer'}</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </>
           )}
 
           {/* ── INCOME & EXPENSE TABS ── */}
@@ -386,6 +548,33 @@ export default function AddExpense() {
                   </TouchableOpacity>
                 ))}
               </View>
+
+              {accounts.length > 0 && (
+                <>
+                  <Text style={styles.label}>Account (optional)</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 20, marginTop: -12 }}>
+                    <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4 }}>
+                      <TouchableOpacity
+                        style={[styles.accountPill, selectedAccountId === null && styles.accountPillActive(tabColor)]}
+                        onPress={() => setSelectedAccountId(null)}
+                      >
+                        <Ionicons name="close-circle-outline" size={14} color={selectedAccountId === null ? '#fff' : COLORS.textMuted} style={{ marginRight: 4 }} />
+                        <Text style={[styles.accountPillText, selectedAccountId === null && { color: '#fff' }]}>None</Text>
+                      </TouchableOpacity>
+                      {accounts.map(acc => (
+                        <TouchableOpacity
+                          key={acc.id}
+                          style={[styles.accountPill, selectedAccountId === acc.id && styles.accountPillActive(tabColor)]}
+                          onPress={() => setSelectedAccountId(acc.id)}
+                        >
+                          <Ionicons name="card-outline" size={14} color={selectedAccountId === acc.id ? '#fff' : COLORS.textMuted} style={{ marginRight: 4 }} />
+                          <Text style={[styles.accountPillText, selectedAccountId === acc.id && { color: '#fff' }]}>{acc.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </>
+              )}
 
               <Text style={styles.label}>{isRecurring ? 'First Due Date' : 'Date'}</Text>
               <TouchableOpacity style={styles.datePicker} onPress={() => setShowDatePicker(true)}>
@@ -549,4 +738,13 @@ const styles = StyleSheet.create({
   bottomTabRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border, height: 80, paddingBottom: 24 },
   bottomTabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 6 },
   bottomTabText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
+  accountPill: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
+  accountPillActive: (color) => ({ backgroundColor: color, borderColor: color }),
+  accountPillText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
+  transferSetupBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.accent, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 24, marginTop: 24 },
+  transferSetupBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  accountSelectGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  accountSelectBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
+  accountSelectBtnActive: (color) => ({ backgroundColor: color, borderColor: color }),
+  accountSelectText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
 })

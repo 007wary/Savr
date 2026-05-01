@@ -39,6 +39,7 @@ export const initializeDatabase = async () => {
       date TEXT NOT NULL,
       is_recurring INTEGER DEFAULT 0,
       recurring_id TEXT,
+      account_id TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -113,6 +114,19 @@ export const initializeDatabase = async () => {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS transfers (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      from_account_id TEXT NOT NULL,
+      to_account_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      note TEXT,
+      date TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_transfers_user ON transfers(user_id);
     CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id);
     CREATE INDEX IF NOT EXISTS idx_income_user_id ON income(user_id);
     CREATE INDEX IF NOT EXISTS idx_income_date ON income(user_id, date);
@@ -125,15 +139,14 @@ export const initializeDatabase = async () => {
 const now = () => new Date().toISOString()
 const id = () => uuidv4()
 
-// ─── EXPENSES ───────────────────────────────────────────────
-export async function addExpense(userId, { amount, category, note, date, is_recurring = 0, recurring_id = null }) {
+export async function addExpense(userId, { amount, category, note, date, is_recurring = 0, recurring_id = null, account_id = null }) {
   const database = await getDB()
   const newId = id()
   const ts = now()
   await database.runAsync(
-    `INSERT INTO expenses (id, user_id, amount, category, note, date, is_recurring, recurring_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [newId, userId, amount, category, note || null, date, is_recurring ? 1 : 0, recurring_id, ts, ts]
+    `INSERT INTO expenses (id, user_id, amount, category, note, date, is_recurring, recurring_id, account_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [newId, userId, amount, category, note || null, date, is_recurring ? 1 : 0, recurring_id, account_id, ts, ts]
   )
   return newId
 }
@@ -413,4 +426,25 @@ export async function updateIncome(id, { amount, category, note, date, account_i
 export async function deleteIncome(id) {
   const database = await getDB()
   await database.runAsync(`DELETE FROM income WHERE id = ?`, [id])
+}
+
+// ─── TRANSFERS ──────────────────────────────────────────────
+export async function addTransfer(userId, { from_account_id, to_account_id, amount, note, date }) {
+  const database = await getDB()
+  const newId = id()
+  const ts = now()
+  await database.runAsync(
+    `INSERT INTO transfers (id, user_id, from_account_id, to_account_id, amount, note, date, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [newId, userId, from_account_id, to_account_id, amount, note || null, date, ts, ts]
+  )
+  return newId
+}
+
+export async function getTransfers(userId) {
+  const database = await getDB()
+  return await database.getAllAsync(
+    `SELECT * FROM transfers WHERE user_id = ? ORDER BY date DESC, created_at DESC`,
+    [userId]
+  )
 }
