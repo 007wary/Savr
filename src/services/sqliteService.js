@@ -1,8 +1,15 @@
 import * as SQLite from 'expo-sqlite'
 import 'react-native-get-random-values'
 import { v4 as uuidv4 } from 'uuid'
+import { AppState } from 'react-native'
 
 let db = null
+
+AppState.addEventListener('change', (nextState) => {
+  if (nextState === 'active') {
+    db = null
+  }
+})
 
 function wrapDB(database) {
   const isRetryable = (e) =>
