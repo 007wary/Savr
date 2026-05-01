@@ -16,7 +16,7 @@ import { getCurrencySymbol, loadCurrency, formatAmount, getQuickAmounts } from '
 import { detectCategory } from '../../src/lib/categoryDetector'
 import { detectAnomaly } from '../../src/lib/anomalyDetector'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
-import { addExpense, addRecurring, addIncome, addTransfer, getExpenses, getBudgets, getAccounts, updateAccountBalance } from '../../src/services/sqliteService'
+import { addExpense, addRecurring, addIncome, addRecurringIncome, addTransfer, getExpenses, getBudgets, getAccounts, updateAccountBalance } from '../../src/services/sqliteService'
 import { Analytics } from '../../src/lib/analytics'
 
 const FREQUENCIES = [
@@ -45,6 +45,8 @@ export default function AddExpense() {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [isRecurring, setIsRecurring] = useState(false)
   const [frequency, setFrequency] = useState('monthly')
+  const [isRecurringIncome, setIsRecurringIncome] = useState(false)
+  const [incomeFrequency, setIncomeFrequency] = useState('monthly')
   const [submitting, setSubmitting] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
   const [currencyCode, setCurrencyCode] = useState('INR')
@@ -88,6 +90,8 @@ export default function AddExpense() {
     setDate(new Date())
     setIsRecurring(false)
     setFrequency('monthly')
+    setIsRecurringIncome(false)
+    setIncomeFrequency('monthly')
     setSelectedAccountId(null)
     setTransferFromId(null)
     setTransferToId(null)
@@ -130,6 +134,8 @@ export default function AddExpense() {
     setDate(new Date())
     setIsRecurring(false)
     setFrequency('monthly')
+    setIsRecurringIncome(false)
+    setIncomeFrequency('monthly')
     setSelectedAccountId(null)
   }
 
@@ -210,8 +216,20 @@ export default function AddExpense() {
       }
       if (!userRef.current) userRef.current = user
 
-      await addIncome(user.id, { ...incomeData, account_id: selectedAccountId })
+      if (isRecurringIncome) {
+        await addRecurringIncome(user.id, {
+          amount: incomeData.amount,
+          category: incomeData.category,
+          note: incomeData.note,
+          frequency: incomeFrequency,
+          next_due: incomeData.date,
+        })
+        const { processRecurringIncome } = await import('../../src/lib/recurring')
+        await processRecurringIncome(user.id)
+      } else {
+        await addIncome(user.id, { ...incomeData, account_id: selectedAccountId })
         if (selectedAccountId) await updateAccountBalance(selectedAccountId, incomeData.amount)
+      }
 
       await clearCache(`savr_cache_dashboard_${incomeMonth}`)
       await clearCache(`savr_cache_reports_${incomeMonth}`)
@@ -549,6 +567,42 @@ export default function AddExpense() {
                 ))}
               </View>
 
+              <View style={styles.recurringToggleRow}>
+                <View style={styles.recurringToggleLeft}>
+                  <View style={[styles.recurringIconBox, { backgroundColor: '#4CAF5022' }]}>
+                    <Ionicons name="repeat" size={18} color="#4CAF50" />
+                  </View>
+                  <View>
+                    <Text style={styles.recurringToggleTitle}>Repeat this income</Text>
+                    <Text style={styles.recurringToggleSub}>Auto-log daily, weekly or monthly</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={isRecurringIncome}
+                  onValueChange={setIsRecurringIncome}
+                  trackColor={{ false: COLORS.border, true: '#4CAF50' }}
+                  thumbColor="#fff"
+                />
+              </View>
+
+              {isRecurringIncome && (
+                <View style={styles.frequencySection}>
+                  <Text style={styles.label}>Repeat every</Text>
+                  <View style={styles.freqRow}>
+                    {FREQUENCIES.map(f => (
+                      <TouchableOpacity
+                        key={f.value}
+                        style={[styles.freqBtn, incomeFrequency === f.value && { backgroundColor: '#4CAF50', borderColor: '#4CAF50' }]}
+                        onPress={() => setIncomeFrequency(f.value)}
+                      >
+                        <Ionicons name={f.icon} size={16} color={incomeFrequency === f.value ? '#fff' : COLORS.textMuted} />
+                        <Text style={[styles.freqLabel, incomeFrequency === f.value && { color: '#fff' }]}>{f.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
               {accounts.length > 0 && (
                 <>
                   <Text style={styles.label}>Account (optional)</Text>
@@ -649,7 +703,7 @@ export default function AddExpense() {
                     />
                 }
                 <Text style={styles.btnText}>
-                  {submitting ? 'Saving...' : activeTab === 'income' ? 'Add Income' : isRecurring ? 'Add Recurring Expense' : 'Add Expense'}
+                  {submitting ? 'Saving...' : activeTab === 'income' ? isRecurringIncome ? 'Add Recurring Income' : 'Add Income' : isRecurring ? 'Add Recurring Expense' : 'Add Expense'}
                 </Text>
               </TouchableOpacity>
             </>

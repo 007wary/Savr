@@ -11,7 +11,7 @@ import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/cur
 import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
-import { getExpenses } from '../../src/services/sqliteService'
+import { getExpenses, getIncomeByMonth, getMonthlyIncomeTotal } from '../../src/services/sqliteService'
 
 function AnimatedBar({ percentage, color, delay = 0 }) {
   const anim = useRef(new Animated.Value(0)).current
@@ -41,6 +41,8 @@ export default function Reports() {
   const [currencyCode, setCurrencyCode] = useState('INR')
   const [loading, setLoading] = useState(true)
   const [expandedCategory, setExpandedCategory] = useState(null)
+  const [monthlyIncome, setMonthlyIncome] = useState(0)
+  const [last6MonthsIncome, setLast6MonthsIncome] = useState([])
   const userRef = useRef(null)
 
   // getNow() called fresh each time to avoid stale date if app open past midnight
@@ -68,6 +70,8 @@ export default function Reports() {
         setExpenses(cached.expenses || [])
         setLastMonthExpenses(cached.lastMonthExpenses || [])
         setAllExpenses(cached.allExpenses || [])
+        setMonthlyIncome(cached.monthlyIncome || 0)
+        setLast6MonthsIncome(cached.last6MonthsIncome || [])
         setLoading(false)
         setTimeout(() => loadFromSQLite(), 100)
         return
@@ -92,10 +96,27 @@ if (!userRef.current) userRef.current = user
       const currentData = allData.filter(e => e.date.startsWith(freshCurrentMonth))
       const lastMonthData = allData.filter(e => e.date.startsWith(lastMonthKey))
       const sixMonthData = allData.filter(e => new Date(e.date) >= sixMonthsAgo)
+
+      const incomeTotal = await getMonthlyIncomeTotal(user.id, freshCurrentMonth)
+
+      const incomeByMonth = []
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(freshYear, freshMonth - 1 - i, 1)
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        const total = await getMonthlyIncomeTotal(user.id, key)
+        incomeByMonth.push({ key, amount: total })
+      }
+
       setExpenses(currentData)
       setLastMonthExpenses(lastMonthData)
       setAllExpenses(sixMonthData)
-      await saveCache(CACHE_KEY, { expenses: currentData, lastMonthExpenses: lastMonthData, allExpenses: sixMonthData })
+      setMonthlyIncome(incomeTotal)
+      setLast6MonthsIncome(incomeByMonth)
+      await saveCache(CACHE_KEY, {
+        expenses: currentData, lastMonthExpenses: lastMonthData,
+        allExpenses: sixMonthData, monthlyIncome: incomeTotal,
+        last6MonthsIncome: incomeByMonth,
+      })
     } catch {}
     finally {
       setLoading(false)
@@ -151,12 +172,13 @@ if (!userRef.current) userRef.current = user
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
       const monthTotal = allExpenses.filter(e => e.date.startsWith(key)).reduce((sum, e) => sum + parseFloat(e.amount), 0)
-      result.push({ key, label: d.toLocaleString('default', { month: 'short' }), amount: monthTotal })
+      const incomeForMonth = last6MonthsIncome.find(m => m.key === key)?.amount || 0
+      result.push({ key, label: d.toLocaleString('default', { month: 'short' }), amount: monthTotal, income: incomeForMonth })
     }
     return result
-  }, [allExpenses])
+  }, [allExpenses, last6MonthsIncome])
 
-  const max6 = useMemo(() => Math.max(...last6Months.map(m => m.amount), 1), [last6Months])
+  const max6 = useMemo(() => Math.max(...last6Months.map(m => Math.max(m.amount, m.income)), 1), [last6Months])
 
   const heatmapDays = useMemo(() => {
     const daysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
@@ -241,6 +263,60 @@ if (!userRef.current) userRef.current = user
             </Text>
             <Text style={styles.totalSub}>{expenses.length} transactions</Text>
           </LinearGradient>
+
+          {(monthlyIncome > 0 || total > 0) && (
+            <View style={styles.incomeExpenseCard}>
+              <Text style={styles.incomeExpenseTitle}>Income vs Expenses — {now.toLocaleString('default', { month: 'long' })}</Text>
+              <View style={styles.incomeExpenseRow}>
+                <View style={styles.incomeExpenseItem}>
+                  <View style={[styles.incomeExpenseIcon, { backgroundColor: '#4CAF5022' }]}>
+                    <Ionicons name="arrow-down-circle-outline" size={20} color="#4CAF50" />
+                  </View>
+                  <Text style={styles.incomeExpenseLabel}>Income</Text>
+                  <Text style={[styles.incomeExpenseAmount, { color: '#4CAF50' }]}>
+                    {formatAmount(monthlyIncome, currencySymbol, currencyCode)}
+                  </Text>
+                </View>
+                <View style={styles.incomeExpenseDivider} />
+                <View style={styles.incomeExpenseItem}>
+                  <View style={[styles.incomeExpenseIcon, { backgroundColor: COLORS.accentRed + '22' }]}>
+                    <Ionicons name="arrow-up-circle-outline" size={20} color={COLORS.accentRed} />
+                  </View>
+                  <Text style={styles.incomeExpenseLabel}>Expenses</Text>
+                  <Text style={[styles.incomeExpenseAmount, { color: COLORS.accentRed }]}>
+                    {formatAmount(total, currencySymbol, currencyCode)}
+                  </Text>
+                </View>
+                <View style={styles.incomeExpenseDivider} />
+                <View style={styles.incomeExpenseItem}>
+                  <View style={[styles.incomeExpenseIcon, { backgroundColor: monthlyIncome >= total ? '#4CAF5022' : COLORS.accentRed + '22' }]}>
+                    <Ionicons
+                      name={monthlyIncome >= total ? 'trending-up-outline' : 'trending-down-outline'}
+                      size={20}
+                      color={monthlyIncome >= total ? '#4CAF50' : COLORS.accentRed}
+                    />
+                  </View>
+                  <Text style={styles.incomeExpenseLabel}>Net</Text>
+                  <Text style={[styles.incomeExpenseAmount, { color: monthlyIncome >= total ? '#4CAF50' : COLORS.accentRed }]}>
+                    {monthlyIncome >= total ? '+' : '-'}{formatAmount(Math.abs(monthlyIncome - total), currencySymbol, currencyCode)}
+                  </Text>
+                </View>
+              </View>
+              {monthlyIncome > 0 && (
+                <>
+                  <View style={styles.incomeExpenseBarBg}>
+                    <View style={[styles.incomeExpenseBarFill, {
+                      width: `${Math.min((total / Math.max(monthlyIncome, 1)) * 100, 100)}%`,
+                      backgroundColor: total > monthlyIncome ? COLORS.accentRed : '#4CAF50'
+                    }]} />
+                  </View>
+                  <Text style={styles.incomeExpenseBarLabel}>
+                    {((total / Math.max(monthlyIncome, 1)) * 100).toFixed(0)}% of income spent
+                  </Text>
+                </>
+              )}
+            </View>
+          )}
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
             <View style={styles.miniCard}>
@@ -332,8 +408,15 @@ if (!userRef.current) userRef.current = user
               {last6Months.map((m, i) => (
                 <View key={i} style={styles.barCol}>
                   <Text style={styles.barAmount}>{m.amount > 0 ? `${m.amount >= 1000 ? (m.amount / 1000).toFixed(1) + 'k' : m.amount.toFixed(0)}` : ''}</Text>
-                  <View style={styles.barBg}>
-                    <AnimatedBar percentage={(m.amount / max6) * 100} color={m.key === currentMonth ? COLORS.accent : COLORS.accent + '55'} delay={i * 100} />
+                  <View style={{ flexDirection: 'row', gap: 2, height: '75%', alignItems: 'flex-end' }}>
+                    {m.income > 0 && (
+                      <View style={[styles.barBg, { width: 10 }]}>
+                        <AnimatedBar percentage={(m.income / max6) * 100} color="#4CAF50" delay={i * 100} />
+                      </View>
+                    )}
+                    <View style={[styles.barBg, { width: m.income > 0 ? 10 : 20 }]}>
+                      <AnimatedBar percentage={(m.amount / max6) * 100} color={m.key === currentMonth ? COLORS.accent : COLORS.accent + '55'} delay={i * 100} />
+                    </View>
                   </View>
                   <Text style={[styles.barLabel, m.key === currentMonth && { color: COLORS.accent, fontWeight: '700' }]}>{m.label}</Text>
                 </View>
@@ -574,4 +657,15 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', marginTop: 80 },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },
+  incomeExpenseCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
+  incomeExpenseTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, marginBottom: 16, letterSpacing: 0.3 },
+  incomeExpenseRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+  incomeExpenseItem: { flex: 1, alignItems: 'center', gap: 6 },
+  incomeExpenseIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  incomeExpenseLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
+  incomeExpenseAmount: { fontSize: 13, fontWeight: '800', letterSpacing: -0.3, textAlign: 'center' },
+  incomeExpenseDivider: { width: 1, height: 60, backgroundColor: COLORS.border, marginHorizontal: 4 },
+  incomeExpenseBarBg: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, marginBottom: 6 },
+  incomeExpenseBarFill: { height: 6, borderRadius: 3 },
+  incomeExpenseBarLabel: { fontSize: 11, color: COLORS.textMuted, textAlign: 'right' },
 })

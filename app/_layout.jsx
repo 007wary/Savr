@@ -5,7 +5,7 @@ import { COLORS } from '../src/constants/theme'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import * as Linking from 'expo-linking'
-import { processDueRecurring } from '../src/lib/recurring'
+import { processDueRecurring, processRecurringIncome } from '../src/lib/recurring'
 import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { initializeDatabase } from '../src/services/sqliteService'
@@ -124,6 +124,7 @@ export default function RootLayout() {
               if (lastCheck !== today) {
                 await AsyncStorage.setItem(LAST_RECURRING_CHECK_KEY, today)
                 processDueRecurring(cachedUser.id).catch(() => {})
+                processRecurringIncome(cachedUser.id).catch(() => {})
               }
             } catch {}
           }, 2000)

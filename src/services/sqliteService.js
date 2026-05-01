@@ -127,6 +127,22 @@ export const initializeDatabase = async () => {
     );
 
     CREATE INDEX IF NOT EXISTS idx_transfers_user ON transfers(user_id);
+
+    CREATE TABLE IF NOT EXISTS recurring_income (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      amount REAL NOT NULL,
+      category TEXT NOT NULL,
+      note TEXT,
+      frequency TEXT NOT NULL,
+      next_due TEXT NOT NULL,
+      last_logged TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_recurring_income_user ON recurring_income(user_id, is_active);
     CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id);
     CREATE INDEX IF NOT EXISTS idx_income_user_id ON income(user_id);
     CREATE INDEX IF NOT EXISTS idx_income_date ON income(user_id, date);
@@ -447,4 +463,54 @@ export async function getTransfers(userId) {
     `SELECT * FROM transfers WHERE user_id = ? ORDER BY date DESC, created_at DESC`,
     [userId]
   )
+}
+
+// ─── RECURRING INCOME ───────────────────────────────────────
+export async function addRecurringIncome(userId, { amount, category, note, frequency, next_due }) {
+  const database = await getDB()
+  const newId = id()
+  const ts = now()
+  await database.runAsync(
+    `INSERT INTO recurring_income (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, null, 1, ?, ?)`,
+    [newId, userId, amount, category, note || null, frequency, next_due, ts, ts]
+  )
+  return newId
+}
+
+export async function getRecurringIncome(userId) {
+  const database = await getDB()
+  return await database.getAllAsync(
+    `SELECT * FROM recurring_income WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC`,
+    [userId]
+  )
+}
+
+export async function getInactiveRecurringIncome(userId) {
+  const database = await getDB()
+  return await database.getAllAsync(
+    `SELECT * FROM recurring_income WHERE user_id = ? AND is_active = 0 ORDER BY updated_at DESC`,
+    [userId]
+  )
+}
+
+export async function updateRecurringIncomeAfterLog(id, nextDue, lastLogged) {
+  const database = await getDB()
+  await database.runAsync(
+    `UPDATE recurring_income SET next_due = ?, last_logged = ?, updated_at = ? WHERE id = ?`,
+    [nextDue, lastLogged, now(), id]
+  )
+}
+
+export async function deleteRecurringIncome(id) {
+  const database = await getDB()
+  await database.runAsync(
+    `UPDATE recurring_income SET is_active = 0, updated_at = ? WHERE id = ?`,
+    [now(), id]
+  )
+}
+
+export async function permanentDeleteRecurringIncome(id) {
+  const database = await getDB()
+  await database.runAsync(`DELETE FROM recurring_income WHERE id = ?`, [id])
 }

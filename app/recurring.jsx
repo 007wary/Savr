@@ -10,17 +10,26 @@ import { getCurrencySymbol, loadCurrency, formatAmount } from '../src/lib/curren
 import { getUser, getCachedUser } from '../src/lib/auth'
 import CustomAlert from '../src/components/CustomAlert'
 import useAlert from '../src/hooks/useAlert'
-import { getRecurring, getInactiveRecurring, deleteRecurring, permanentDeleteRecurring } from '../src/services/sqliteService'
+import {
+  getRecurring, getInactiveRecurring, deleteRecurring, permanentDeleteRecurring,
+  getRecurringIncome, getInactiveRecurringIncome, deleteRecurringIncome, permanentDeleteRecurringIncome,
+} from '../src/services/sqliteService'
 import { loadCache, saveCache } from '../src/lib/cache'
 
 const FREQUENCIES = ['daily', 'weekly', 'monthly']
 
+const INCOME_CATEGORIES = [
+  { label: 'Salary', icon: 'briefcase-outline', color: '#4CAF50' },
+  { label: 'Freelance', icon: 'laptop-outline', color: '#2196F3' },
+  { label: 'Business', icon: 'storefront-outline', color: '#FF9800' },
+  { label: 'Investment', icon: 'trending-up-outline', color: '#9C27B0' },
+  { label: 'Rental', icon: 'home-outline', color: '#00BCD4' },
+  { label: 'Gift', icon: 'gift-outline', color: '#E91E63' },
+  { label: 'Other', icon: 'ellipsis-horizontal-outline', color: '#607D8B' },
+]
+
 function FrequencyBadge({ frequency }) {
-  const colors = {
-    daily: COLORS.accentGreen,
-    weekly: COLORS.accentYellow,
-    monthly: COLORS.accent,
-  }
+  const colors = { daily: COLORS.accentGreen, weekly: COLORS.accentYellow, monthly: COLORS.accent }
   const color = colors[frequency] || COLORS.accent
   return (
     <View style={[styles.freqBadge, { backgroundColor: color + '22', borderColor: color + '44' }]}>
@@ -30,8 +39,11 @@ function FrequencyBadge({ frequency }) {
 }
 
 export default function RecurringScreen() {
+  const [activeTab, setActiveTab] = useState('expense')
   const [activeItems, setActiveItems] = useState([])
   const [inactiveItems, setInactiveItems] = useState([])
+  const [activeIncomeItems, setActiveIncomeItems] = useState([])
+  const [inactiveIncomeItems, setInactiveIncomeItems] = useState([])
   const [refreshing, setRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
@@ -44,7 +56,7 @@ export default function RecurringScreen() {
   const router = useRouter()
   const userRef = useRef(null)
 
-  async function fetchData(forceRefresh = false) {
+  async function fetchData() {
     try {
       const symbol = await getCurrencySymbol()
       const code = await loadCurrency()
@@ -53,22 +65,24 @@ export default function RecurringScreen() {
       const user = getCachedUser() || await getUser()
       if (!user) { setLoading(false); setRefreshing(false); return }
       userRef.current = user
-      const [active, inactive] = await Promise.all([
+      const [active, inactive, activeIncome, inactiveIncome] = await Promise.all([
         getRecurring(user.id),
         getInactiveRecurring(user.id),
+        getRecurringIncome(user.id),
+        getInactiveRecurringIncome(user.id),
       ])
       setActiveItems(active)
       setInactiveItems(inactive)
+      setActiveIncomeItems(activeIncome)
+      setInactiveIncomeItems(inactiveIncome)
     } catch {}
-    finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
+    finally { setLoading(false); setRefreshing(false) }
   }
 
   useFocusEffect(useCallback(() => { fetchData() }, []))
 
-  function getCategoryInfo(label) {
+  function getCategoryInfo(label, isIncome = false) {
+    if (isIncome) return INCOME_CATEGORIES.find(c => c.label === label) || { icon: 'cash-outline', color: '#4CAF50' }
     return CATEGORIES.find(c => c.label === label) || { icon: 'grid-outline', color: '#888' }
   }
 
@@ -78,45 +92,66 @@ export default function RecurringScreen() {
   }
 
   async function handleDelete(item) {
-    showAlert(
-      'Deactivate Recurring',
-      `Stop "${item.note || item.category}" from auto-logging?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Deactivate',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteRecurring(item.id)
-              setActiveItems(prev => prev.filter(i => i.id !== item.id))
-              setInactiveItems(prev => [{ ...item, is_active: 0 }, ...prev])
-              await refreshDashboardCache()
-            } catch {}
-          }
+    showAlert('Deactivate Recurring', `Stop "${item.note || item.category}" from auto-logging?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Deactivate', style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteRecurring(item.id)
+            setActiveItems(prev => prev.filter(i => i.id !== item.id))
+            setInactiveItems(prev => [{ ...item, is_active: 0 }, ...prev])
+            await refreshDashboardCache()
+          } catch {}
         }
-      ]
-    )
+      }
+    ])
+  }
+
+  async function handleDeleteIncome(item) {
+    showAlert('Deactivate Recurring Income', `Stop "${item.note || item.category}" from auto-logging?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Deactivate', style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteRecurringIncome(item.id)
+            setActiveIncomeItems(prev => prev.filter(i => i.id !== item.id))
+            setInactiveIncomeItems(prev => [{ ...item, is_active: 0 }, ...prev])
+          } catch {}
+        }
+      }
+    ])
   }
 
   async function handlePermanentDelete(item) {
-    showAlert(
-      'Delete Permanently',
-      `Permanently delete "${item.note || item.category}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await permanentDeleteRecurring(item.id)
-              setInactiveItems(prev => prev.filter(i => i.id !== item.id))
-            } catch {}
-          }
+    showAlert('Delete Permanently', `Permanently delete "${item.note || item.category}"? This cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          try {
+            await permanentDeleteRecurring(item.id)
+            setInactiveItems(prev => prev.filter(i => i.id !== item.id))
+          } catch {}
         }
-      ]
-    )
+      }
+    ])
+  }
+
+  async function handlePermanentDeleteIncome(item) {
+    showAlert('Delete Permanently', `Permanently delete "${item.note || item.category}"? This cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          try {
+            await permanentDeleteRecurringIncome(item.id)
+            setInactiveIncomeItems(prev => prev.filter(i => i.id !== item.id))
+          } catch {}
+        }
+      }
+    ])
   }
 
   async function refreshDashboardCache() {
@@ -130,11 +165,7 @@ export default function RecurringScreen() {
         if (!user) return
         const fresh = await getRecurring(user.id)
         const recTotal = fresh.reduce((sum, r) => sum + parseFloat(r.amount), 0)
-        await saveCache(dashCacheKey, {
-          ...dashCached,
-          recurringTotal: recTotal,
-          recurringCount: fresh.length,
-        })
+        await saveCache(dashCacheKey, { ...dashCached, recurringTotal: recTotal, recurringCount: fresh.length })
       }
     } catch {}
   }
@@ -146,29 +177,144 @@ export default function RecurringScreen() {
     setEditFrequency(item.frequency)
   }
 
-  async function handleSaveEdit(item) {
+  async function handleSaveEdit(item, isIncome = false) {
     if (!editAmount || isNaN(parseFloat(editAmount)) || parseFloat(editAmount) <= 0) {
       return showAlert('Invalid', 'Please enter a valid amount')
     }
     try {
       const { getDB } = await import('../src/services/sqliteService')
       const db = await getDB()
+      const table = isIncome ? 'recurring_income' : 'recurring_expenses'
       await db.runAsync(
-        `UPDATE recurring_expenses SET amount = ?, note = ?, frequency = ?, updated_at = ? WHERE id = ?`,
+        `UPDATE ${table} SET amount = ?, note = ?, frequency = ?, updated_at = ? WHERE id = ?`,
         [parseFloat(editAmount), editNote.trim() || null, editFrequency, new Date().toISOString(), item.id]
       )
-      setActiveItems(prev => prev.map(i => i.id === item.id ? {
-        ...i,
-        amount: parseFloat(editAmount),
-        note: editNote.trim(),
-        frequency: editFrequency,
-      } : i))
+      const updatedItem = { ...item, amount: parseFloat(editAmount), note: editNote.trim(), frequency: editFrequency }
+      if (isIncome) {
+        setActiveIncomeItems(prev => prev.map(i => i.id === item.id ? updatedItem : i))
+      } else {
+        setActiveItems(prev => prev.map(i => i.id === item.id ? updatedItem : i))
+        await refreshDashboardCache()
+      }
       setEditingId(null)
-      await refreshDashboardCache()
     } catch {
       showAlert('Error', 'Could not save changes.')
     }
   }
+
+  function renderItem(item, isIncome = false) {
+    const cat = getCategoryInfo(item.category, isIncome)
+    const isEditing = editingId === item.id
+    return (
+      <View key={item.id} style={styles.card}>
+        <View style={styles.cardHeader}>
+          <View style={[styles.iconBox, { backgroundColor: cat.color + '22' }]}>
+            <Ionicons name={cat.icon} size={20} color={cat.color} />
+          </View>
+          <View style={styles.cardInfo}>
+            <Text style={styles.cardTitle}>{item.note || item.category}</Text>
+            <Text style={styles.cardSub}>Next due: {formatDate(item.next_due)}</Text>
+          </View>
+          <View style={styles.cardRight}>
+            <Text style={[styles.cardAmount, isIncome && { color: '#4CAF50' }]}>
+              {isIncome ? '+' : ''}{formatAmount(item.amount, currencySymbol, currencyCode)}
+            </Text>
+            <FrequencyBadge frequency={item.frequency} />
+          </View>
+        </View>
+
+        {!isEditing && (
+          <View style={styles.cardActions}>
+            <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}>
+              <Ionicons name="pencil-outline" size={14} color={COLORS.accent} />
+              <Text style={styles.editBtnText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.deleteBtn} onPress={() => isIncome ? handleDeleteIncome(item) : handleDelete(item)}>
+              <Ionicons name="pause-circle-outline" size={14} color={COLORS.accentRed} />
+              <Text style={styles.deleteBtnText}>Deactivate</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {isEditing && (
+          <View style={styles.editSection}>
+            <Text style={styles.editLabel}>Amount ({currencySymbol})</Text>
+            <TextInput
+              style={styles.editInput}
+              value={editAmount}
+              onChangeText={setEditAmount}
+              keyboardType="numeric"
+              placeholderTextColor={COLORS.textMuted}
+              autoFocus
+            />
+            <Text style={styles.editLabel}>Note</Text>
+            <TextInput
+              style={styles.editInput}
+              value={editNote}
+              onChangeText={setEditNote}
+              placeholderTextColor={COLORS.textMuted}
+              placeholder={isIncome ? 'e.g. Monthly salary, Rent income' : 'e.g. Netflix, EMI, Rent'}
+            />
+            <Text style={styles.editLabel}>Frequency</Text>
+            <View style={styles.freqRow}>
+              {FREQUENCIES.map(f => (
+                <TouchableOpacity
+                  key={f}
+                  style={[styles.freqBtn, editFrequency === f && styles.freqBtnActive]}
+                  onPress={() => setEditFrequency(f)}
+                >
+                  <Text style={[styles.freqBtnText, editFrequency === f && { color: '#fff' }]}>
+                    {f.charAt(0).toUpperCase() + f.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.editActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingId(null)}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.saveBtn} onPress={() => handleSaveEdit(item, isIncome)}>
+                <Text style={styles.saveBtnText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+      </View>
+    )
+  }
+
+  function renderInactiveItem(item, isIncome = false) {
+    const cat = getCategoryInfo(item.category, isIncome)
+    return (
+      <View key={item.id} style={[styles.card, styles.inactiveCard]}>
+        <View style={styles.cardHeader}>
+          <View style={[styles.iconBox, { backgroundColor: cat.color + '11' }]}>
+            <Ionicons name={cat.icon} size={20} color={cat.color + '88'} />
+          </View>
+          <View style={styles.cardInfo}>
+            <Text style={[styles.cardTitle, { color: COLORS.textMuted }]}>{item.note || item.category}</Text>
+            <Text style={styles.cardSub}>Stopped {formatDate(item.updated_at?.split('T')[0])}</Text>
+          </View>
+          <View style={styles.cardRight}>
+            <Text style={[styles.cardAmount, { color: COLORS.textMuted }]}>{formatAmount(item.amount, currencySymbol, currencyCode)}</Text>
+            <View style={styles.inactiveBadge}>
+              <Text style={styles.inactiveBadgeText}>Inactive</Text>
+            </View>
+          </View>
+        </View>
+        <View style={styles.cardActions}>
+          <TouchableOpacity style={styles.deleteBtn} onPress={() => isIncome ? handlePermanentDeleteIncome(item) : handlePermanentDelete(item)}>
+            <Ionicons name="trash-outline" size={14} color={COLORS.accentRed} />
+            <Text style={styles.deleteBtnText}>Delete Permanently</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )
+  }
+
+  const currentActive = activeTab === 'expense' ? activeItems : activeIncomeItems
+  const currentInactive = activeTab === 'expense' ? inactiveItems : inactiveIncomeItems
+  const isIncome = activeTab === 'income'
 
   if (loading) {
     return (
@@ -177,150 +323,67 @@ export default function RecurringScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color={COLORS.text} />
           </TouchableOpacity>
-          <Text style={styles.heading}>Recurring Expenses</Text>
+          <Text style={styles.heading}>Recurring</Text>
         </View>
       </View>
     )
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={COLORS.text} />
-        </TouchableOpacity>
-        <Text style={styles.heading}>Recurring Expenses</Text>
+    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+      <View style={[styles.container, { flex: 1 }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color={COLORS.text} />
+          </TouchableOpacity>
+          <Text style={styles.heading}>Recurring</Text>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={{ paddingBottom: 80 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData() }} tintColor={COLORS.accent} />
+          }
+        >
+          <Text style={styles.sectionLabel}>ACTIVE ({currentActive.length})</Text>
+
+          {currentActive.length === 0 && (
+            <View style={styles.emptyCard}>
+              <Ionicons name="repeat-outline" size={40} color={COLORS.border} />
+              <Text style={styles.emptyText}>No active recurring {isIncome ? 'income' : 'expenses'}</Text>
+              <Text style={styles.emptySub}>Add one from the + button on dashboard</Text>
+            </View>
+          )}
+
+          {currentActive.map(item => renderItem(item, isIncome))}
+
+          {currentInactive.length > 0 && (
+            <>
+              <Text style={[styles.sectionLabel, { marginTop: 24 }]}>INACTIVE ({currentInactive.length})</Text>
+              {currentInactive.map(item => renderInactiveItem(item, isIncome))}
+            </>
+          )}
+        </ScrollView>
       </View>
 
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 60 }}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(true) }} tintColor={COLORS.accent} />
-        }
-      >
-        <Text style={styles.sectionLabel}>ACTIVE ({activeItems.length})</Text>
-
-        {activeItems.length === 0 && (
-          <View style={styles.emptyCard}>
-            <Ionicons name="repeat-outline" size={40} color={COLORS.border} />
-            <Text style={styles.emptyText}>No active recurring expenses</Text>
-            <Text style={styles.emptySub}>Add a recurring expense from the + button</Text>
-          </View>
-        )}
-
-        {activeItems.map(item => {
-          const cat = getCategoryInfo(item.category)
-          const isEditing = editingId === item.id
-          return (
-            <View key={item.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={[styles.iconBox, { backgroundColor: cat.color + '22' }]}>
-                  <Ionicons name={cat.icon} size={20} color={cat.color} />
-                </View>
-                <View style={styles.cardInfo}>
-                  <Text style={styles.cardTitle}>{item.note || item.category}</Text>
-                  <Text style={styles.cardSub}>Next due: {formatDate(item.next_due)}</Text>
-                </View>
-                <View style={styles.cardRight}>
-                  <Text style={styles.cardAmount}>{formatAmount(item.amount, currencySymbol, currencyCode)}</Text>
-                  <FrequencyBadge frequency={item.frequency} />
-                </View>
-              </View>
-
-              {!isEditing && (
-                <View style={styles.cardActions}>
-                  <TouchableOpacity style={styles.editBtn} onPress={() => openEdit(item)}>
-                    <Ionicons name="pencil-outline" size={14} color={COLORS.accent} />
-                    <Text style={styles.editBtnText}>Edit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item)}>
-                    <Ionicons name="pause-circle-outline" size={14} color={COLORS.accentRed} />
-                    <Text style={styles.deleteBtnText}>Deactivate</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {isEditing && (
-                <View style={styles.editSection}>
-                  <Text style={styles.editLabel}>Amount ({currencySymbol})</Text>
-                  <TextInput
-                    style={styles.editInput}
-                    value={editAmount}
-                    onChangeText={setEditAmount}
-                    keyboardType="numeric"
-                    placeholderTextColor={COLORS.textMuted}
-                    autoFocus
-                  />
-                  <Text style={styles.editLabel}>Note</Text>
-                  <TextInput
-                    style={styles.editInput}
-                    value={editNote}
-                    onChangeText={setEditNote}
-                    placeholderTextColor={COLORS.textMuted}
-                    placeholder="e.g. Netflix, EMI, Rent"
-                  />
-                  <Text style={styles.editLabel}>Frequency</Text>
-                  <View style={styles.freqRow}>
-                    {FREQUENCIES.map(f => (
-                      <TouchableOpacity
-                        key={f}
-                        style={[styles.freqBtn, editFrequency === f && styles.freqBtnActive]}
-                        onPress={() => setEditFrequency(f)}
-                      >
-                        <Text style={[styles.freqBtnText, editFrequency === f && { color: '#fff' }]}>
-                          {f.charAt(0).toUpperCase() + f.slice(1)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                  <View style={styles.editActions}>
-                    <TouchableOpacity style={styles.cancelBtn} onPress={() => setEditingId(null)}>
-                      <Text style={styles.cancelBtnText}>Cancel</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.saveBtn} onPress={() => handleSaveEdit(item)}>
-                      <Text style={styles.saveBtnText}>Save</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-            </View>
-          )
-        })}
-
-        {inactiveItems.length > 0 && (
-          <>
-            <Text style={[styles.sectionLabel, { marginTop: 24 }]}>INACTIVE ({inactiveItems.length})</Text>
-            {inactiveItems.map(item => {
-              const cat = getCategoryInfo(item.category)
-              return (
-                <View key={item.id} style={[styles.card, styles.inactiveCard]}>
-                  <View style={styles.cardHeader}>
-                    <View style={[styles.iconBox, { backgroundColor: cat.color + '11' }]}>
-                      <Ionicons name={cat.icon} size={20} color={cat.color + '88'} />
-                    </View>
-                    <View style={styles.cardInfo}>
-                      <Text style={[styles.cardTitle, { color: COLORS.textMuted }]}>{item.note || item.category}</Text>
-                      <Text style={styles.cardSub}>Stopped {formatDate(item.updated_at?.split('T')[0])}</Text>
-                    </View>
-                    <View style={styles.cardRight}>
-                      <Text style={[styles.cardAmount, { color: COLORS.textMuted }]}>{formatAmount(item.amount, currencySymbol, currencyCode)}</Text>
-                      <View style={styles.inactiveBadge}>
-                        <Text style={styles.inactiveBadgeText}>Inactive</Text>
-                      </View>
-                    </View>
-                  </View>
-                  <View style={styles.cardActions}>
-                    <TouchableOpacity style={styles.deleteBtn} onPress={() => handlePermanentDelete(item)}>
-                      <Ionicons name="trash-outline" size={14} color={COLORS.accentRed} />
-                      <Text style={styles.deleteBtnText}>Delete Permanently</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )
-            })}
-          </>
-        )}
-      </ScrollView>
+      {/* Bottom tab switcher */}
+      <View style={styles.bottomTabRow}>
+        {[
+          { key: 'expense', label: 'Expenses', icon: 'arrow-up-circle-outline', color: COLORS.accent },
+          { key: 'income', label: 'Income', icon: 'arrow-down-circle-outline', color: '#4CAF50' },
+        ].map(tab => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.bottomTabBtn, activeTab === tab.key && { borderTopColor: tab.color, borderTopWidth: 2 }]}
+            onPress={() => { setActiveTab(tab.key); setEditingId(null) }}
+          >
+            <Ionicons name={tab.icon} size={22} color={activeTab === tab.key ? tab.color : COLORS.textMuted} />
+            <Text style={[styles.bottomTabText, activeTab === tab.key && { color: tab.color, fontWeight: '700' }]}>
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       <CustomAlert
         visible={alertConfig.visible}
@@ -334,7 +397,7 @@ export default function RecurringScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
+  container: { backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
   backBtn: { padding: 4 },
   heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
@@ -372,4 +435,7 @@ const styles = StyleSheet.create({
   cancelBtnText: { color: COLORS.textMuted, fontWeight: '600' },
   saveBtn: { flex: 1, backgroundColor: COLORS.accent, borderRadius: 10, padding: 12, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: '700' },
+  bottomTabRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border, height: 80, paddingBottom: 24 },
+  bottomTabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 6 },
+  bottomTabText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
 })
