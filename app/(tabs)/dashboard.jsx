@@ -233,8 +233,8 @@ const [userInitials, setUserInitials] = useState('??')
       const symbol = await getCurrencySymbol()
       const code = await loadCurrency()
       const lastMonthInfo = getMonthInfo(monthOffset - 1)
-      const now = new Date()
-      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      const todayDate = new Date()
+      const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`
       const [currentExpenses, lastTotal, recurringItems, incomeTotal, accTotal, todayIncomeTotal] = await Promise.all([
         getExpenses(user.id, { month: currentMonth }),
         getMonthlyTotal(user.id, lastMonthInfo.month),
