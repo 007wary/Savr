@@ -388,7 +388,7 @@ if (lastTrigger === today) return
       <Stack.Screen name="recurring" options={{ animation: 'default' }} />
       <Stack.Screen name="backup" options={{ animation: 'default' }} />
       <Stack.Screen name="manage-data" options={{ animation: 'default' }} />
-      <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="settings" options={{ animation: 'default' }} />
     </Stack>
   )
 }
