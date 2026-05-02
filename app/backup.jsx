@@ -30,7 +30,7 @@ export default function BackupScreen() {
           AsyncStorage.getItem('savr_is_up_to_date'),
         ])
         if (time) { setLastBackup(time); setLoading(false) }
-        if (cached === 'true') { setIsUpToDate(true); setChecking(false) }
+        if (cached === 'true') { setIsUpToDate(true) }
       } catch {}
     }
     preload()

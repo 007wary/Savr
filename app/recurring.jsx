@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import {
   View, Text, StyleSheet,
   TouchableOpacity, RefreshControl, TextInput
@@ -55,7 +55,6 @@ export default function RecurringScreen() {
   const [editFrequency, setEditFrequency] = useState('monthly')
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
-  const userRef = useRef(null)
 
   async function fetchData() {
     try {
@@ -80,9 +79,9 @@ export default function RecurringScreen() {
     finally { setLoading(false); setRefreshing(false) }
   }
 
-  useFocusEffect(() => {
+  useFocusEffect(useCallback(() => {
     fetchData()
-  })
+  }, []))
 
   function getCategoryInfo(label, isIncome = false) {
     if (isIncome) return INCOME_CATEGORIES.find(c => c.label === label) || { icon: 'cash-outline', color: '#4CAF50' }

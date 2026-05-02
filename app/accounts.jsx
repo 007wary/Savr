@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, KeyboardAvoidingView, Platform, ActivityIndicator
+  TextInput, ActivityIndicator
 } from 'react-native'
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, SCREEN } from '../src/constants/theme'
@@ -53,9 +54,9 @@ export default function Accounts() {
     finally { setLoading(false) }
   }
 
-  useFocusEffect(() => {
+  useFocusEffect(useCallback(() => {
     fetchAccounts()
-  })
+  }, []))
 
   function openAdd() {
     setEditingAccount(null)
@@ -129,13 +130,6 @@ export default function Accounts() {
     ])
   }
 
-  const totalBalance = accounts.reduce((sum, a) => {
-    const balance = parseFloat(a.balance)
-    if (a.type === 'Loan') return sum - balance
-    if (a.type === 'Credit Card') return balance < 0 ? sum + balance : sum + balance
-    return sum + balance
-  }, 0)
-
   function getTypeInfo(typeLabel) {
     return ACCOUNT_TYPES.find(t => t.label === typeLabel) || ACCOUNT_TYPES[ACCOUNT_TYPES.length - 1]
   }
@@ -160,17 +154,6 @@ export default function Accounts() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.container}>
-
-          {/* Net Worth card */}
-          {accounts.length > 0 && (
-            <View style={styles.netWorthCard}>
-              <Text style={styles.netWorthLabel}>NET WORTH</Text>
-              <Text style={[styles.netWorthAmount, { color: totalBalance >= 0 ? '#4CAF50' : COLORS.accentRed }]}>
-                {totalBalance >= 0 ? '' : '-'}{formatAmount(Math.abs(totalBalance), currencySymbol, currencyCode)}
-              </Text>
-              <Text style={styles.netWorthSub}>{accounts.length} account{accounts.length !== 1 ? 's' : ''}</Text>
-            </View>
-          )}
 
           {/* Account list */}
           {accounts.length === 0 ? (
@@ -218,8 +201,7 @@ export default function Accounts() {
 
       {/* Add / Edit Bottom Sheet */}
       <BottomSheet visible={showSheet} onClose={() => setShowSheet(false)} maxHeight="90%">
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView keyboardShouldPersistTaps="handled">
+        <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>{editingAccount ? 'Edit Account' : 'Add Account'}</Text>
               <TouchableOpacity onPress={() => setShowSheet(false)}>
@@ -276,8 +258,7 @@ export default function Accounts() {
               }
               <Text style={styles.saveBtnText}>{saving ? 'Saving...' : editingAccount ? 'Save Changes' : 'Add Account'}</Text>
             </TouchableOpacity>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          </KeyboardAwareScrollView>
       </BottomSheet>
 
       <CustomAlert
@@ -297,16 +278,12 @@ const styles = StyleSheet.create({
   addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' },
   container: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  netWorthCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 20, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center' },
-  netWorthLabel: { fontSize: 11, color: COLORS.textMuted, letterSpacing: 1.5, fontWeight: '700', marginBottom: 8 },
-  netWorthAmount: { fontSize: 32, fontWeight: '900', letterSpacing: -1, marginBottom: 4 },
-  netWorthSub: { fontSize: 13, color: COLORS.textMuted },
   accountCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border },
   accountIcon: { width: 46, height: 46, borderRadius: 13, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
   accountInfo: { flex: 1 },
   accountName: { fontSize: 15, fontWeight: '600', color: COLORS.text },
   accountType: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  accountRight: { marginRight: 10 },
+  accountRight: { flex: 1, alignItems: 'flex-end', marginRight: 10 },
   accountBalance: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
   deleteBtn: { padding: 6 },
   empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 },

@@ -15,7 +15,10 @@ export default function ManageDataScreen() {
   async function loadBackupTime() {
     try {
       const cached = await AsyncStorage.getItem('savr_last_backup')
-      if (cached) setLastBackup(cached)
+      if (cached) {
+        setLastBackup(cached)
+        return
+      }
       checkBackupExists().then(info => {
         if (info?.modifiedTime) setLastBackup(info.modifiedTime)
       }).catch(() => {})
