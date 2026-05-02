@@ -268,11 +268,14 @@ export default function Dashboard() {
     setGoalInput('')
   }
 
-  const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+  const { total, todayExpenses, todayTotal } = useMemo(() => {
   const now = new Date()
-  const todayStr = now.toISOString().split('T')[0]
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   const todayExpenses = expenses.filter(e => e.date === todayStr)
   const todayTotal = todayExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+  const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+  return { total, todayExpenses, todayTotal }
+}, [expenses])
 
   const byCategory = useMemo(() => CATEGORIES.map(cat => {
     const catExpenses = expenses.filter(e => e.category === cat.label)
@@ -280,7 +283,7 @@ export default function Dashboard() {
     return { ...cat, total: catTotal }
   }).filter(c => c.total > 0).sort((a, b) => b.total - a.total), [expenses])
 
-  const recent = sortExpenses(expenses).slice(0, 5)
+  const recent = useMemo(() => expenses.slice(0, 5), [expenses])
 
   const goalPercentage = spendingGoal ? Math.min((total / spendingGoal) * 100, 100) : 0
   const goalExceeded = spendingGoal && total > spendingGoal
@@ -308,10 +311,10 @@ export default function Dashboard() {
 
   function formatDate(dateStr) {
     const today = new Date()
-    const todayStr = today.toISOString().split('T')[0]
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
-    const yesterdayStr = yesterday.toISOString().split('T')[0]
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
     if (dateStr === todayStr) return 'Today'
     if (dateStr === yesterdayStr) return 'Yesterday'
     return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
@@ -625,7 +628,6 @@ export default function Dashboard() {
 
 const styles = StyleSheet.create({
   outerContainer: { flex: 1, backgroundColor: COLORS.bg },
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingHorizontal: SCREEN.paddingHorizontal },
   scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal },
   header: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
   brandText: { fontSize: 32, fontWeight: '900', color: COLORS.accent, letterSpacing: -1 },

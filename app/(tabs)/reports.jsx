@@ -158,7 +158,7 @@ if (!userRef.current) userRef.current = user
     for (let i = 6; i >= 0; i--) {
       const d = getNow()
       d.setDate(d.getDate() - i)
-      const dateStr = d.toISOString().split('T')[0]
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       result.push({ date: dateStr, label: d.toLocaleString('default', { weekday: 'short' }), amount: dailyMap[dateStr] || 0 })
     }
     return result
@@ -224,7 +224,7 @@ if (!userRef.current) userRef.current = user
     for (let i = 0; i < 30; i++) {
       const d = getNow()
       d.setDate(d.getDate() - i)
-      const dateStr = d.toISOString().split('T')[0]
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       if (dailyMap[dateStr]) count++
       else break
     }
@@ -582,7 +582,6 @@ if (!userRef.current) userRef.current = user
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
   outerContainer: { flex: 1, backgroundColor: COLORS.bg },
   stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
   scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal },

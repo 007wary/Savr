@@ -33,12 +33,12 @@ export default function RootLayout() {
   }, [segments])
 
   useEffect(() => {
-    AsyncStorage.getItem('savr_onboarding_done').then(done => {
-      if (done === 'true' && !onboardingDone) {
-        setOnboardingDone(true)
-      }
-    }).catch(() => {})
-  }, [segments])
+  AsyncStorage.getItem('savr_onboarding_done').then(done => {
+    if (done === 'true' && !onboardingDone) {
+      setOnboardingDone(true)
+    }
+  }).catch(() => {})
+}, [segments, onboardingDone])
 
   useEffect(() => {
     async function init() {
@@ -119,7 +119,8 @@ export default function RootLayout() {
           setTimeout(async () => {
             try {
               await dbReady
-              const today = new Date().toISOString().split('T')[0]
+              const d = new Date()
+const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
               const lastCheck = await AsyncStorage.getItem(LAST_RECURRING_CHECK_KEY)
               if (lastCheck !== today) {
                 await AsyncStorage.setItem(LAST_RECURRING_CHECK_KEY, today)
@@ -217,9 +218,10 @@ setTimeout(async () => {
         // Daily auto backup with hash check
         ;(async () => {
           try {
-            const today = new Date().toISOString().split('T')[0]
-            const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
-            if (lastTrigger === today) return
+            const d = new Date()
+const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
+if (lastTrigger === today) return
             const user = session?.user
             if (!user) return
             const { hasDataChanged, backupToDrive } = await import('../src/services/driveBackupService')
@@ -317,9 +319,10 @@ try {
 
   if (nextAppState !== 'active') return
   try {
-    const today = new Date().toISOString().split('T')[0]
-    const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
-    if (lastTrigger === today) return
+    const d = new Date()
+const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
+if (lastTrigger === today) return
     const user = getCachedUser()
     if (!user) return
     const { hasDataChanged, backupToDrive } = await import('../src/services/driveBackupService')

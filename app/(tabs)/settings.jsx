@@ -236,7 +236,7 @@ export default function Settings() {
       <View style={styles.stickyHeader}>
         <Text style={styles.heading}>Settings</Text>
       </View>
-      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 60 }}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 24 }}>
 
       {/* Profile Card */}
       <TouchableOpacity style={styles.profileCard} onPress={openProfileModal} activeOpacity={0.8}>
@@ -347,7 +347,7 @@ export default function Settings() {
       </View>
 
       {/* About */}
-      <Text style={styles.sectionLabel}>ABOUT</Text>
+      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>ABOUT</Text>
       <View style={styles.card}>
         <View style={[styles.row, { paddingVertical: 10 }]}>
           <View style={styles.rowLeft}>
@@ -429,7 +429,7 @@ export default function Settings() {
       </View>
 
       {/* Account */}
-      <Text style={styles.sectionLabel}>ACCOUNT</Text>
+      <Text style={[styles.sectionLabel, { marginTop: 8 }]}>ACCOUNT</Text>
       <View style={styles.card}>
         <TouchableOpacity style={styles.row} onPress={handleSignOut}>
           <View style={styles.rowLeft}>
@@ -586,7 +586,7 @@ const styles = StyleSheet.create({
   editProfileText: { fontSize: 13, color: COLORS.accent, fontWeight: '600' },
   sectionLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1.2, marginTop: 24, marginBottom: 10, marginLeft: 4 },
   card: { marginBottom: 24 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 4 },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
   rowIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   rowTitle: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
@@ -594,7 +594,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: COLORS.border },
   versionPill: { backgroundColor: COLORS.accent + '22', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: COLORS.accent + '44' },
   versionPillText: { fontSize: 12, color: COLORS.accent, fontWeight: '700' },
-  footer: { alignItems: 'center', marginTop: 8, marginBottom: 32 },
+  footer: { alignItems: 'center', marginTop: 8, marginBottom: 8 },
   footerSub: { fontSize: 11, color: COLORS.border },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },

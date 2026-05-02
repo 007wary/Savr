@@ -477,10 +477,10 @@ export default function AddExpense() {
                   )}
 
                   <TouchableOpacity
-                    style={[styles.btn, { backgroundColor: '#607D8B' }, submitting && { opacity: 0.6 }]}
-                    onPress={saveTransfer}
-                    disabled={submitting}
-                  >
+  style={[styles.btn, { backgroundColor: '#607D8B' }, submitting && { opacity: 0.6 }]}
+  onPress={handleAdd}
+  disabled={submitting}
+>
                     {submitting
                       ? <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
                       : <Ionicons name="swap-horizontal-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
@@ -755,7 +755,6 @@ export default function AddExpense() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
-  backBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center' },
   headerTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text },
   container: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 40 },
   label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
@@ -787,7 +786,7 @@ const styles = StyleSheet.create({
   frequencySection: { backgroundColor: COLORS.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
   freqRow: { flexDirection: 'row', gap: 10 },
   freqBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
-  freqBtnActive: { backgroundColor: COLORS.accentGreen, borderColor: COLORS.accentGreen },
+  freqBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
   freqLabel: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
   btn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderRadius: 12, padding: 16, marginTop: 8, marginBottom: 20 },
   btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
