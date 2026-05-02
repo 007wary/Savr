@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import {
   View, Text, StyleSheet,
   TouchableOpacity, RefreshControl, TextInput
@@ -55,6 +55,7 @@ export default function RecurringScreen() {
   const [editFrequency, setEditFrequency] = useState('monthly')
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
+  const userRef = useRef(null)
 
   async function fetchData() {
     try {
@@ -79,7 +80,13 @@ export default function RecurringScreen() {
     finally { setLoading(false); setRefreshing(false) }
   }
 
+  const initialLoadDone = useRef(false)
+
   useFocusEffect(useCallback(() => {
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true
+      setLoading(true)
+    }
     fetchData()
   }, []))
 
