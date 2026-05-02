@@ -437,6 +437,15 @@ export async function getMonthlyIncomeTotal(userId, month) {
   return result?.total || 0
 }
 
+export async function getTodayIncomeTotal(userId, date) {
+  const database = await getDB()
+  const result = await database.getFirstAsync(
+    `SELECT SUM(amount) as total FROM income WHERE user_id = ? AND date = ?`,
+    [userId, date]
+  )
+  return result?.total || 0
+}
+
 export async function updateIncome(id, { amount, category, note, date, account_id }) {
   const database = await getDB()
   await database.runAsync(

@@ -332,7 +332,7 @@ export default function Settings() {
 
         <View style={styles.divider} />
 
-        <TouchableOpacity style={styles.row} onPress={() => router.push('/accounts')}>
+        <TouchableOpacity style={styles.row} onPress={() => router.push('/(tabs)/accounts')}>
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#4CAF5022' }]}>
               <Ionicons name="card-outline" size={18} color="#4CAF50" />

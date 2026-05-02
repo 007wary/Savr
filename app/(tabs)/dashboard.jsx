@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, Modal, KeyboardAvoidingView, Platform, AppState } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, Modal, KeyboardAvoidingView, Platform, AppState, Image } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -10,7 +10,7 @@ import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import { checkWeeklySummary } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
-import { getExpenses, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal, getAccountsTotal } from '../../src/services/sqliteService'
+import { getExpenses, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal, getAccountsTotal, getTodayIncomeTotal } from '../../src/services/sqliteService'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 
@@ -59,6 +59,9 @@ export default function Dashboard() {
   const [recurringCount, setRecurringCount] = useState(0)
   const [monthlyIncome, setMonthlyIncome] = useState(0)
   const [accountsTotal, setAccountsTotal] = useState({ total: 0, count: 0 })
+  const [todayIncome, setTodayIncome] = useState(0)
+  const [avatarUrl, setAvatarUrl] = useState(null)
+const [userInitials, setUserInitials] = useState('??')
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
   const userRef = useRef(null)
@@ -83,6 +86,17 @@ export default function Dashboard() {
       return new Date(b.created_at || 0) - new Date(a.created_at || 0)
     })
   }
+
+  useEffect(() => {
+    async function loadAvatarFromStorage() {
+      try {
+        const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
+        const saved = await AsyncStorageModule.getItem('savr_avatar_url')
+        if (saved) setAvatarUrl(saved)
+      } catch {}
+    }
+    loadAvatarFromStorage()
+  }, [])
 
   useEffect(() => {
     async function loadGoalData() {
@@ -181,6 +195,9 @@ export default function Dashboard() {
         setRecurringCount(cached.recurringCount || 0)
         setMonthlyIncome(cached.monthlyIncome || 0)
         setAccountsTotal(cached.accountsTotal || { total: 0, count: 0 })
+        setTodayIncome(cached.todayIncome || 0)
+        if (cached.avatarUrl) setAvatarUrl(cached.avatarUrl)
+        if (cached.userInitials) setUserInitials(cached.userInitials)
         setLoading(false)
         setMonthLoading(false)
         setTimeout(() => syncFromSQLite(cacheKey), 100)
@@ -198,15 +215,33 @@ export default function Dashboard() {
       const meta = user.user_metadata?.display_name || user.user_metadata?.full_name
       const emailName = user.email.split('@')[0]
       const firstName = meta ? meta.split(' ')[0] : emailName
+      const fullName = meta || emailName
+      const nameParts = fullName.trim().split(' ')
+      const initials = nameParts.length >= 2
+        ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
+        : fullName.slice(0, 2).toUpperCase()
+      setUserInitials(initials)
+
+      const avatar = user.user_metadata?.picture || user.user_metadata?.avatar_url || null
+      setAvatarUrl(avatar)
+      if (avatar) {
+        try {
+          const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
+          await AsyncStorageModule.setItem('savr_avatar_url', avatar)
+        } catch {}
+      }
       const symbol = await getCurrencySymbol()
       const code = await loadCurrency()
       const lastMonthInfo = getMonthInfo(monthOffset - 1)
-      const [currentExpenses, lastTotal, recurringItems, incomeTotal, accTotal] = await Promise.all([
+      const now = new Date()
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      const [currentExpenses, lastTotal, recurringItems, incomeTotal, accTotal, todayIncomeTotal] = await Promise.all([
         getExpenses(user.id, { month: currentMonth }),
         getMonthlyTotal(user.id, lastMonthInfo.month),
         getRecurring(user.id),
         getMonthlyIncomeTotal(user.id, currentMonth),
         getAccountsTotal(user.id),
+        getTodayIncomeTotal(user.id, todayStr),
       ])
       const filtered = sortExpenses(currentExpenses)
       const now = new Date()
@@ -232,11 +267,12 @@ export default function Dashboard() {
       setRecurringCount(recCount)
       setMonthlyIncome(incomeTotal)
       setAccountsTotal(accTotal)
+      setTodayIncome(todayIncomeTotal)
 
       await saveCache(cacheKey, {
         expenses: filtered, userName: firstName, lastMonthTotal: lastTotal,
         daysInMonth: daysElapsed, currencySymbol: symbol, currencyCode: code,
-        recurringTotal: recTotal, recurringCount: recCount, monthlyIncome: incomeTotal, accountsTotal: accTotal,
+        recurringTotal: recTotal, recurringCount: recCount, monthlyIncome: incomeTotal, accountsTotal: accTotal, todayIncome: todayIncomeTotal, avatarUrl: avatar, userInitials: initials,
       })
 
       if (monthOffset === 0) {
@@ -344,6 +380,24 @@ const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
     <View style={styles.outerContainer}>
       <View style={styles.header}>
         <Text style={styles.brandText}>Savr</Text>
+        <TouchableOpacity style={styles.avatarBtn} onPress={() => router.push('/settings')} activeOpacity={0.8}>
+          <View style={styles.avatarGreeting}>
+            <Text style={styles.greetingText}>
+              {(() => {
+                const h = new Date().getHours()
+                return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+              })()}
+            </Text>
+            <Text style={styles.greetingName} numberOfLines={1}>{userName || 'there'}</Text>
+          </View>
+          {avatarUrl ? (
+            <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+          ) : (
+            <View style={styles.avatarFallback}>
+              <Text style={styles.avatarInitials}>{userInitials}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -387,9 +441,23 @@ const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
             </View>
             <View style={styles.totalDivider} />
             <View style={styles.totalRight}>
-              <Text style={styles.totalLabel}>TODAY</Text>
+              <Text style={styles.totalLabel}>TODAY SPENT</Text>
               <CountUp value={todayTotal} style={styles.totalAmount} symbol={currencySymbol} currencyCode={currencyCode} />
               <Text style={styles.totalSub}>{todayExpenses.length} today</Text>
+            </View>
+          </View>
+          <View style={styles.totalHDivider} />
+          <View style={styles.totalRow}>
+            <View style={styles.totalLeft}>
+              <Text style={styles.totalLabel}>MONTHLY INCOME</Text>
+              <CountUp value={monthlyIncome} style={[styles.totalAmount, { color: '#a8ffb8' }]} symbol={currencySymbol} currencyCode={currencyCode} />
+              <Text style={styles.totalSub}>this month</Text>
+            </View>
+            <View style={styles.totalDivider} />
+            <View style={styles.totalRight}>
+              <Text style={styles.totalLabel}>TODAY INCOME</Text>
+              <CountUp value={todayIncome} style={[styles.totalAmount, { color: '#a8ffb8' }]} symbol={currencySymbol} currencyCode={currencyCode} />
+              <Text style={styles.totalSub}>today</Text>
             </View>
           </View>
         </LinearGradient>
@@ -452,7 +520,7 @@ const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
             <Text style={styles.quickStatSub}>monthly</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.quickStatCard} onPress={() => router.push('/accounts')} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.quickStatCard} onPress={() => router.push('/(tabs)/accounts')} activeOpacity={0.8}>
             <View style={styles.quickStatHeader}>
               <Text style={styles.quickStatLabel}>ACCOUNTS</Text>
               {accountsTotal.count > 0 && (
@@ -682,8 +750,15 @@ const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
 const styles = StyleSheet.create({
   outerContainer: { flex: 1, backgroundColor: COLORS.bg },
   scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal },
-  header: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
+  header: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brandText: { fontSize: 32, fontWeight: '900', color: COLORS.accent, letterSpacing: -1 },
+  avatarBtn: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  avatarGreeting: { alignItems: 'flex-end' },
+  greetingText: { fontSize: 11, color: COLORS.textMuted },
+  greetingName: { fontSize: 13, fontWeight: '700', color: COLORS.text, maxWidth: 100 },
+  avatarImage: { width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: COLORS.accent },
+  avatarFallback: { width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: COLORS.accent + '66' },
+  avatarInitials: { fontSize: 13, fontWeight: '700', color: '#fff' },
   monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 14, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },
   monthNavBtn: { padding: 4 },
   monthNavBtnDisabled: { opacity: 0.3 },
@@ -695,6 +770,7 @@ const styles = StyleSheet.create({
   totalLeft: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   totalRight: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   totalDivider: { width: 1, height: 70, backgroundColor: 'rgba(255,255,255,0.3)' },
+  totalHDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginVertical: 14 },
   totalLabel: { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginBottom: 6, letterSpacing: 1.5, textTransform: 'uppercase' },
   totalAmount: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.5, width: '100%', textAlign: 'center' },
   totalSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
@@ -780,7 +856,7 @@ recurringBadgeText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight:
   last7Chart: { flexDirection: 'row', alignItems: 'flex-end', height: 80, gap: 6 },
   last7Col: { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end' },
   last7BarWrap: { flex: 1, width: '100%', justifyContent: 'flex-end' },
-  last7Bar: { width: '100%', borderRadius: 6, minHeight: 0 },
+  last7Bar: { width: '60%', borderRadius: 6, minHeight: 0, alignSelf: 'center' },
   last7Label: { fontSize: 11, color: COLORS.textMuted, marginTop: 6 },
   cashFlowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   cashFlowTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.3 },

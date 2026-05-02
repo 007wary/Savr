@@ -53,11 +53,11 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="history"
+        name="reports"
         options={{
-          title: 'History',
+          title: 'Reports',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="time" color={color} focused={focused} />
+            <TabIcon name="pie-chart" color={color} focused={focused} />
           ),
         }}
       />
@@ -71,20 +71,20 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="reports"
+        name="accounts"
         options={{
-          title: 'Reports',
+          title: 'Accounts',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="pie-chart" color={color} focused={focused} />
+            <TabIcon name="card" color={color} focused={focused} />
           ),
         }}
       />
       <Tabs.Screen
-        name="settings"
+        name="history"
         options={{
-          title: 'Settings',
+          title: 'History',
           tabBarIcon: ({ color, focused }) => (
-            <TabIcon name="settings" color={color} focused={focused} />
+            <TabIcon name="time" color={color} focused={focused} />
           ),
         }}
       />

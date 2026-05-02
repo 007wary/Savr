@@ -389,7 +389,7 @@ export default function AddExpense() {
                   </View>
                   <Text style={styles.transferTitle}>No accounts yet</Text>
                   <Text style={styles.transferSub}>You need at least 2 accounts to make a transfer.</Text>
-                  <TouchableOpacity style={styles.transferSetupBtn} onPress={() => router.push('/accounts')}>
+                  <TouchableOpacity style={styles.transferSetupBtn} onPress={() => router.push('/(tabs)/accounts')}>
                     <Ionicons name="card-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
                     <Text style={styles.transferSetupBtnText}>Set Up Accounts</Text>
                   </TouchableOpacity>
