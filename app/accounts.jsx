@@ -49,7 +49,7 @@ export default function Accounts() {
       userRef.current = user
       const data = await getAccounts(user.id)
       setAccounts(data)
-    } catch {}
+    } catch (e) { console.error('ACCOUNTS ERROR:', e?.message) }
     finally { setLoading(false) }
   }
 
