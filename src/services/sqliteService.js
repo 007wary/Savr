@@ -369,6 +369,15 @@ export async function getAccounts(userId) {
   )
 }
 
+export async function getAccountsTotal(userId) {
+  const database = await getDB()
+  const result = await database.getFirstAsync(
+    `SELECT SUM(balance) as total, COUNT(*) as count FROM accounts WHERE user_id = ?`,
+    [userId]
+  )
+  return { total: result?.total || 0, count: result?.count || 0 }
+}
+
 export async function updateAccount(id, { name, type, balance, currency }) {
   const database = await getDB()
   await database.runAsync(

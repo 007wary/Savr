@@ -10,7 +10,7 @@ import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import { checkWeeklySummary } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
-import { getExpenses, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal } from '../../src/services/sqliteService'
+import { getExpenses, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal, getAccountsTotal } from '../../src/services/sqliteService'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 
@@ -58,6 +58,7 @@ export default function Dashboard() {
   const [recurringTotal, setRecurringTotal] = useState(0)
   const [recurringCount, setRecurringCount] = useState(0)
   const [monthlyIncome, setMonthlyIncome] = useState(0)
+  const [accountsTotal, setAccountsTotal] = useState({ total: 0, count: 0 })
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
   const userRef = useRef(null)
@@ -179,6 +180,7 @@ export default function Dashboard() {
         setRecurringTotal(cached.recurringTotal || 0)
         setRecurringCount(cached.recurringCount || 0)
         setMonthlyIncome(cached.monthlyIncome || 0)
+        setAccountsTotal(cached.accountsTotal || { total: 0, count: 0 })
         setLoading(false)
         setMonthLoading(false)
         setTimeout(() => syncFromSQLite(cacheKey), 100)
@@ -199,11 +201,12 @@ export default function Dashboard() {
       const symbol = await getCurrencySymbol()
       const code = await loadCurrency()
       const lastMonthInfo = getMonthInfo(monthOffset - 1)
-      const [currentExpenses, lastTotal, recurringItems, incomeTotal] = await Promise.all([
+      const [currentExpenses, lastTotal, recurringItems, incomeTotal, accTotal] = await Promise.all([
         getExpenses(user.id, { month: currentMonth }),
         getMonthlyTotal(user.id, lastMonthInfo.month),
         getRecurring(user.id),
         getMonthlyIncomeTotal(user.id, currentMonth),
+        getAccountsTotal(user.id),
       ])
       const filtered = sortExpenses(currentExpenses)
       const now = new Date()
@@ -228,11 +231,12 @@ export default function Dashboard() {
       setRecurringTotal(recTotal)
       setRecurringCount(recCount)
       setMonthlyIncome(incomeTotal)
+      setAccountsTotal(accTotal)
 
       await saveCache(cacheKey, {
         expenses: filtered, userName: firstName, lastMonthTotal: lastTotal,
         daysInMonth: daysElapsed, currencySymbol: symbol, currencyCode: code,
-        recurringTotal: recTotal, recurringCount: recCount, monthlyIncome: incomeTotal,
+        recurringTotal: recTotal, recurringCount: recCount, monthlyIncome: incomeTotal, accountsTotal: accTotal,
       })
 
       if (monthOffset === 0) {
@@ -284,6 +288,20 @@ export default function Dashboard() {
   }).filter(c => c.total > 0).sort((a, b) => b.total - a.total), [expenses])
 
   const recent = useMemo(() => expenses.slice(0, 5), [expenses])
+  const last7 = useMemo(() => {
+  const result = []
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date()
+    d.setDate(d.getDate() - i)
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const label = i === 0 ? 'Today' : d.toLocaleString('default', { weekday: 'short' })
+    const amount = expenses.filter(e => e.date === dateStr).reduce((sum, e) => sum + parseFloat(e.amount), 0)
+    result.push({ dateStr, label, amount, isToday: i === 0 })
+  }
+  return result
+}, [expenses])
+
+const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
 
   const goalPercentage = spendingGoal ? Math.min((total / spendingGoal) * 100, 100) : 0
   const goalExceeded = spendingGoal && total > spendingGoal
@@ -374,21 +392,79 @@ export default function Dashboard() {
               <Text style={styles.totalSub}>{todayExpenses.length} today</Text>
             </View>
           </View>
-          {isCurrentMonth && recurringCount > 0 && (
-            <View style={styles.recurringRow}>
-              <View style={styles.recurringDivider} />
-              <View style={styles.recurringContent}>
-  <View style={styles.recurringLeft}>
-    <Text style={styles.totalLabel}>MONTHLY RECURRING</Text>
-    <CountUp value={recurringTotal} style={styles.totalAmount} symbol={currencySymbol} currencyCode={currencyCode} />
-  </View>
-  <View style={styles.recurringBadge}>
-    <Text style={styles.recurringBadgeText}>{recurringCount} {recurringCount === 1 ? 'expense' : 'expenses'} active</Text>
-  </View>
-</View>
-            </View>
-          )}
         </LinearGradient>
+
+        {(monthlyIncome > 0 || total > 0) && (
+          <View style={styles.cashFlowCard}>
+            <View style={styles.cashFlowTitleRow}>
+              <Ionicons name="swap-vertical-outline" size={16} color={COLORS.textMuted} />
+              <Text style={styles.cashFlowTitle}>Cash Flow — {monthName}</Text>
+            </View>
+            <View style={styles.cashFlowRow}>
+              <View style={styles.cashFlowItem}>
+                <View style={[styles.cashFlowIconBox, { backgroundColor: '#4CAF5022' }]}>
+                  <Ionicons name="arrow-down-circle-outline" size={20} color="#4CAF50" />
+                </View>
+                <Text style={styles.cashFlowLabel}>Income</Text>
+                <Text style={[styles.cashFlowAmount, { color: '#4CAF50' }]}>
+                  {formatAmount(monthlyIncome, currencySymbol, currencyCode)}
+                </Text>
+              </View>
+              <View style={styles.cashFlowDivider} />
+              <View style={styles.cashFlowItem}>
+                <View style={[styles.cashFlowIconBox, { backgroundColor: COLORS.accentRed + '22' }]}>
+                  <Ionicons name="arrow-up-circle-outline" size={20} color={COLORS.accentRed} />
+                </View>
+                <Text style={styles.cashFlowLabel}>Expenses</Text>
+                <Text style={[styles.cashFlowAmount, { color: COLORS.accentRed }]}>
+                  {formatAmount(total, currencySymbol, currencyCode)}
+                </Text>
+              </View>
+              <View style={styles.cashFlowDivider} />
+              <View style={styles.cashFlowItem}>
+                <View style={[styles.cashFlowIconBox, { backgroundColor: monthlyIncome >= total ? '#4CAF5022' : COLORS.accentRed + '22' }]}>
+                  <Ionicons
+                    name={monthlyIncome >= total ? 'trending-up-outline' : 'trending-down-outline'}
+                    size={20}
+                    color={monthlyIncome >= total ? '#4CAF50' : COLORS.accentRed}
+                  />
+                </View>
+                <Text style={styles.cashFlowLabel}>Net</Text>
+                <Text style={[styles.cashFlowAmount, { color: monthlyIncome >= total ? '#4CAF50' : COLORS.accentRed }]}>
+                  {monthlyIncome >= total ? '+' : '-'}{formatAmount(Math.abs(monthlyIncome - total), currencySymbol, currencyCode)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        <View style={styles.quickStatsGrid}>
+          <TouchableOpacity style={styles.quickStatCard} onPress={() => router.push('/recurring')} activeOpacity={0.8}>
+            <View style={styles.quickStatHeader}>
+              <Text style={styles.quickStatLabel}>RECURRING</Text>
+              {recurringCount > 0 && (
+                <View style={styles.quickStatBadge}>
+                  <Text style={styles.quickStatBadgeText}>{recurringCount} active</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.quickStatValue}>{formatAmount(recurringTotal, currencySymbol, currencyCode)}</Text>
+            <Text style={styles.quickStatSub}>monthly</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.quickStatCard} onPress={() => router.push('/accounts')} activeOpacity={0.8}>
+            <View style={styles.quickStatHeader}>
+              <Text style={styles.quickStatLabel}>ACCOUNTS</Text>
+              {accountsTotal.count > 0 && (
+                <View style={styles.quickStatBadgePurple}>
+                  <Text style={styles.quickStatBadgeTextPurple}>{accountsTotal.count} total</Text>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.quickStatValue, { color: COLORS.accent }]}>{formatAmount(accountsTotal.total, currencySymbol, currencyCode)}</Text>
+            <Text style={styles.quickStatSub}>total balance</Text>
+          </TouchableOpacity>
+        </View>
 
         {isCurrentMonth && (
           <TouchableOpacity
@@ -461,6 +537,27 @@ export default function Dashboard() {
           </View>
         )}
 
+        {expenses.length > 0 && (
+          <View style={styles.last7Card}>
+            <Text style={styles.last7Title}>Last 7 Days</Text>
+            <View style={styles.last7Chart}>
+              {last7.map((d, i) => (
+                <View key={i} style={styles.last7Col}>
+                  <View style={styles.last7BarWrap}>
+                    <View style={[styles.last7Bar, {
+                      height: `${Math.max((d.amount / max7) * 100, d.amount > 0 ? 8 : 0)}%`,
+                      backgroundColor: d.isToday ? COLORS.accent : COLORS.accent + '55',
+                    }]} />
+                  </View>
+                  <Text style={[styles.last7Label, d.isToday && { color: COLORS.accent, fontWeight: '700' }]}>
+                    {d.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {insights.length > 0 && (
           <View style={styles.insightsCard}>
             <View style={styles.insightsTitleRow}>
@@ -518,50 +615,6 @@ export default function Dashboard() {
                 </View>
               )
             })}
-          </View>
-        )}
-
-        {(monthlyIncome > 0 || total > 0) && (
-          <View style={styles.cashFlowCard}>
-            <View style={styles.cashFlowTitleRow}>
-              <Ionicons name="swap-vertical-outline" size={16} color={COLORS.textMuted} />
-              <Text style={styles.cashFlowTitle}>Cash Flow — {monthName}</Text>
-            </View>
-            <View style={styles.cashFlowRow}>
-              <View style={styles.cashFlowItem}>
-                <View style={[styles.cashFlowIconBox, { backgroundColor: '#4CAF5022' }]}>
-                  <Ionicons name="arrow-down-circle-outline" size={20} color="#4CAF50" />
-                </View>
-                <Text style={styles.cashFlowLabel}>Income</Text>
-                <Text style={[styles.cashFlowAmount, { color: '#4CAF50' }]}>
-                  {formatAmount(monthlyIncome, currencySymbol, currencyCode)}
-                </Text>
-              </View>
-              <View style={styles.cashFlowDivider} />
-              <View style={styles.cashFlowItem}>
-                <View style={[styles.cashFlowIconBox, { backgroundColor: COLORS.accentRed + '22' }]}>
-                  <Ionicons name="arrow-up-circle-outline" size={20} color={COLORS.accentRed} />
-                </View>
-                <Text style={styles.cashFlowLabel}>Expenses</Text>
-                <Text style={[styles.cashFlowAmount, { color: COLORS.accentRed }]}>
-                  {formatAmount(total, currencySymbol, currencyCode)}
-                </Text>
-              </View>
-              <View style={styles.cashFlowDivider} />
-              <View style={styles.cashFlowItem}>
-                <View style={[styles.cashFlowIconBox, { backgroundColor: monthlyIncome >= total ? '#4CAF5022' : COLORS.accentRed + '22' }]}>
-                  <Ionicons
-                    name={monthlyIncome >= total ? 'trending-up-outline' : 'trending-down-outline'}
-                    size={20}
-                    color={monthlyIncome >= total ? '#4CAF50' : COLORS.accentRed}
-                  />
-                </View>
-                <Text style={styles.cashFlowLabel}>Net</Text>
-                <Text style={[styles.cashFlowAmount, { color: monthlyIncome >= total ? '#4CAF50' : COLORS.accentRed }]}>
-                  {monthlyIncome >= total ? '+' : '-'}{formatAmount(Math.abs(monthlyIncome - total), currencySymbol, currencyCode)}
-                </Text>
-              </View>
-            </View>
           </View>
         )}
 
@@ -712,6 +765,23 @@ recurringBadgeText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight:
   modalClearBtn: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   modalClearBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 14 },
   cashFlowCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
+  last7Card: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
+  quickStatsGrid: { flexDirection: 'row', gap: 10, marginBottom: 16 },
+  quickStatCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: COLORS.border },
+  quickStatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  quickStatLabel: { fontSize: 10, color: COLORS.textMuted, fontWeight: '700', letterSpacing: 1.2 },
+  quickStatValue: { fontSize: 18, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5, marginBottom: 4 },
+  quickStatSub: { fontSize: 11, color: COLORS.textMuted },
+  quickStatBadge: { backgroundColor: '#4CAF5022', borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8, borderWidth: 1, borderColor: '#4CAF5044' },
+  quickStatBadgeText: { fontSize: 10, color: '#4CAF50', fontWeight: '700' },
+  quickStatBadgePurple: { backgroundColor: COLORS.accent + '22', borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8, borderWidth: 1, borderColor: COLORS.accent + '44' },
+  quickStatBadgeTextPurple: { fontSize: 10, color: COLORS.accent, fontWeight: '700' },
+  last7Title: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 14 },
+  last7Chart: { flexDirection: 'row', alignItems: 'flex-end', height: 80, gap: 6 },
+  last7Col: { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end' },
+  last7BarWrap: { flex: 1, width: '100%', justifyContent: 'flex-end' },
+  last7Bar: { width: '100%', borderRadius: 6, minHeight: 0 },
+  last7Label: { fontSize: 11, color: COLORS.textMuted, marginTop: 6 },
   cashFlowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   cashFlowTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.3 },
   cashFlowRow: { flexDirection: 'row', alignItems: 'center' },
