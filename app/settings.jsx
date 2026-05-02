@@ -8,17 +8,17 @@ import {
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { supabase } from '../../src/lib/supabase'
-import { COLORS, CURRENCIES, SCREEN } from '../../src/constants/theme'
-import { requestNotificationPermission, isNotificationGranted, BUDGET_ALERTS_KEY } from '../../src/lib/notifications'
-import { saveCurrency, loadCurrency } from '../../src/lib/currency'
-import BottomSheet from '../../src/components/BottomSheet'
-import { SettingsSkeleton } from '../../src/components/SkeletonLoader'
-import CustomAlert from '../../src/components/CustomAlert'
-import useAlert from '../../src/hooks/useAlert'
-import { getUser, getCachedUser, clearUserCache } from '../../src/lib/auth'
-import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
-import { checkBackupExists } from '../../src/services/driveBackupService'
+import { supabase } from '../src/lib/supabase'
+import { COLORS, CURRENCIES, SCREEN } from '../src/constants/theme'
+import { requestNotificationPermission, isNotificationGranted, BUDGET_ALERTS_KEY } from '../src/lib/notifications'
+import { saveCurrency, loadCurrency } from '../src/lib/currency'
+import BottomSheet from '../src/components/BottomSheet'
+import { SettingsSkeleton } from '../src/components/SkeletonLoader'
+import CustomAlert from '../src/components/CustomAlert'
+import useAlert from '../src/hooks/useAlert'
+import { getUser, getCachedUser, clearUserCache } from '../src/lib/auth'
+import { saveCache, loadCache, clearCache } from '../src/lib/cache'
+import { checkBackupExists } from '../src/services/driveBackupService'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const APP_VERSION = Constants.expoConfig?.version || '1.0'
@@ -98,7 +98,6 @@ export default function Settings() {
         user: u, displayName: name, phone: ph, currency: savedCurrency,
       })
 
-      // Silently verify with Drive in background
       checkBackupExists().then(info => {
         if (info?.modifiedTime) setLastBackup(info.modifiedTime)
       }).catch(() => {})
@@ -234,11 +233,13 @@ export default function Settings() {
   return (
     <View style={styles.outerContainer}>
       <View style={styles.stickyHeader}>
+        <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
+          <Ionicons name="chevron-back" size={26} color={COLORS.text} />
+        </TouchableOpacity>
         <Text style={styles.heading}>Settings</Text>
       </View>
       <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 24 }}>
 
-      {/* Profile Card */}
       <TouchableOpacity style={styles.profileCard} onPress={openProfileModal} activeOpacity={0.8}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{getInitials()}</Text>
@@ -257,7 +258,6 @@ export default function Settings() {
         </View>
       </TouchableOpacity>
 
-      {/* Preferences */}
       <Text style={styles.sectionLabel}>PREFERENCES</Text>
       <View style={styles.card}>
         <View style={styles.row}>
@@ -329,24 +329,8 @@ export default function Settings() {
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
         </TouchableOpacity>
-
-        <View style={styles.divider} />
-
-        <TouchableOpacity style={styles.row} onPress={() => router.push('/(tabs)/accounts')}>
-          <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#4CAF5022' }]}>
-              <Ionicons name="card-outline" size={18} color="#4CAF50" />
-            </View>
-            <View>
-              <Text style={styles.rowTitle}>Accounts</Text>
-              <Text style={styles.rowSubtitle}>Manage your cash, bank and cards</Text>
-            </View>
-          </View>
-          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
-        </TouchableOpacity>
       </View>
 
-      {/* About */}
       <Text style={[styles.sectionLabel, { marginTop: 8 }]}>ABOUT</Text>
       <View style={styles.card}>
         <View style={[styles.row, { paddingVertical: 10 }]}>
@@ -428,7 +412,6 @@ export default function Settings() {
         </TouchableOpacity>
       </View>
 
-      {/* Account */}
       <Text style={[styles.sectionLabel, { marginTop: 8 }]}>ACCOUNT</Text>
       <View style={styles.card}>
         <TouchableOpacity style={styles.row} onPress={handleSignOut}>
@@ -448,7 +431,6 @@ export default function Settings() {
 
       </ScrollView>
 
-      {/* Currency Bottom Sheet */}
       <BottomSheet
         visible={showCurrencyModal}
         onClose={() => { setShowCurrencyModal(false); setCurrencySearch('') }}
@@ -509,7 +491,6 @@ export default function Settings() {
         </ScrollView>
       </BottomSheet>
 
-      {/* Profile Edit Bottom Sheet */}
       <BottomSheet visible={profileModalVisible} onClose={() => setProfileModalVisible(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={100}>
           <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
@@ -568,9 +549,8 @@ export default function Settings() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
   outerContainer: { flex: 1, backgroundColor: COLORS.bg },
-  stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
+  stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg, flexDirection: 'row', alignItems: 'center' },
   scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal, backgroundColor: COLORS.bg },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
   profileCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20, marginBottom: 0, borderBottomWidth: 1, borderBottomColor: COLORS.border },

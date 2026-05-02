@@ -6,13 +6,13 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, SCREEN } from '../src/constants/theme'
-import BottomSheet from '../src/components/BottomSheet'
-import CustomAlert from '../src/components/CustomAlert'
-import useAlert from '../src/hooks/useAlert'
-import { getUser, getCachedUser } from '../src/lib/auth'
-import { formatAmount, getCurrencySymbol, loadCurrency } from '../src/lib/currency'
-import { getAccounts, addAccount, updateAccount, deleteAccount } from '../src/services/sqliteService'
+import { COLORS, SCREEN } from '../../src/constants/theme'
+import BottomSheet from '../../src/components/BottomSheet'
+import CustomAlert from '../../src/components/CustomAlert'
+import useAlert from '../../src/hooks/useAlert'
+import { getUser, getCachedUser } from '../../src/lib/auth'
+import { formatAmount, getCurrencySymbol, loadCurrency } from '../../src/lib/currency'
+import { getAccounts, addAccount, updateAccount, deleteAccount } from '../../src/services/sqliteService'
 
 const ACCOUNT_TYPES = [
   { label: 'Cash', icon: 'cash-outline', color: '#4CAF50' },
@@ -137,7 +137,6 @@ export default function Accounts() {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
 
-      {/* Header */}
       <View style={[styles.header, { paddingTop: SCREEN.paddingTop }]}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={26} color={COLORS.text} />
@@ -154,8 +153,6 @@ export default function Accounts() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.container}>
-
-          {/* Account list */}
           {accounts.length === 0 ? (
             <View style={styles.empty}>
               <View style={styles.emptyIcon}>
@@ -172,7 +169,6 @@ export default function Accounts() {
             accounts.map(account => {
               const typeInfo = getTypeInfo(account.type)
               const isLoan = account.type === 'Loan'
-              const isCreditCard = account.type === 'Credit Card'
               const balance = parseFloat(account.balance)
               const isNegative = balance < 0
               return (
@@ -199,66 +195,65 @@ export default function Accounts() {
         </ScrollView>
       )}
 
-      {/* Add / Edit Bottom Sheet */}
       <BottomSheet visible={showSheet} onClose={() => setShowSheet(false)} maxHeight="90%">
         <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100}>
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>{editingAccount ? 'Edit Account' : 'Add Account'}</Text>
-              <TouchableOpacity onPress={() => setShowSheet(false)}>
-                <Ionicons name="close" size={22} color={COLORS.textMuted} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.label}>Account Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. SBI Savings, Wallet"
-              placeholderTextColor={COLORS.textMuted}
-              value={name}
-              onChangeText={setName}
-              autoCapitalize="words"
-            />
-
-            <Text style={styles.label}>Account Type</Text>
-            <View style={styles.typeGrid}>
-              {ACCOUNT_TYPES.map(t => (
-                <TouchableOpacity
-                  key={t.label}
-                  style={[styles.typeBtn, type === t.label && { backgroundColor: t.color + '22', borderColor: t.color, borderWidth: 2 }]}
-                  onPress={() => setType(t.label)}
-                >
-                  <View style={[styles.typeIconBox, { backgroundColor: type === t.label ? t.color : COLORS.cardAlt }]}>
-                    <Ionicons name={t.icon} size={18} color={type === t.label ? '#fff' : t.color} />
-                  </View>
-                  <Text style={[styles.typeLabel, type === t.label && { color: COLORS.text, fontWeight: '700' }]}>
-                    {t.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.label}>Current Balance ({currencySymbol})</Text>
-            <TextInput
-              style={styles.input}
-              placeholder={`${currencySymbol}0.00`}
-              placeholderTextColor={COLORS.textMuted}
-              value={balance}
-              onChangeText={setBalance}
-              keyboardType="numeric"
-            />
-
-            <TouchableOpacity
-              style={[styles.saveBtn, saving && { opacity: 0.6 }]}
-              onPress={handleSave}
-              disabled={saving}
-            >
-              {saving
-                ? <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-                : <Ionicons name="checkmark" size={18} color="#fff" style={{ marginRight: 8 }} />
-              }
-              <Text style={styles.saveBtnText}>{saving ? 'Saving...' : editingAccount ? 'Save Changes' : 'Add Account'}</Text>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>{editingAccount ? 'Edit Account' : 'Add Account'}</Text>
+            <TouchableOpacity onPress={() => setShowSheet(false)}>
+              <Ionicons name="close" size={22} color={COLORS.textMuted} />
             </TouchableOpacity>
-          </KeyboardAwareScrollView>
+          </View>
+
+          <Text style={styles.label}>Account Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. SBI Savings, Wallet"
+            placeholderTextColor={COLORS.textMuted}
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="words"
+          />
+
+          <Text style={styles.label}>Account Type</Text>
+          <View style={styles.typeGrid}>
+            {ACCOUNT_TYPES.map(t => (
+              <TouchableOpacity
+                key={t.label}
+                style={[styles.typeBtn, type === t.label && { backgroundColor: t.color + '22', borderColor: t.color, borderWidth: 2 }]}
+                onPress={() => setType(t.label)}
+              >
+                <View style={[styles.typeIconBox, { backgroundColor: type === t.label ? t.color : COLORS.cardAlt }]}>
+                  <Ionicons name={t.icon} size={18} color={type === t.label ? '#fff' : t.color} />
+                </View>
+                <Text style={[styles.typeLabel, type === t.label && { color: COLORS.text, fontWeight: '700' }]}>
+                  {t.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Current Balance ({currencySymbol})</Text>
+          <TextInput
+            style={styles.input}
+            placeholder={`${currencySymbol}0.00`}
+            placeholderTextColor={COLORS.textMuted}
+            value={balance}
+            onChangeText={setBalance}
+            keyboardType="numeric"
+          />
+
+          <TouchableOpacity
+            style={[styles.saveBtn, saving && { opacity: 0.6 }]}
+            onPress={handleSave}
+            disabled={saving}
+          >
+            {saving
+              ? <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+              : <Ionicons name="checkmark" size={18} color="#fff" style={{ marginRight: 8 }} />
+            }
+            <Text style={styles.saveBtnText}>{saving ? 'Saving...' : editingAccount ? 'Save Changes' : 'Add Account'}</Text>
+          </TouchableOpacity>
+        </KeyboardAwareScrollView>
       </BottomSheet>
 
       <CustomAlert
