@@ -1,10 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Constants from 'expo-constants'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Switch, TextInput,
   KeyboardAvoidingView, Platform,
-  Linking
+  Linking, Image
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -39,6 +39,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
   const [lastBackup, setLastBackup] = useState(null)
+  const [avatarUrl, setAvatarUrl] = useState(null)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
@@ -92,6 +93,8 @@ export default function Settings() {
       const ph = u.user_metadata?.phone_number || ''
       setDisplayName(name)
       setPhone(ph)
+      const avatar = u.user_metadata?.picture || u.user_metadata?.avatar_url || null
+      if (avatar) setAvatarUrl(avatar)
       const savedCurrency = await loadCurrency()
       setCurrency(savedCurrency)
       await saveCache(CACHE_KEY, {
@@ -107,6 +110,16 @@ export default function Settings() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    async function loadAvatar() {
+      try {
+        const saved = await AsyncStorage.getItem('savr_avatar_url')
+        if (saved) setAvatarUrl(saved)
+      } catch {}
+    }
+    loadAvatar()
+  }, [])
 
   useFocusEffect(useCallback(() => { fetchUser() }, []))
 
@@ -241,9 +254,13 @@ export default function Settings() {
       <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 24 }}>
 
       <TouchableOpacity style={styles.profileCard} onPress={openProfileModal} activeOpacity={0.8}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{getInitials()}</Text>
-        </View>
+        {avatarUrl ? (
+          <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+        ) : (
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{getInitials()}</Text>
+          </View>
+        )}
         <View style={styles.profileInfo}>
           <Text style={styles.displayName}>{displayName}</Text>
           <Text style={styles.email}>{user?.email}</Text>
@@ -555,6 +572,7 @@ const styles = StyleSheet.create({
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
   profileCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20, marginBottom: 0, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  avatarImage: { width: 56, height: 56, borderRadius: 28, marginRight: 16, borderWidth: 2, borderColor: COLORS.accent },
   avatarText: { fontSize: 20, fontWeight: '700', color: '#fff' },
   profileInfo: { flex: 1 },
   displayName: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 2, letterSpacing: -0.3 },
