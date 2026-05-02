@@ -268,6 +268,8 @@ const [userInitials, setUserInitials] = useState('??')
       setMonthlyIncome(incomeTotal)
       setAccountsTotal(accTotal)
       setTodayIncome(todayIncomeTotal)
+      const goal = await loadGoal(user.id)
+      if (goal !== null) setSpendingGoal(goal)
 
       await saveCache(cacheKey, {
         expenses: filtered, userName: firstName, lastMonthTotal: lastTotal,

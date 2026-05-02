@@ -517,9 +517,13 @@ export default function Settings() {
                 <Ionicons name="close" size={22} color={COLORS.textMuted} />
               </TouchableOpacity>
             </View>
-            <View style={styles.modalAvatar}>
-              <Text style={styles.modalAvatarText}>{getInitials()}</Text>
-            </View>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.modalAvatarImage} />
+            ) : (
+              <View style={styles.modalAvatar}>
+                <Text style={styles.modalAvatarText}>{getInitials()}</Text>
+              </View>
+            )}
             <Text style={styles.label}>Full Name</Text>
             <TextInput
               style={styles.input}
@@ -605,6 +609,7 @@ const styles = StyleSheet.create({
   currencyCode: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   currencySymbol: { fontSize: 16, color: COLORS.textMuted, fontWeight: '700' },
   modalAvatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: 24 },
+  modalAvatarImage: { width: 72, height: 72, borderRadius: 36, alignSelf: 'center', marginBottom: 24, borderWidth: 2, borderColor: COLORS.accent },
   modalAvatarText: { fontSize: 26, fontWeight: '700', color: '#fff' },
   label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
   input: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
