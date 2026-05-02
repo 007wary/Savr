@@ -108,24 +108,18 @@ export default function Login() {
 
       <View style={styles.inner}>
         <View style={styles.logoSection}>
-          <LinearGradient
-            colors={['#7C75FF', '#5A50FF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.logoBox}
-          >
-            <Ionicons name="wallet-outline" size={36} color="#fff" />
-          </LinearGradient>
           <Text style={styles.logoText}>Savr</Text>
           <Text style={styles.tagline}>Spend smart, save more</Text>
         </View>
 
         <View style={styles.featureList}>
           {[
-            { icon: 'flash-outline', text: 'Track expenses in seconds' },
-            { icon: 'flag-outline', text: 'Smart budget management' },
-            { icon: 'bar-chart-outline', text: 'Beautiful spending insights' },
-            { icon: 'globe-outline', text: '30+ currencies supported' },
+            { icon: 'trending-up-outline', text: 'Track expenses, income & accounts' },
+            { icon: 'pie-chart-outline', text: 'Beautiful spending insights & reports' },
+            { icon: 'wallet-outline', text: 'Smart budget management' },
+            { icon: 'cloud-offline-outline', text: 'Works fully offline, always' },
+            { icon: 'sync-outline', text: 'Backup & sync via Google Drive' },
+            { icon: 'flash-outline', text: 'AI-powered expense tracker' },
           ].map((f, i) => (
             <View key={i} style={styles.featureItem}>
               <Ionicons name={f.icon} size={20} color={COLORS.accent} />
@@ -186,15 +180,7 @@ const styles = StyleSheet.create({
     flex: 1, paddingHorizontal: SCREEN.paddingHorizontal,
     justifyContent: 'center', paddingBottom: 40, paddingTop: SCREEN.paddingTop,
   },
-  logoSection: { alignItems: 'center', marginBottom: 40 },
-  logoBox: {
-    width: 80, height: 80, borderRadius: 24,
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#6C63FF',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4, shadowRadius: 16, elevation: 10,
-  },
+  logoSection: { alignItems: 'center', marginBottom: 24, marginTop: -20 },
   logoText: {
     fontSize: 42, fontWeight: '900', color: COLORS.text,
     letterSpacing: -2, marginBottom: 6,

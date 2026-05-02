@@ -380,7 +380,7 @@ const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
     <View style={styles.outerContainer}>
       <View style={styles.header}>
         <Text style={styles.brandText}>Savr</Text>
-        <TouchableOpacity style={styles.avatarBtn} onPress={() => router.push('/settings')} activeOpacity={0.8}>
+        <View style={styles.avatarBtn}>
           <View style={styles.avatarGreeting}>
             <Text style={styles.greetingText}>
               {(() => {
@@ -390,14 +390,16 @@ const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
             </Text>
             <Text style={styles.greetingName} numberOfLines={1}>{userName || 'there'}</Text>
           </View>
-          {avatarUrl ? (
-            <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
-          ) : (
-            <View style={styles.avatarFallback}>
-              <Text style={styles.avatarInitials}>{userInitials}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/settings')} activeOpacity={0.8}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatarFallback}>
+                <Text style={styles.avatarInitials}>{userInitials}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
