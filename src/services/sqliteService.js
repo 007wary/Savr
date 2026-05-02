@@ -1,40 +1,24 @@
 import * as SQLite from 'expo-sqlite'
 import 'react-native-get-random-values'
 import { v4 as uuidv4 } from 'uuid'
-import { AppState } from 'react-native'
 
 let db = null
-let dbInitPromise = null
-
-AppState.addEventListener('change', (nextState) => {
-  if (nextState === 'active') {
-    db = null
-    dbInitPromise = null
-  }
-})
+let opening = null
 
 export const getDB = async () => {
-  if (dbInitPromise) return dbInitPromise
-
-  dbInitPromise = (async () => {
-    if (!db) {
-      db = await SQLite.openDatabaseAsync('savr.db')
-      dbInitPromise = null
-      return db
-    }
+  if (opening) return opening
+  if (db) {
     try {
       await db.getFirstAsync('SELECT 1')
-      dbInitPromise = null
       return db
     } catch {
       db = null
-      db = await SQLite.openDatabaseAsync('savr.db')
-      dbInitPromise = null
-      return db
     }
-  })()
-
-  return dbInitPromise
+  }
+  opening = SQLite.openDatabaseAsync('savr.db')
+  db = await opening
+  opening = null
+  return db
 }
 
 export const initializeDatabase = async () => {
