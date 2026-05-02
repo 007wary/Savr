@@ -12,6 +12,7 @@ import { initializeDatabase } from '../src/services/sqliteService'
 import { registerBackupTask, unregisterBackupTask } from '../src/services/backgroundBackup'
 import { Analytics, setUserId } from '../src/lib/analytics'
 import { setCachedUser, getCachedUser, loadCachedUser } from '../src/lib/auth'
+import { isSigningIn } from '../src/lib/authState'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -363,7 +364,7 @@ if (lastTrigger === today) return
     if (onboardingDone) {
       if (session && inTabs) return
       if (!session && inAuth) return
-      if (!session && !inAuth && !inOnboarding) {
+      if (!session && !inAuth && !inOnboarding && !isSigningIn()) {
         router.replace('/(auth)/login')
         return
       }

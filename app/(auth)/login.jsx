@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import * as WebBrowser from 'expo-web-browser'
 import * as AuthSession from 'expo-auth-session'
 import { useRouter } from 'expo-router'
+import { setSigningIn } from '../../src/lib/authState'
 
 WebBrowser.maybeCompleteAuthSession()
 
@@ -33,7 +34,6 @@ export default function Login() {
     try {
       setGoogleLoading(true)
 
-      // Refresh token stored securely in SecureStore
       const existingRefreshToken = await SecureStore.getItemAsync('savr_google_refresh_token')
 
       const redirectUrl = AuthSession.makeRedirectUri({ scheme: 'savr' })
@@ -56,6 +56,7 @@ export default function Login() {
       })
       if (error) throw error
 
+      setSigningIn(true)
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
 
       if (result.type === 'success') {
@@ -72,18 +73,18 @@ export default function Login() {
           await supabase.auth.setSession({ access_token, refresh_token })
 
           if (provider_token) {
-            // Short-lived access token — AsyncStorage is fine
             await AsyncStorage.setItem('savr_google_token', provider_token)
             await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
           }
 
           if (provider_refresh_token) {
-            // Long-lived refresh token — store securely
             await SecureStore.setItemAsync('savr_google_refresh_token', provider_refresh_token)
           }
         }
       }
+      setSigningIn(false)
     } catch (error) {
+      setSigningIn(false)
       showAlert('Error', error.message)
       setGoogleLoading(false)
     }
