@@ -57,6 +57,7 @@ export default function Login() {
       if (error) throw error
 
       setSigningIn(true)
+      setTimeout(() => setSigningIn(false), 10000)
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
 
       if (result.type === 'success') {
@@ -82,8 +83,7 @@ export default function Login() {
           }
         }
       }
-      setSigningIn(false)
-    } catch (error) {
+      } catch (error) {
       setSigningIn(false)
       showAlert('Error', error.message)
       setGoogleLoading(false)

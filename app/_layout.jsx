@@ -12,7 +12,7 @@ import { initializeDatabase } from '../src/services/sqliteService'
 import { registerBackupTask, unregisterBackupTask } from '../src/services/backgroundBackup'
 import { Analytics, setUserId } from '../src/lib/analytics'
 import { setCachedUser, getCachedUser, loadCachedUser } from '../src/lib/auth'
-import { isSigningIn } from '../src/lib/authState'
+import { isSigningIn, setSigningIn } from '../src/lib/authState'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -115,6 +115,11 @@ export default function RootLayout() {
             import('../src/lib/userProfile').then(({ updateLastActive }) => {
               updateLastActive(cachedUser.id)
             }).catch(() => {})
+            supabase.from('user_profiles').update({
+              is_online: true,
+              online_at: new Date().toISOString(),
+              last_active: new Date().toISOString(),
+            }).eq('id', cachedUser.id).then(() => {}).catch(() => {})
           }, 3000)
 
           setTimeout(async () => {
@@ -173,6 +178,7 @@ const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-$
         }
         Analytics.login()
         router.replace('/(tabs)/dashboard')
+        setSigningIn(false)
 
         // Set online status
 setTimeout(async () => {
