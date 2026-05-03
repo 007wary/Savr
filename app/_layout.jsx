@@ -303,7 +303,6 @@ try {
   try {
     const user = getCachedUser()
     if (user) {
-      const { supabase } = await import('../src/lib/supabase')
       if (nextAppState === 'active') {
         supabase.from('user_profiles').update({
           is_online: true,
@@ -368,7 +367,7 @@ if (lastTrigger === today) return
         router.replace('/(auth)/login')
         return
       }
-      if (session && inAuth) {
+      if (session && inAuth && !isSigningIn()) {
         router.replace('/(tabs)/dashboard')
         return
       }

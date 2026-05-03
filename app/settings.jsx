@@ -427,6 +427,42 @@ export default function Settings() {
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
         </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => Linking.openURL('https://007wary.github.io')}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#00BCD422' }]}>
+              <Ionicons name="help-circle-outline" size={18} color='#00BCD4' />
+            </View>
+            <View>
+              <Text style={styles.rowTitle}>Help & Support</Text>
+              <Text style={styles.rowSubtitle}>Visit our website for help and FAQs</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        <TouchableOpacity
+          style={styles.row}
+          onPress={() => Linking.openURL('mailto:007mwnswrangwary@gmail.com?subject=Savr%20App%20Feedback')}
+        >
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#4CAF5022' }]}>
+              <Ionicons name="mail-outline" size={18} color='#4CAF50' />
+            </View>
+            <View>
+              <Text style={styles.rowTitle}>Send Feedback</Text>
+              <Text style={styles.rowSubtitle}>Share your thoughts and suggestions</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+        </TouchableOpacity>
       </View>
 
       <Text style={[styles.sectionLabel, { marginTop: 8 }]}>ACCOUNT</Text>
