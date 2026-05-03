@@ -108,14 +108,6 @@ export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
 }
 
 const DAILY_REMINDER_ID_KEY = 'savr_daily_reminder_id'
-const LAST_APP_OPEN_KEY = 'savr_last_app_open'
-
-export async function recordAppOpen() {
-  try {
-    const today = new Date().toISOString().split('T')[0]
-    await AsyncStorage.setItem(LAST_APP_OPEN_KEY, today)
-  } catch {}
-}
 
 export async function scheduleDailyReminder() {
   try {
@@ -162,9 +154,6 @@ export async function handleDailyReminderOnOpen() {
     const granted = await isNotificationGranted()
     if (!granted) return
 
-    // Record today's app open
-    await recordAppOpen()
-
     const now = new Date()
     const hour = now.getHours()
     const minute = now.getMinutes()
@@ -173,20 +162,19 @@ export async function handleDailyReminderOnOpen() {
     const suppressedDate = await AsyncStorage.getItem('savr_reminder_suppressed_date')
 
     if (hour < 12) {
-      // User opened before 12 PM — suppress today's reminder
+      // User opened before 12 PM — suppress today's reminder but schedule for tomorrow
       if (suppressedDate !== today) {
-        // Cancel existing scheduled reminder
         const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
         if (existingId) {
           await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {})
           await AsyncStorage.removeItem(DAILY_REMINDER_ID_KEY)
         }
-        // Mark today as suppressed so we don't cancel again unnecessarily
         await AsyncStorage.setItem('savr_reminder_suppressed_date', today)
+        // Reschedule for tomorrow so user still gets reminder tomorrow
+        await scheduleDailyReminder()
       }
-      // Don't schedule — will be scheduled on a future open after 12 PM
     } else {
-      // User opened at or after 12 PM — ensure reminder is scheduled for future days
+      // User opened at or after 12 PM — ensure reminder is scheduled
       const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
       if (!existingId) {
         await scheduleDailyReminder()

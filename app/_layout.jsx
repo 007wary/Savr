@@ -208,6 +208,9 @@ setTimeout(async () => {
             }
             import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
             registerBackupTask().catch(() => {})
+            import('../src/lib/notifications').then(({ scheduleDailyReminder }) => {
+              scheduleDailyReminder().catch(() => {})
+            }).catch(() => {})
           } catch {}
         }, 1000)
 
