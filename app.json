@@ -61,7 +61,9 @@
         }
       ],
       "@react-native-firebase/messaging",
-      "expo-localization"
+      "@react-native-firebase/crashlytics",
+      "expo-localization",
+      "@react-native-firebase/crashlytics"
     ],
     "experiments": {
       "typedRoutes": true

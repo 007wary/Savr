@@ -11,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { initializeDatabase } from '../src/services/sqliteService'
 import { registerBackupTask, unregisterBackupTask } from '../src/services/backgroundBackup'
 import { Analytics, setUserId } from '../src/lib/analytics'
+import crashlytics from '@react-native-firebase/crashlytics'
 import { setCachedUser, getCachedUser, loadCachedUser } from '../src/lib/auth'
 import { isSigningIn, setSigningIn } from '../src/lib/authState'
 
@@ -60,6 +61,8 @@ export default function RootLayout() {
           setCachedUser(cachedUser)
           setSession({ user: cachedUser, expires_at: 9999999999 })
           SplashScreen.hideAsync().catch(() => {})
+          crashlytics().setUserId(cachedUser.id).catch(() => {})
+          crashlytics().setAttribute('email', cachedUser.email || '').catch(() => {})
 
           // Verify and update real session in background
           supabase.auth.getSession().then(({ data: { session: realSession } }) => {
@@ -175,6 +178,8 @@ const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-$
       if (event === 'SIGNED_IN') {
         if (session?.user?.id) {
           setUserId(session.user.id).catch(() => {})
+          crashlytics().setUserId(session.user.id).catch(() => {})
+          crashlytics().setAttribute('email', session.user.email || '').catch(() => {})
         }
         Analytics.login()
         router.replace('/(tabs)/dashboard')
