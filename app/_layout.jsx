@@ -184,7 +184,6 @@ const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-$
         }
         Analytics.login()
         router.replace('/(tabs)/dashboard')
-        setSigningIn(false)
 
         // Set online status
 setTimeout(async () => {
