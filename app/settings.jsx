@@ -1,9 +1,9 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import Constants from 'expo-constants'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Switch, TextInput,
-  Linking, Image
+  Linking, Image, Share
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { useFocusEffect, useRouter } from 'expo-router'
@@ -43,15 +43,6 @@ export default function Settings() {
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
-  async function checkOnlineStatus() {
-    try {
-      await fetch('https://www.google.com', { method: 'HEAD', cache: 'no-cache' })
-      return true
-    } catch {
-      return false
-    }
-  }
-
   async function loadNotificationPrefs() {
     try {
       const granted = await isNotificationGranted()
@@ -66,21 +57,20 @@ export default function Settings() {
   }
 
   async function fetchUser(forceRefresh = false) {
-    await loadNotificationPrefs()
-    if (!forceRefresh) {
-      const cached = await loadCache(CACHE_KEY)
-      if (cached) {
-        setUser(cached.user)
-        setDisplayName(cached.displayName)
-        setPhone(cached.phone)
-        setCurrency(cached.currency)
-        setLoading(false)
-        syncFromAuth()
-        return
-      }
+  if (!forceRefresh) {
+    const cached = await loadCache(CACHE_KEY)
+    if (cached) {
+      setUser(cached.user)
+      setDisplayName(cached.displayName)
+      setPhone(cached.phone)
+      setCurrency(cached.currency)
+      setLoading(false)
+      syncFromAuth()
+      return
     }
-    await syncFromAuth()
   }
+  await syncFromAuth()
+}
 
   async function syncFromAuth() {
     try {
@@ -94,7 +84,10 @@ export default function Settings() {
       setDisplayName(name)
       setPhone(ph)
       const avatar = u.user_metadata?.picture || u.user_metadata?.avatar_url || null
-      if (avatar) setAvatarUrl(avatar)
+if (avatar) {
+  setAvatarUrl(avatar)
+  AsyncStorage.setItem('savr_avatar_url', avatar).catch(() => {})
+}
       const savedCurrency = await loadCurrency()
       setCurrency(savedCurrency)
       await saveCache(CACHE_KEY, {
@@ -112,16 +105,15 @@ export default function Settings() {
   }
 
   useEffect(() => {
-    async function loadAvatar() {
-      try {
-        const saved = await AsyncStorage.getItem('savr_avatar_url')
-        if (saved) setAvatarUrl(saved)
-      } catch {}
-    }
-    loadAvatar()
+    AsyncStorage.getItem('savr_avatar_url')
+      .then(saved => { if (saved) setAvatarUrl(saved) })
+      .catch(() => {})
   }, [])
 
-  useFocusEffect(useCallback(() => { fetchUser() }, []))
+  useFocusEffect(useCallback(() => {
+  fetchUser()
+  loadNotificationPrefs()
+}, []))
 
   function openProfileModal() {
     setEditName(displayName)
@@ -144,13 +136,10 @@ export default function Settings() {
       setPhone(editPhone.trim())
       setProfileModalVisible(false)
       clearUserCache()
+      await clearCache(CACHE_KEY)
       const now = new Date()
       const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
       await clearCache(`savr_cache_dashboard_${currentMonth}`)
-      await saveCache(CACHE_KEY, {
-        user, displayName: editName.trim(),
-        phone: editPhone.trim(), currency,
-      })
       showAlert('✅ Saved!', 'Your profile has been updated.')
     } catch {
       showAlert('Error', 'Failed to save. Please try again.')
@@ -172,7 +161,6 @@ export default function Settings() {
 
   async function handleShareApp() {
     try {
-      const { Share } = await import('react-native')
       await Share.share({
         message: `Savr — Expense Tracker & Budget Planner\n\nTrack expenses, set budgets, and get spending insights — all stored privately on your device.\n\nDownload free on Google Play:\nhttps://play.google.com/store/apps/details?id=com.saver.savr`,
         title: 'Check out Savr!',
@@ -235,11 +223,14 @@ export default function Settings() {
     }
   }
 
-  const selectedCurrency = CURRENCIES.find(c => c.code === currency)
-  const filteredCurrencies = CURRENCIES.filter(cur =>
-    cur.name.toLowerCase().includes(currencySearch.toLowerCase()) ||
-    cur.code.toLowerCase().includes(currencySearch.toLowerCase())
-  )
+  const selectedCurrency = useMemo(() =>
+    CURRENCIES.find(c => c.code === currency), [currency])
+
+  const filteredCurrencies = useMemo(() =>
+    CURRENCIES.filter(cur =>
+      cur.name.toLowerCase().includes(currencySearch.toLowerCase()) ||
+      cur.code.toLowerCase().includes(currencySearch.toLowerCase())
+    ), [currencySearch])
 
   if (loading) return <SettingsSkeleton />
 
@@ -341,7 +332,9 @@ export default function Settings() {
             </View>
             <View>
               <Text style={styles.rowTitle}>Manage Data</Text>
-              <Text style={styles.rowSubtitle}>Backup and recurring expenses</Text>
+              <Text style={styles.rowSubtitle}>
+  {lastBackup ? formatBackupDate(lastBackup) : 'Backup and recurring expenses'}
+</Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
