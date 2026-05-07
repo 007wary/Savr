@@ -13,7 +13,7 @@ import { registerBackupTask, unregisterBackupTask, registerFCMBackupHandler } fr
 import { Analytics, setUserId } from '../src/lib/analytics'
 import crashlytics from '@react-native-firebase/crashlytics'
 import { setCachedUser, getCachedUser, loadCachedUser } from '../src/lib/auth'
-import { isSigningIn, setSigningIn } from '../src/lib/authState'
+import { isSigningIn } from '../src/lib/authState'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -33,14 +33,6 @@ export default function RootLayout() {
     const screen = segments.join('/')
     Analytics.screen(screen)
   }, [segments])
-
-  useEffect(() => {
-  AsyncStorage.getItem('savr_onboarding_done').then(done => {
-    if (done === 'true' && !onboardingDone) {
-      setOnboardingDone(true)
-    }
-  }).catch(() => {})
-}, [segments, onboardingDone])
 
   useEffect(() => {
     async function init() {
@@ -102,47 +94,44 @@ export default function RootLayout() {
               if (enabled) {
                 const fcmToken = await messaging().getToken()
                 if (fcmToken) {
-                  const { supabase } = await import('../src/lib/supabase')
                   const user = getCachedUser()
-                  if (user) {
-                    await supabase
-                      .from('user_profiles')
-                      .update({ fcm_token: fcmToken })
-                      .eq('id', user.id)
-                  }
+if (user) {
+  await supabase
+    .from('user_profiles')
+    .update({ fcm_token: fcmToken })
+    .eq('id', user.id)
+}
                 }
               }
             } catch {}
-          }, 3000)
+          }, 9000)
 
           setTimeout(() => {
-            import('../src/lib/userProfile').then(({ updateLastActive }) => {
-              updateLastActive(cachedUser.id)
-            }).catch(() => {})
-            supabase.from('user_profiles').update({
-              is_online: true,
-              online_at: new Date().toISOString(),
-              last_active: new Date().toISOString(),
-            }).eq('id', cachedUser.id).then(() => {}).catch(() => {})
-          }, 3000)
+  import('../src/lib/userProfile').then(({ updateLastActive }) => {
+    updateLastActive(cachedUser.id)
+  }).catch(() => {})
+}, 7000)
 
           setTimeout(async () => {
-            try {
-              await dbReady
-              const d = new Date()
-const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-              const lastCheck = await AsyncStorage.getItem(LAST_RECURRING_CHECK_KEY)
-              if (lastCheck !== today) {
-                await AsyncStorage.setItem(LAST_RECURRING_CHECK_KEY, today)
-                processDueRecurring(cachedUser.id).catch(() => {})
-                processRecurringIncome(cachedUser.id).catch(() => {})
-              }
-            } catch {}
-          }, 2000)
+  try {
+    await dbReady
+    const d = new Date()
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const lastCheck = await AsyncStorage.getItem(LAST_RECURRING_CHECK_KEY)
+    if (lastCheck !== today) {
+      await AsyncStorage.setItem(LAST_RECURRING_CHECK_KEY, today)
+      if (!recurringProcessedRef.current) {
+        recurringProcessedRef.current = true
+        processDueRecurring(cachedUser.id).catch(() => {})
+        processRecurringIncome(cachedUser.id).catch(() => {})
+      }
+    }
+  } catch {}
+}, 3500)
 
           setTimeout(() => {
             import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
-          }, 2000)
+          }, 5000)
 
         } else {
           // No cached user — wait for Supabase with timeout
@@ -172,7 +161,7 @@ const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-$
     init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!initialSessionLoadedRef.current && event !== 'SIGNED_OUT') return
+      if (!initialSessionLoadedRef.current) return
 
       setSession(session ?? null)
 
@@ -187,13 +176,12 @@ const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-$
         // Set online status
 setTimeout(async () => {
   try {
-    const { supabase: sb } = await import('../src/lib/supabase')
     if (session?.user?.id) {
-      sb.from('user_profiles').update({
-        is_online: true,
-        online_at: new Date().toISOString(),
-      }).eq('id', session.user.id).then(() => {}).catch(() => {})
-    }
+  supabase.from('user_profiles').update({
+    is_online: true,
+    online_at: new Date().toISOString(),
+  }).eq('id', session.user.id).then(() => {}).catch(() => {})
+}
   } catch {}
 }, 2000)
 
@@ -239,10 +227,10 @@ if (lastTrigger === today) return
             const user = session?.user
             if (!user) return
             const { hasDataChanged, backupToDrive } = await import('../src/services/driveBackupService')
-            const changed = await hasDataChanged(user.id)
-            if (!changed) return
             await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
-            backupToDrive().catch(() => {})
+const changed = await hasDataChanged(user.id)
+if (!changed) return
+backupToDrive().catch(() => {})
           } catch {}
         })()
       }
@@ -257,27 +245,21 @@ try {
     supabase.from('user_profiles').update({ is_online: false }).eq('id', offlineUser.id).then(() => {}).catch(() => {})
   }
 } catch {}
-        AsyncStorage.removeItem('savr_google_token').catch(() => {})
-        AsyncStorage.removeItem('savr_notif_asked').catch(() => {})
-        AsyncStorage.removeItem(LAST_BACKUP_TRIGGER_KEY).catch(() => {})
-        AsyncStorage.removeItem(LAST_RECURRING_CHECK_KEY).catch(() => {})
-        AsyncStorage.removeItem('savr_restore_offered').catch(() => {})
-        AsyncStorage.removeItem('savr_last_backup').catch(() => {})
-        AsyncStorage.removeItem('savr_is_up_to_date').catch(() => {})
-        AsyncStorage.removeItem('savr_last_backup_hash').catch(() => {})
-        AsyncStorage.removeItem('savr_reminder_suppressed_date').catch(() => {})
+        Promise.allSettled([
+  AsyncStorage.removeItem('savr_google_token'),
+  AsyncStorage.removeItem('savr_notif_asked'),
+  AsyncStorage.removeItem(LAST_BACKUP_TRIGGER_KEY),
+  AsyncStorage.removeItem(LAST_RECURRING_CHECK_KEY),
+  AsyncStorage.removeItem('savr_restore_offered'),
+  AsyncStorage.removeItem('savr_last_backup'),
+  AsyncStorage.removeItem('savr_is_up_to_date'),
+  AsyncStorage.removeItem('savr_last_backup_hash'),
+  AsyncStorage.removeItem('savr_reminder_suppressed_date'),
+]).catch(() => {})
         import('../src/lib/notifications').then(({ cancelDailyReminder }) => cancelDailyReminder()).catch(() => {})
         unregisterBackupTask().catch(() => {})
         recurringProcessedRef.current = false
         router.replace('/(auth)/login')
-      }
-
-      if (event === 'TOKEN_REFRESHED') {
-        setSession(session)
-      }
-
-      if (event === 'USER_UPDATED') {
-        setSession(session)
       }
     })
 
@@ -339,10 +321,10 @@ if (lastTrigger === today) return
     const user = getCachedUser()
     if (!user) return
     const { hasDataChanged, backupToDrive } = await import('../src/services/driveBackupService')
-    const changed = await hasDataChanged(user.id)
-    if (!changed) return
     await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
-    backupToDrive().catch(() => {})
+const changed = await hasDataChanged(user.id)
+if (!changed) return
+backupToDrive().catch(() => {})
   } catch {}
 }
     const appStateSub = AppState.addEventListener('change', handleAppStateChange)

@@ -10,6 +10,7 @@ import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import { checkWeeklySummary } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getExpenses, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal, getAccountsTotal, getTodayIncomeTotal } from '../../src/services/sqliteService'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
@@ -41,6 +42,38 @@ function CountUp({ value, style, symbol, currencyCode }) {
   )
 }
 
+function getMonthInfo(offset) {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() + offset)
+  const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  const name = d.toLocaleString('default', { month: 'long', year: 'numeric' })
+  const totalDays = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+  return { month, name, totalDays }
+}
+
+function sortExpenses(data) {
+  return [...data].sort((a, b) => {
+    if (b.date !== a.date) return b.date.localeCompare(a.date)
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0)
+  })
+}
+
+function getCategoryInfo(label) {
+  return CATEGORIES.find(c => c.label === label) || { icon: 'grid-outline', color: '#888' }
+}
+
+function formatDate(dateStr) {
+  const today = new Date()
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+  if (dateStr === todayStr) return 'Today'
+  if (dateStr === yesterdayStr) return 'Yesterday'
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+}
+
 export default function Dashboard() {
   const [expenses, setExpenses] = useState([])
   const [userName, setUserName] = useState('')
@@ -66,49 +99,21 @@ const [userInitials, setUserInitials] = useState('??')
   const router = useRouter()
   const userRef = useRef(null)
   const isFocusedRef = useRef(false)
+const isMountedRef = useRef(false)
+const backupTimerRef = useRef(null)
   const backupExistsRef = useRef(null)
-
-  function getMonthInfo(offset) {
-    const d = new Date()
-    d.setDate(1)
-    d.setMonth(d.getMonth() + offset)
-    const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    const name = d.toLocaleString('default', { month: 'long', year: 'numeric' })
-    const totalDays = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
-    return { month, name, totalDays }
-  }
 
   const { month: currentMonth, name: monthName } = getMonthInfo(monthOffset)
   const isCurrentMonth = monthOffset === 0
 
-  function sortExpenses(data) {
-    return [...data].sort((a, b) => {
-      if (b.date !== a.date) return b.date.localeCompare(a.date)
-      return new Date(b.created_at || 0) - new Date(a.created_at || 0)
-    })
-  }
-
   useEffect(() => {
     async function loadAvatarFromStorage() {
       try {
-        const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
-        const saved = await AsyncStorageModule.getItem('savr_avatar_url')
+        const saved = await AsyncStorage.getItem('savr_avatar_url')
         if (saved) setAvatarUrl(saved)
       } catch {}
     }
     loadAvatarFromStorage()
-  }, [])
-
-  useEffect(() => {
-    async function loadGoalData() {
-      const user = getCachedUser() || await getUser()
-      userRef.current = user
-      if (user) {
-        const goal = await loadGoal(user.id)
-        setSpendingGoal(goal)
-      }
-    }
-    loadGoalData()
   }, [])
 
   async function fetchData(forceRefresh = false) {
@@ -132,14 +137,14 @@ const [userInitials, setUserInitials] = useState('??')
         if (cached.userInitials) setUserInitials(cached.userInitials)
         setLoading(false)
         setMonthLoading(false)
-        setTimeout(() => syncFromSQLite(cacheKey), 100)
+        setTimeout(() => syncFromSQLite(cacheKey, monthOffset), 100)
         return
       }
     }
-    await syncFromSQLite(cacheKey)
+    await syncFromSQLite(cacheKey, monthOffset)
   }
 
-  async function syncFromSQLite(cacheKey) {
+  async function syncFromSQLite(cacheKey, offsetSnapshot) {
     try {
       const user = getCachedUser() || userRef.current || await getUser()
       if (!user) { setLoading(false); setRefreshing(false); setMonthLoading(false); return }
@@ -158,13 +163,12 @@ const [userInitials, setUserInitials] = useState('??')
       setAvatarUrl(avatar)
       if (avatar) {
         try {
-          const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
-          await AsyncStorageModule.setItem('savr_avatar_url', avatar)
+          await AsyncStorage.setItem('savr_avatar_url', avatar)
         } catch {}
       }
       const symbol = await getCurrencySymbol()
       const code = await loadCurrency()
-      const lastMonthInfo = getMonthInfo(monthOffset - 1)
+      const lastMonthInfo = getMonthInfo(offsetSnapshot - 1)
       const todayDate = new Date()
       const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`
       const [currentExpenses, lastTotal, recurringItems, incomeTotal, accTotal, todayIncomeTotal] = await Promise.all([
@@ -179,16 +183,24 @@ const [userInitials, setUserInitials] = useState('??')
       const now = new Date()
 
       let daysElapsed
-      if (monthOffset === 0) {
+      if (offsetSnapshot === 0) {
         daysElapsed = now.getDate()
       } else {
-        const { totalDays } = getMonthInfo(monthOffset)
+        const { totalDays } = getMonthInfo(offsetSnapshot)
         daysElapsed = totalDays
       }
 
       const recTotal = recurringItems.reduce((sum, r) => sum + parseFloat(r.amount), 0)
       const recCount = recurringItems.length
 
+      await saveCache(cacheKey, {
+        expenses: filtered, userName: firstName, lastMonthTotal: lastTotal,
+        daysInMonth: daysElapsed, currencySymbol: symbol, currencyCode: code,
+        recurringTotal: recTotal, recurringCount: recCount, monthlyIncome: incomeTotal, accountsTotal: accTotal, todayIncome: todayIncomeTotal, avatarUrl: avatar, userInitials: initials,
+        savedAt: Date.now(),
+      })
+
+      if (!isFocusedRef.current) return
       setExpenses(filtered)
       setUserName(firstName)
       setLastMonthTotal(lastTotal)
@@ -203,13 +215,7 @@ const [userInitials, setUserInitials] = useState('??')
       const goal = await loadGoal(user.id)
       if (goal !== null) setSpendingGoal(goal)
 
-      await saveCache(cacheKey, {
-        expenses: filtered, userName: firstName, lastMonthTotal: lastTotal,
-        daysInMonth: daysElapsed, currencySymbol: symbol, currencyCode: code,
-        recurringTotal: recTotal, recurringCount: recCount, monthlyIncome: incomeTotal, accountsTotal: accTotal, todayIncome: todayIncomeTotal, avatarUrl: avatar, userInitials: initials,
-      })
-
-      if (monthOffset === 0) {
+      if (offsetSnapshot === 0) {
         checkWeeklySummary(filtered)
       }
     } catch (e) {}
@@ -220,15 +226,21 @@ const [userInitials, setUserInitials] = useState('??')
     }
   }
 
-  useFocusEffect(useCallback(() => {
+  useEffect(() => {
+  if (!isMountedRef.current) return
+  fetchData()
+}, [monthOffset])
+
+useFocusEffect(useCallback(() => {
     isFocusedRef.current = true
+    isMountedRef.current = true
     fetchData()
 
-    const backupTimer = setTimeout(async () => {
+    if (backupTimerRef.current) clearTimeout(backupTimerRef.current)
+    backupTimerRef.current = setTimeout(async () => {
       if (!isFocusedRef.current) return
       try {
-        const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
-        const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
+        const restoreOffered = await AsyncStorage.getItem('savr_restore_offered')
         if (restoreOffered) return
         let user = getCachedUser() || await getUser()
         if (!user) return
@@ -250,7 +262,7 @@ const [userInitials, setUserInitials] = useState('??')
                 text: 'Skip',
                 style: 'cancel',
                 onPress: async () => {
-                  await AsyncStorageModule.setItem('savr_restore_offered', 'true')
+                  await AsyncStorage.setItem('savr_restore_offered', 'true')
                   backupExistsRef.current = false
                 }
               },
@@ -259,7 +271,7 @@ const [userInitials, setUserInitials] = useState('??')
                 onPress: async () => {
                   try {
                     const { restoreFromDrive } = await import('../../src/services/driveBackupService')
-                    await AsyncStorageModule.setItem('savr_restore_offered', 'true')
+                    await AsyncStorage.setItem('savr_restore_offered', 'true')
                     backupExistsRef.current = false
                     const result = await restoreFromDrive()
                     if (result.success) {
@@ -285,7 +297,7 @@ const [userInitials, setUserInitials] = useState('??')
 
     return () => {
       isFocusedRef.current = false
-      clearTimeout(backupTimer)
+      if (backupTimerRef.current) clearTimeout(backupTimerRef.current)
       hideAlert()
     }
   }, [currentMonth]))
@@ -361,22 +373,10 @@ const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
     return result
   }, [expenses, byCategory, total, lastMonthTotal, daysInMonth, currencySymbol, currencyCode, spendingGoal, goalExceeded, goalPercentage])
 
-  function getCategoryInfo(label) {
-    return CATEGORIES.find(c => c.label === label) || { icon: 'grid-outline', color: '#888' }
-  }
-
-  function formatDate(dateStr) {
-    const today = new Date()
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
-    if (dateStr === todayStr) return 'Today'
-    if (dateStr === yesterdayStr) return 'Yesterday'
-    return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
-  }
-
   if (loading) return <DashboardSkeleton />
+
+  const h = new Date().getHours()
+  const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
 
   return (
     <View style={styles.outerContainer}>
@@ -385,10 +385,7 @@ const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
         <View style={styles.avatarBtn}>
           <View style={styles.avatarGreeting}>
             <Text style={styles.greetingText}>
-              {(() => {
-                const h = new Date().getHours()
-                return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
-              })()}
+              {greeting}
             </Text>
             <Text style={styles.greetingName} numberOfLines={1}>{userName || 'there'}</Text>
           </View>
@@ -609,7 +606,7 @@ const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
           </View>
         )}
 
-        {expenses.length > 0 && (
+        {expenses.length > 0 && isCurrentMonth && (
           <View style={styles.last7Card}>
             <Text style={styles.last7Title}>Last 7 Days</Text>
             <View style={styles.last7Chart}>
@@ -778,12 +775,6 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginBottom: 6, letterSpacing: 1.5, textTransform: 'uppercase' },
   totalAmount: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.5, width: '100%', textAlign: 'center' },
   totalSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
-  recurringRow: { marginTop: 16 },
-recurringDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginBottom: 12 },
-recurringContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-recurringLeft: { flex: 1 },
-recurringBadge: { backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10, marginLeft: 8 },
-recurringBadgeText: { fontSize: 11, color: 'rgba(255,255,255,0.85)', fontWeight: '600' },
   goalCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   goalCardExceeded: { borderColor: COLORS.accentRed + '66' },
   goalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
