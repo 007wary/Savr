@@ -543,8 +543,7 @@ export default function Settings() {
         </ScrollView>
       </BottomSheet>
 
-      <BottomSheet visible={profileModalVisible} onClose={() => setProfileModalVisible(false)}>
-    <View>
+      <BottomSheet visible={profileModalVisible} onClose={() => setProfileModalVisible(false)} maxHeight="92%">
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Edit Profile</Text>
               <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
@@ -588,8 +587,7 @@ export default function Settings() {
             >
               <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Profile'}</Text>
             </TouchableOpacity>
-          </View>
-      </BottomSheet>
+          </BottomSheet>
 
       <CustomAlert
         visible={alertConfig.visible}
