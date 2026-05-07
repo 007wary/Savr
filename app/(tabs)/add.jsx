@@ -18,6 +18,7 @@ import { detectAnomaly } from '../../src/lib/anomalyDetector'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
 import { addExpense, addRecurring, addIncome, addRecurringIncome, addTransfer, getExpenses, getBudgets, getAccounts, updateAccountBalance } from '../../src/services/sqliteService'
 import { Analytics } from '../../src/lib/analytics'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const FREQUENCIES = [
   { label: 'Daily', value: 'daily', icon: 'sunny-outline' },
@@ -61,6 +62,19 @@ export default function AddExpense() {
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
   const userRef = useRef(null)
+
+  async function requestNotifIfNeeded() {
+    try {
+      const notifAsked = await AsyncStorage.getItem('savr_notif_asked')
+      if (notifAsked) return
+      await AsyncStorage.setItem('savr_notif_asked', 'true')
+      const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
+      const alreadyGranted = await isNotificationGranted()
+      if (!alreadyGranted) {
+        await requestNotificationPermission()
+      }
+    } catch {}
+  }
 
   useEffect(() => {
     async function init() {
@@ -209,6 +223,7 @@ export default function AddExpense() {
       } catch {}
 
       router.replace('/(tabs)/dashboard')
+      setTimeout(() => requestNotifIfNeeded(), 3000)
     } catch (e) {
       showAlert('Error', 'Could not save expense. Please try again.')
     } finally {

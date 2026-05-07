@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, Modal, KeyboardAvoidingView, Platform, AppState, Image } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, Modal, KeyboardAvoidingView, Platform, Image } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -65,7 +65,6 @@ const [userInitials, setUserInitials] = useState('??')
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
   const userRef = useRef(null)
-  const notifRequestedRef = useRef(false)
   const isFocusedRef = useRef(false)
   const backupExistsRef = useRef(null)
 
@@ -111,22 +110,6 @@ const [userInitials, setUserInitials] = useState('??')
     }
     loadGoalData()
   }, [])
-
-  async function requestNotifIfNeeded() {
-    if (notifRequestedRef.current) return
-    try {
-      const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
-      const notifAsked = await AsyncStorageModule.getItem('savr_notif_asked')
-      if (notifAsked) return
-      notifRequestedRef.current = true
-      await AsyncStorageModule.setItem('savr_notif_asked', 'true')
-      const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
-      const alreadyGranted = await isNotificationGranted()
-      if (!alreadyGranted) {
-        await requestNotificationPermission()
-      }
-    } catch {}
-  }
 
   async function fetchData(forceRefresh = false) {
     const cacheKey = `savr_cache_dashboard_${currentMonth}`
@@ -246,18 +229,12 @@ const [userInitials, setUserInitials] = useState('??')
       try {
         const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
         const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
-        if (restoreOffered) {
-          setTimeout(() => requestNotifIfNeeded(), 1500)
-          return
-        }
+        if (restoreOffered) return
         let user = getCachedUser() || await getUser()
         if (!user) return
         const { getExpenses: getExp } = await import('../../src/services/sqliteService')
         const localExpenses = await getExp(user.id)
-        if (localExpenses.length > 0) {
-          setTimeout(() => requestNotifIfNeeded(), 1500)
-          return
-        }
+        if (localExpenses.length > 0) return
         if (backupExistsRef.current === null) {
           const { checkBackupExists } = await import('../../src/services/driveBackupService')
           const backupInfo = await checkBackupExists()
@@ -275,7 +252,6 @@ const [userInitials, setUserInitials] = useState('??')
                 onPress: async () => {
                   await AsyncStorageModule.setItem('savr_restore_offered', 'true')
                   backupExistsRef.current = false
-                  setTimeout(() => requestNotifIfNeeded(), 1000)
                 }
               },
               {
@@ -290,31 +266,22 @@ const [userInitials, setUserInitials] = useState('??')
                       showAlert('✅ Restored!', `${result.expenseCount} expenses restored successfully.`, [
                         {
                           text: 'OK',
-                          onPress: async () => {
-                            fetchData(true)
-                            setTimeout(() => requestNotifIfNeeded(), 3000)
-                          }
+                          onPress: () => fetchData(true)
                         }
                       ])
                     } else {
                       showAlert('Failed', result.error || 'Restore failed.')
-                      setTimeout(() => requestNotifIfNeeded(), 1000)
                     }
                   } catch {
                     showAlert('Failed', 'Something went wrong.')
-                    setTimeout(() => requestNotifIfNeeded(), 1000)
                   }
                 }
               }
             ]
           )
-        } else {
-          setTimeout(() => requestNotifIfNeeded(), 1000)
         }
-      } catch {
-        setTimeout(() => requestNotifIfNeeded(), 1500)
-      }
-    }, 1500)
+      } catch {}
+    }, 2000)
 
     return () => {
       isFocusedRef.current = false
