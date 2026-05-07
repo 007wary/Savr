@@ -44,9 +44,20 @@ export const Analytics = {
   logout: () => logEvent('logout'),
 
   // Expenses
-  addExpense: (category, amount) => logEvent('add_expense', { category, amount }),
-  deleteExpense: () => logEvent('delete_expense'),
-  editExpense: () => logEvent('edit_expense'),
+addExpense: (category, amount) => logEvent('add_expense', { category, amount }),
+deleteExpense: () => logEvent('delete_expense'),
+editExpense: () => logEvent('edit_expense'),
+
+// Income
+addIncome: (category, amount) => logEvent('add_income', { category, amount }),
+deleteIncome: () => logEvent('delete_income'),
+editIncome: () => logEvent('edit_income'),
+
+// Recurring
+addRecurringExpense: (category, amount, frequency) => logEvent('add_recurring_expense', { category, amount, frequency }),
+deleteRecurringExpense: () => logEvent('delete_recurring_expense'),
+addRecurringIncome: (category, amount, frequency) => logEvent('add_recurring_income', { category, amount, frequency }),
+deleteRecurringIncome: () => logEvent('delete_recurring_income'),
 
   // Budgets
   setBudget: (category) => logEvent('set_budget', { category }),

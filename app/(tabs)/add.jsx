@@ -170,7 +170,11 @@ export default function AddExpense() {
         if (selectedAccountId) await updateAccountBalance(selectedAccountId, -expenseData.amount)
       }
 
-      Analytics.addExpense(expenseData.category, expenseData.amount)
+      if (isRecurring) {
+  Analytics.addRecurringExpense(expenseData.category, expenseData.amount, frequency)
+} else {
+  Analytics.addExpense(expenseData.category, expenseData.amount)
+}
 
       await clearCache(`savr_cache_dashboard_${expenseMonth}`)
       await clearCache(`savr_cache_budgets_${expenseMonth}`)
@@ -235,6 +239,12 @@ export default function AddExpense() {
       } else {
         await addIncome(user.id, { ...incomeData, account_id: selectedAccountId })
         if (selectedAccountId) await updateAccountBalance(selectedAccountId, incomeData.amount)
+      }
+
+      if (isRecurringIncome) {
+        Analytics.addRecurringIncome(incomeData.category, incomeData.amount, incomeFrequency)
+      } else {
+        Analytics.addIncome(incomeData.category, incomeData.amount)
       }
 
       await clearCache(`savr_cache_dashboard_${incomeMonth}`)
