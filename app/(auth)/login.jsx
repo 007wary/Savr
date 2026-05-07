@@ -57,8 +57,8 @@ export default function Login() {
       if (error) throw error
 
       setSigningIn(true)
-      setTimeout(() => setSigningIn(false), 10000)
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
+      setTimeout(() => setSigningIn(false), 10000)
 
       if (result.type === 'success') {
         const url = result.url

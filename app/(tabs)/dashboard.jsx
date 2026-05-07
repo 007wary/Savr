@@ -66,6 +66,8 @@ const [userInitials, setUserInitials] = useState('??')
   const router = useRouter()
   const userRef = useRef(null)
   const notifRequestedRef = useRef(false)
+  const isFocusedRef = useRef(false)
+  const backupExistsRef = useRef(null)
 
   function getMonthInfo(offset) {
     const d = new Date()
@@ -110,74 +112,21 @@ const [userInitials, setUserInitials] = useState('??')
     loadGoalData()
   }, [])
 
-  useEffect(() => {
-    async function requestNotifIfNeeded() {
-      if (notifRequestedRef.current) return
-      try {
-        const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
-        const notifAsked = await AsyncStorageModule.getItem('savr_notif_asked')
-        if (notifAsked) return
-        notifRequestedRef.current = true
-        await AsyncStorageModule.setItem('savr_notif_asked', 'true')
-        const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
-        const alreadyGranted = await isNotificationGranted()
-        if (!alreadyGranted) {
-          await requestNotificationPermission()
-        }
-      } catch {}
-    }
-    setTimeout(() => requestNotifIfNeeded(), 1500)
-    const subscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') requestNotifIfNeeded()
-    })
-    return () => subscription.remove()
-  }, [])
-
-  useEffect(() => {
-    async function checkForBackup() {
-      try {
-        const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
-        const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
-        if (restoreOffered) return
-        let user = getCachedUser() || await getUser()
-        if (!user) return
-        const { getExpenses: getExp } = await import('../../src/services/sqliteService')
-        const localExpenses = await getExp(user.id)
-        if (localExpenses.length > 0) return
-        const { checkBackupExists } = await import('../../src/services/driveBackupService')
-        const backupInfo = await checkBackupExists()
-        if (backupInfo?.exists) {
-          showAlert(
-            '☁️ Backup Found!',
-            'We found a Savr backup in your Google Drive. Would you like to restore your data?',
-            [
-              { text: 'Skip', style: 'cancel', onPress: async () => { await AsyncStorageModule.setItem('savr_restore_offered', 'true') } },
-              {
-                text: 'Restore',
-                onPress: async () => {
-                  try {
-                    const { restoreFromDrive } = await import('../../src/services/driveBackupService')
-                    await AsyncStorageModule.setItem('savr_restore_offered', 'true')
-                    const result = await restoreFromDrive()
-                    if (result.success) {
-                      showAlert('✅ Restored!', `${result.expenseCount} expenses restored successfully.`, [
-                        { text: 'OK', onPress: () => fetchData(true) }
-                      ])
-                    } else {
-                      showAlert('Failed', result.error || 'Restore failed.')
-                    }
-                  } catch {
-                    showAlert('Failed', 'Something went wrong.')
-                  }
-                }
-              }
-            ]
-          )
-        }
-      } catch {}
-    }
-    setTimeout(() => checkForBackup(), 3000)
-  }, [])
+  async function requestNotifIfNeeded() {
+    if (notifRequestedRef.current) return
+    try {
+      const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
+      const notifAsked = await AsyncStorageModule.getItem('savr_notif_asked')
+      if (notifAsked) return
+      notifRequestedRef.current = true
+      await AsyncStorageModule.setItem('savr_notif_asked', 'true')
+      const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
+      const alreadyGranted = await isNotificationGranted()
+      if (!alreadyGranted) {
+        await requestNotificationPermission()
+      }
+    } catch {}
+  }
 
   async function fetchData(forceRefresh = false) {
     const cacheKey = `savr_cache_dashboard_${currentMonth}`
@@ -288,7 +237,91 @@ const [userInitials, setUserInitials] = useState('??')
     }
   }
 
-  useFocusEffect(useCallback(() => { fetchData() }, [currentMonth]))
+  useFocusEffect(useCallback(() => {
+    isFocusedRef.current = true
+    fetchData()
+
+    const backupTimer = setTimeout(async () => {
+      if (!isFocusedRef.current) return
+      try {
+        const AsyncStorageModule = (await import('@react-native-async-storage/async-storage')).default
+        const restoreOffered = await AsyncStorageModule.getItem('savr_restore_offered')
+        if (restoreOffered) {
+          setTimeout(() => requestNotifIfNeeded(), 1500)
+          return
+        }
+        let user = getCachedUser() || await getUser()
+        if (!user) return
+        const { getExpenses: getExp } = await import('../../src/services/sqliteService')
+        const localExpenses = await getExp(user.id)
+        if (localExpenses.length > 0) {
+          setTimeout(() => requestNotifIfNeeded(), 1500)
+          return
+        }
+        if (backupExistsRef.current === null) {
+          const { checkBackupExists } = await import('../../src/services/driveBackupService')
+          const backupInfo = await checkBackupExists()
+          backupExistsRef.current = backupInfo?.exists ? true : false
+        }
+        if (!isFocusedRef.current) return
+        if (backupExistsRef.current === true) {
+          showAlert(
+            '☁️ Backup Found!',
+            'We found a Savr backup in your Google Drive. Would you like to restore your data?',
+            [
+              {
+                text: 'Skip',
+                style: 'cancel',
+                onPress: async () => {
+                  await AsyncStorageModule.setItem('savr_restore_offered', 'true')
+                  backupExistsRef.current = false
+                  setTimeout(() => requestNotifIfNeeded(), 1000)
+                }
+              },
+              {
+                text: 'Restore',
+                onPress: async () => {
+                  try {
+                    const { restoreFromDrive } = await import('../../src/services/driveBackupService')
+                    await AsyncStorageModule.setItem('savr_restore_offered', 'true')
+                    backupExistsRef.current = false
+                    const result = await restoreFromDrive()
+                    if (result.success) {
+                      showAlert('✅ Restored!', `${result.expenseCount} expenses restored successfully.`, [
+                        {
+                          text: 'OK',
+                          onPress: async () => {
+                            fetchData(true)
+                            await requestNotifIfNeeded()
+                          }
+                        }
+                      ])
+                    } else {
+                      showAlert('Failed', result.error || 'Restore failed.')
+                      setTimeout(() => requestNotifIfNeeded(), 1000)
+                    }
+                  } catch {
+                    showAlert('Failed', 'Something went wrong.')
+                    setTimeout(() => requestNotifIfNeeded(), 1000)
+                  }
+                }
+              }
+            ]
+          )
+        } else {
+          setTimeout(() => requestNotifIfNeeded(), 1000)
+        }
+      } catch {
+        setTimeout(() => requestNotifIfNeeded(), 1500)
+      }
+    }, 3000)
+
+    return () => {
+      isFocusedRef.current = false
+      clearTimeout(backupTimer)
+      hideAlert()
+    }
+  }, [currentMonth]))
 
   async function handleSaveGoal() {
     const amount = parseFloat(goalInput)
