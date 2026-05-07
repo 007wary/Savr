@@ -7,11 +7,13 @@ export default function BottomSheet({ visible, onClose, children, maxHeight = '8
       visible={visible}
       animationType="slide"
       transparent
+      statusBarTranslucent
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        keyboardVerticalOffset={Platform.OS === 'android' ? 0 : 0}
       >
         <TouchableOpacity
           style={styles.overlay}
@@ -28,6 +30,7 @@ export default function BottomSheet({ visible, onClose, children, maxHeight = '8
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               bounces={false}
+              overScrollMode="never"
             >
               {children}
             </ScrollView>
