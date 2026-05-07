@@ -171,11 +171,12 @@ const backupTimerRef = useRef(null)
       const lastMonthInfo = getMonthInfo(offsetSnapshot - 1)
       const todayDate = new Date()
       const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`
+      const { month: snapshotMonth } = getMonthInfo(offsetSnapshot)
       const [currentExpenses, lastTotal, recurringItems, incomeTotal, accTotal, todayIncomeTotal] = await Promise.all([
-        getExpenses(user.id, { month: currentMonth }),
+        getExpenses(user.id, { month: snapshotMonth }),
         getMonthlyTotal(user.id, lastMonthInfo.month),
         getRecurring(user.id),
-        getMonthlyIncomeTotal(user.id, currentMonth),
+        getMonthlyIncomeTotal(user.id, snapshotMonth),
         getAccountsTotal(user.id),
         getTodayIncomeTotal(user.id, todayStr),
       ])
