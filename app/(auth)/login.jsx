@@ -14,7 +14,6 @@ import { LinearGradient } from 'expo-linear-gradient'
 import * as WebBrowser from 'expo-web-browser'
 import * as AuthSession from 'expo-auth-session'
 import { useRouter } from 'expo-router'
-import { setSigningIn } from '../../src/lib/authState'
 
 WebBrowser.maybeCompleteAuthSession()
 
@@ -56,9 +55,7 @@ export default function Login() {
       })
       if (error) throw error
 
-      setSigningIn(true)
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
-      setTimeout(() => setSigningIn(false), 10000)
 
       if (result.type === 'success') {
         const url = result.url

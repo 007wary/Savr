@@ -183,7 +183,6 @@ const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-$
           crashlytics().setAttribute('email', session.user.email || '').catch(() => {})
         }
         Analytics.login()
-        router.replace('/(tabs)/dashboard')
 
         // Set online status
 setTimeout(async () => {
