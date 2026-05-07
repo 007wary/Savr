@@ -9,7 +9,7 @@ import { processDueRecurring, processRecurringIncome } from '../src/lib/recurrin
 import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { initializeDatabase } from '../src/services/sqliteService'
-import { registerBackupTask, unregisterBackupTask } from '../src/services/backgroundBackup'
+import { registerBackupTask, unregisterBackupTask, registerFCMBackupHandler } from '../src/services/backgroundBackup'
 import { Analytics, setUserId } from '../src/lib/analytics'
 import crashlytics from '@react-native-firebase/crashlytics'
 import { setCachedUser, getCachedUser, loadCachedUser } from '../src/lib/auth'
@@ -45,6 +45,7 @@ export default function RootLayout() {
   useEffect(() => {
     async function init() {
       clearExpiredCache().catch(() => {})
+      registerFCMBackupHandler()
 
       // Check cached user immediately before anything else
       const cachedUser = await loadCachedUser()
