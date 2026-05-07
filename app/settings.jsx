@@ -5,6 +5,7 @@ import {
   TouchableOpacity, Switch, TextInput,
   Linking, Image
 } from 'react-native'
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../src/lib/supabase'
@@ -544,6 +545,7 @@ export default function Settings() {
       </BottomSheet>
 
       <BottomSheet visible={profileModalVisible} onClose={() => setProfileModalVisible(false)} maxHeight="92%">
+      <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Edit Profile</Text>
               <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
@@ -587,7 +589,8 @@ export default function Settings() {
             >
               <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Save Profile'}</Text>
             </TouchableOpacity>
-          </BottomSheet>
+          </KeyboardAwareScrollView>
+      </BottomSheet>
 
       <CustomAlert
         visible={alertConfig.visible}
