@@ -292,7 +292,7 @@ const [userInitials, setUserInitials] = useState('??')
                           text: 'OK',
                           onPress: async () => {
                             fetchData(true)
-                            await requestNotifIfNeeded()
+                            setTimeout(() => requestNotifIfNeeded(), 3000)
                           }
                         }
                       ])
@@ -314,7 +314,7 @@ const [userInitials, setUserInitials] = useState('??')
       } catch {
         setTimeout(() => requestNotifIfNeeded(), 1500)
       }
-    }, 3000)
+    }, 1500)
 
     return () => {
       isFocusedRef.current = false
