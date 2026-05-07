@@ -545,8 +545,16 @@ export default function Settings() {
       </BottomSheet>
 
       <BottomSheet visible={profileModalVisible} onClose={() => setProfileModalVisible(false)}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={100}>
-          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+  <KeyboardAvoidingView
+    behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+    keyboardVerticalOffset={Platform.OS === 'android' ? 180 : 100}
+    style={{ flex: 1 }}
+  >
+    <ScrollView
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 40 }}
+    >
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Edit Profile</Text>
               <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
