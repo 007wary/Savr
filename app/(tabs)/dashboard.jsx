@@ -229,7 +229,7 @@ const backupTimerRef = useRef(null)
             const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
             const alreadyGranted = await isNotificationGranted()
             if (!alreadyGranted) {
-              setTimeout(() => requestNotificationPermission(), 500)
+              setTimeout(() => requestNotificationPermission(), 3000)
             }
           }
         }

@@ -4,7 +4,7 @@ import {
   TextInput, ActivityIndicator
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
-import { useFocusEffect, useRouter } from 'expo-router'
+import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS, SCREEN } from '../../src/constants/theme'
 import BottomSheet from '../../src/components/BottomSheet'
@@ -36,7 +36,6 @@ export default function Accounts() {
   const [currencySymbol, setCurrencySymbol] = useState('₹')
   const [currencyCode, setCurrencyCode] = useState('INR')
   const { alertConfig, showAlert, hideAlert } = useAlert()
-  const router = useRouter()
   const userRef = useRef(null)
 
   async function fetchAccounts() {
@@ -139,13 +138,7 @@ export default function Accounts() {
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
 
       <View style={[styles.header, { paddingTop: SCREEN.paddingTop }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={26} color={COLORS.text} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Accounts</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
-          <Ionicons name="add" size={22} color="#fff" />
-        </TouchableOpacity>
+        <Text style={styles.heading}>Accounts</Text>
       </View>
 
       {loading ? (
@@ -269,9 +262,8 @@ export default function Accounts() {
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text },
-  addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' },
+  header: { paddingHorizontal: 16, paddingBottom: 12 },
+  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
   container: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   accountCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border },

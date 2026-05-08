@@ -5,6 +5,30 @@ import { v4 as uuidv4 } from 'uuid'
 let db = null
 let opening = null
 
+function isBusyError(e) {
+  const msg = (e?.message || '').toLowerCase()
+  return msg.includes('busy') || msg.includes('locked') || msg.includes('3850') || e?.code === 10
+}
+
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+async function runWithRetry(database, sql, params = []) {
+  const delays = [50, 100, 200]
+  for (let attempt = 0; attempt <= 3; attempt++) {
+    try {
+      return await database.runAsync(sql, params)
+    } catch (e) {
+      if (isBusyError(e) && attempt < 3) {
+        await sleep(delays[attempt])
+        continue
+      }
+      throw e
+    }
+  }
+}
+
 export const getDB = async () => {
   if (opening) return opening
   if (db) {
@@ -26,6 +50,7 @@ export const initializeDatabase = async () => {
 
   await database.execAsync(`
     PRAGMA journal_mode = WAL;
+    PRAGMA busy_timeout = 2000;
 
     CREATE TABLE IF NOT EXISTS expenses (
       id TEXT PRIMARY KEY,
@@ -156,7 +181,7 @@ export async function addExpense(userId, { amount, category, note, date, is_recu
   const database = await getDB()
   const newId = id()
   const ts = now()
-  await database.runAsync(
+  await runWithRetry(database,
     `INSERT INTO expenses (id, user_id, amount, category, note, date, is_recurring, recurring_id, account_id, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [newId, userId, amount, category, note || null, date, is_recurring ? 1 : 0, recurring_id, account_id, ts, ts]
@@ -180,7 +205,7 @@ export async function getExpenses(userId, { month } = {}) {
 
 export async function updateExpense(id, { amount, category, note, date }) {
   const database = await getDB()
-  await database.runAsync(
+  await runWithRetry(database,
     `UPDATE expenses SET amount = ?, category = ?, note = ?, date = ?, updated_at = ? WHERE id = ?`,
     [amount, category, note || null, date, now(), id]
   )
@@ -188,7 +213,7 @@ export async function updateExpense(id, { amount, category, note, date }) {
 
 export async function deleteExpense(id) {
   const database = await getDB()
-  await database.runAsync(`DELETE FROM expenses WHERE id = ?`, [id])
+  await runWithRetry(database,`DELETE FROM expenses WHERE id = ?`, [id])
 }
 
 export async function getExpenseSummary(userId, month) {
@@ -226,7 +251,7 @@ export async function saveBudget(userId, { category, limit_amount, month }) {
     [userId, category, month]
   )
   if (existing) {
-    await database.runAsync(
+    await runWithRetry(database,
       `UPDATE budgets SET limit_amount = ?, updated_at = ? WHERE id = ?`,
       [limit_amount, now(), existing.id]
     )
@@ -234,7 +259,7 @@ export async function saveBudget(userId, { category, limit_amount, month }) {
   } else {
     const newId = id()
     const ts = now()
-    await database.runAsync(
+    await runWithRetry(database,
       `INSERT INTO budgets (id, user_id, category, limit_amount, month, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [newId, userId, category, limit_amount, month, ts, ts]
@@ -245,7 +270,7 @@ export async function saveBudget(userId, { category, limit_amount, month }) {
 
 export async function deleteBudget(id) {
   const database = await getDB()
-  await database.runAsync(`DELETE FROM budgets WHERE id = ?`, [id])
+  await runWithRetry(database,`DELETE FROM budgets WHERE id = ?`, [id])
 }
 
 // ─── RECURRING ──────────────────────────────────────────────
@@ -261,7 +286,7 @@ export async function addRecurring(userId, { amount, category, note, frequency, 
   const database = await getDB()
   const newId = id()
   const ts = now()
-  await database.runAsync(
+  await runWithRetry(database,
     `INSERT INTO recurring_expenses (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, null, 1, ?, ?)`,
     [newId, userId, amount, category, note || null, frequency, next_due, ts, ts]
@@ -271,7 +296,7 @@ export async function addRecurring(userId, { amount, category, note, frequency, 
 
 export async function updateRecurringAfterLog(id, nextDue, lastLogged) {
   const database = await getDB()
-  await database.runAsync(
+  await runWithRetry(database,
     `UPDATE recurring_expenses SET next_due = ?, last_logged = ?, updated_at = ? WHERE id = ?`,
     [nextDue, lastLogged, now(), id]
   )
@@ -279,7 +304,7 @@ export async function updateRecurringAfterLog(id, nextDue, lastLogged) {
 
 export async function deleteRecurring(id) {
   const database = await getDB()
-  await database.runAsync(
+  await runWithRetry(database,
     `UPDATE recurring_expenses SET is_active = 0, updated_at = ? WHERE id = ?`,
     [now(), id]
   )
@@ -295,7 +320,7 @@ export async function getInactiveRecurring(userId) {
 
 export async function permanentDeleteRecurring(id) {
   const database = await getDB()
-  await database.runAsync(`DELETE FROM recurring_expenses WHERE id = ?`, [id])
+  await runWithRetry(database,`DELETE FROM recurring_expenses WHERE id = ?`, [id])
 }
 
 // ─── SPENDING GOALS ─────────────────────────────────────────
@@ -311,7 +336,7 @@ export async function saveSpendingGoal(userId, { title, target_amount, deadline 
   const database = await getDB()
   const existing = await getSpendingGoal(userId)
   if (existing) {
-    await database.runAsync(
+    await runWithRetry(database,
       `UPDATE spending_goals SET title = ?, target_amount = ?, deadline = ?, updated_at = ? WHERE id = ?`,
       [title, target_amount, deadline || null, now(), existing.id]
     )
@@ -319,7 +344,7 @@ export async function saveSpendingGoal(userId, { title, target_amount, deadline 
   } else {
     const newId = id()
     const ts = now()
-    await database.runAsync(
+    await runWithRetry(database,
       `INSERT INTO spending_goals (id, user_id, title, target_amount, current_amount, deadline, created_at, updated_at)
        VALUES (?, ?, ?, ?, 0, ?, ?, ?)`,
       [newId, userId, title, target_amount, deadline || null, ts, ts]
@@ -330,7 +355,7 @@ export async function saveSpendingGoal(userId, { title, target_amount, deadline 
 
 export async function deleteSpendingGoal(userId) {
   const database = await getDB()
-  await database.runAsync(`DELETE FROM spending_goals WHERE user_id = ?`, [userId])
+  await runWithRetry(database,`DELETE FROM spending_goals WHERE user_id = ?`, [userId])
 }
 
 // ─── APP META ───────────────────────────────────────────────
@@ -342,7 +367,7 @@ export async function getMeta(key) {
 
 export async function setMeta(key, value) {
   const database = await getDB()
-  await database.runAsync(
+  await runWithRetry(database,
     `INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`,
     [key, String(value)]
   )
@@ -353,7 +378,7 @@ export async function addAccount(userId, { name, type, balance = 0, currency = '
   const database = await getDB()
   const newId = id()
   const ts = now()
-  await database.runAsync(
+  await runWithRetry(database,
     `INSERT INTO accounts (id, user_id, name, type, balance, currency, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [newId, userId, name, type, balance, currency, ts, ts]
@@ -380,7 +405,7 @@ export async function getAccountsTotal(userId) {
 
 export async function updateAccount(id, { name, type, balance, currency }) {
   const database = await getDB()
-  await database.runAsync(
+  await runWithRetry(database,
     `UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, updated_at = ? WHERE id = ?`,
     [name, type, balance, currency, now(), id]
   )
@@ -388,7 +413,7 @@ export async function updateAccount(id, { name, type, balance, currency }) {
 
 export async function updateAccountBalance(id, delta) {
   const database = await getDB()
-  await database.runAsync(
+  await runWithRetry(database,
     `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
     [delta, now(), id]
   )
@@ -396,7 +421,7 @@ export async function updateAccountBalance(id, delta) {
 
 export async function deleteAccount(id) {
   const database = await getDB()
-  await database.runAsync(`DELETE FROM accounts WHERE id = ?`, [id])
+  await runWithRetry(database,`DELETE FROM accounts WHERE id = ?`, [id])
 }
 
 // ─── INCOME ─────────────────────────────────────────────────
@@ -404,7 +429,7 @@ export async function addIncome(userId, { amount, category, note, date, account_
   const database = await getDB()
   const newId = id()
   const ts = now()
-  await database.runAsync(
+  await runWithRetry(database,
     `INSERT INTO income (id, user_id, amount, category, note, date, account_id, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [newId, userId, amount, category, note || null, date, account_id, ts, ts]
@@ -448,7 +473,7 @@ export async function getTodayIncomeTotal(userId, date) {
 
 export async function updateIncome(id, { amount, category, note, date, account_id }) {
   const database = await getDB()
-  await database.runAsync(
+  await runWithRetry(database,
     `UPDATE income SET amount = ?, category = ?, note = ?, date = ?, account_id = ?, updated_at = ? WHERE id = ?`,
     [amount, category, note || null, date, account_id || null, now(), id]
   )
@@ -456,7 +481,7 @@ export async function updateIncome(id, { amount, category, note, date, account_i
 
 export async function deleteIncome(id) {
   const database = await getDB()
-  await database.runAsync(`DELETE FROM income WHERE id = ?`, [id])
+  await runWithRetry(database,`DELETE FROM income WHERE id = ?`, [id])
 }
 
 // ─── TRANSFERS ──────────────────────────────────────────────
@@ -464,7 +489,7 @@ export async function addTransfer(userId, { from_account_id, to_account_id, amou
   const database = await getDB()
   const newId = id()
   const ts = now()
-  await database.runAsync(
+  await runWithRetry(database,
     `INSERT INTO transfers (id, user_id, from_account_id, to_account_id, amount, note, date, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [newId, userId, from_account_id, to_account_id, amount, note || null, date, ts, ts]
@@ -485,7 +510,7 @@ export async function addRecurringIncome(userId, { amount, category, note, frequ
   const database = await getDB()
   const newId = id()
   const ts = now()
-  await database.runAsync(
+  await runWithRetry(database,
     `INSERT INTO recurring_income (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, null, 1, ?, ?)`,
     [newId, userId, amount, category, note || null, frequency, next_due, ts, ts]
@@ -511,7 +536,7 @@ export async function getInactiveRecurringIncome(userId) {
 
 export async function updateRecurringIncomeAfterLog(id, nextDue, lastLogged) {
   const database = await getDB()
-  await database.runAsync(
+  await runWithRetry(database,
     `UPDATE recurring_income SET next_due = ?, last_logged = ?, updated_at = ? WHERE id = ?`,
     [nextDue, lastLogged, now(), id]
   )
@@ -519,7 +544,7 @@ export async function updateRecurringIncomeAfterLog(id, nextDue, lastLogged) {
 
 export async function deleteRecurringIncome(id) {
   const database = await getDB()
-  await database.runAsync(
+  await runWithRetry(database,
     `UPDATE recurring_income SET is_active = 0, updated_at = ? WHERE id = ?`,
     [now(), id]
   )
@@ -527,5 +552,5 @@ export async function deleteRecurringIncome(id) {
 
 export async function permanentDeleteRecurringIncome(id) {
   const database = await getDB()
-  await database.runAsync(`DELETE FROM recurring_income WHERE id = ?`, [id])
+  await runWithRetry(database,`DELETE FROM recurring_income WHERE id = ?`, [id])
 }
