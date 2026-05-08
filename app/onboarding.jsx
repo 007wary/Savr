@@ -14,38 +14,38 @@ const { width } = Dimensions.get('window')
 const SLIDES = [
   {
     icon: 'wallet-outline',
-    gradient: ['#7C75FF', '#6C63FF', '#5A50FF'],
-    color: '#6C63FF',
-    title: 'Track Everything',
-    subtitle: 'Track expenses, income and accounts in one place. Auto-detect categories from your notes.',
+    gradient: ['#FFB347', '#FF9800', '#FF6F00'],
+    color: '#FF9800',
+    title: 'Where did your money go?',
+    subtitle: 'Most people lose 20–30% of their income every month without realising it. Savr shows you exactly where every penny goes.',
     features: [
-      { icon: 'flash-outline', color: '#FFB800', text: 'Auto category detection from notes' },
-      { icon: 'trending-up-outline', color: '#6C63FF', text: 'Track income, expenses & accounts' },
-      { icon: 'repeat-outline', color: '#00D9A5', text: 'Recurring expense automation' },
+      { icon: 'search-outline', color: '#FF9800', text: 'See your biggest spending category instantly' },
+      { icon: 'receipt-outline', color: '#6C63FF', text: 'Catch expenses you forgot about' },
+      { icon: 'stats-chart-outline', color: '#00D9A5', text: 'Know your daily average spend in real time' },
     ],
   },
   {
     icon: 'shield-checkmark-outline',
     gradient: ['#00E5AD', '#00D9A5', '#00C894'],
     color: '#00D9A5',
-    title: 'Smart Budgets',
-    subtitle: 'Set monthly budgets for each category. Get alerts before you overspend.',
+    title: 'Take back control',
+    subtitle: 'Set a budget once. Savr watches it for you and warns you before you overspend — not after it\'s too late.',
     features: [
-      { icon: 'flag-outline', color: '#00D9A5', text: 'Per category budget limits' },
-      { icon: 'warning-outline', color: '#FFB800', text: 'Over-budget alerts instantly' },
-      { icon: 'bulb-outline', color: '#6C63FF', text: 'AI-powered budget recommendations' },
+      { icon: 'warning-outline', color: '#FFB800', text: 'Get warned before you hit your limit' },
+      { icon: 'bulb-outline', color: '#6C63FF', text: 'AI recommends budgets from your habits' },
+      { icon: 'flag-outline', color: '#00D9A5', text: 'Monthly goals that keep you accountable' },
     ],
   },
   {
-    icon: 'bar-chart-outline',
+    icon: 'rocket-outline',
     gradient: ['#FF9A5C', '#FF8C42', '#FF7A28'],
     color: '#FF8C42',
-    title: 'Powerful Insights',
-    subtitle: 'Beautiful reports, works fully offline, and syncs your profile securely via Google.',
+    title: 'Your fresh start is now',
+    subtitle: 'People who track expenses save 20% more on average. Your first expense takes 5 seconds. Start today.',
     features: [
-      { icon: 'pie-chart-outline', color: '#FF8C42', text: '6 month spending trends & reports' },
-      { icon: 'cloud-offline-outline', color: '#6C63FF', text: 'Works fully offline, always' },
-      { icon: 'sync-outline', color: '#00D9A5', text: 'Backup, sync & profile via Google' },
+      { icon: 'flash-outline', color: '#FF8C42', text: 'Add an expense in under 5 seconds' },
+      { icon: 'lock-closed-outline', color: '#6C63FF', text: 'Your data never leaves your device' },
+      { icon: 'cloud-done-outline', color: '#00D9A5', text: 'Auto backup to Google Drive' },
     ],
   },
 ]
@@ -56,8 +56,8 @@ export default function Onboarding() {
   const router = useRouter()
 
   async function handleDone() {
+  router.replace('/(tabs)/dashboard')
   await AsyncStorage.setItem('savr_onboarding_done', 'true')
-  router.replace('/(auth)/login')
 }
 
   function handleNext() {

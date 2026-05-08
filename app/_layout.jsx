@@ -342,7 +342,7 @@ backupToDrive().catch(() => {})
     const inAuth = segments[0] === '(auth)'
     const inTabs = segments[0] === '(tabs)'
 
-    if (!onboardingDone && !inOnboarding) {
+    if (!onboardingDone && !inOnboarding && session) {
       AsyncStorage.getItem('savr_onboarding_done').then(done => {
         if (done === 'true') {
           setOnboardingDone(true)
