@@ -848,8 +848,8 @@ export default function AddExpense() {
             opacity: celebrationOpacity,
           }]}>
             <View style={styles.celebrationEmojiWrap}>
-              <Text style={styles.celebrationEmoji}>🎉</Text>
-            </View>
+  <Ionicons name="star" size={44} color={COLORS.accent} />
+</View>
             <Text style={styles.celebrationTitle}>First expense logged!</Text>
             <Text style={styles.celebrationMessage}>
               Great start! You're on your way to taking control of your money.{'\n\n'}Come back tomorrow to build your streak.
@@ -859,7 +859,10 @@ export default function AddExpense() {
               onPress={handleCelebrationDone}
               activeOpacity={0.85}
             >
-              <Text style={styles.celebrationBtnText}>Let's go! 🚀</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+  <Text style={styles.celebrationBtnText}>Let's go!</Text>
+  <Ionicons name="arrow-forward-circle" size={20} color="#fff" />
+</View>
             </TouchableOpacity>
           </Animated.View>
         </View>
@@ -924,7 +927,6 @@ const styles = StyleSheet.create({
   celebrationOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 },
   celebrationCard: { backgroundColor: COLORS.card, borderRadius: 28, padding: 28, alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.accent + '55', width: '100%' },
   celebrationEmojiWrap: { width: 88, height: 88, borderRadius: 44, backgroundColor: COLORS.accent + '18', borderWidth: 1.5, borderColor: COLORS.accent + '44', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  celebrationEmoji: { fontSize: 44 },
   celebrationTitle: { fontSize: 24, fontWeight: '900', color: COLORS.text, marginBottom: 10, textAlign: 'center', letterSpacing: -0.5 },
   celebrationMessage: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: 28 },
   celebrationBtn: { backgroundColor: COLORS.accent, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40, width: '100%', alignItems: 'center', elevation: 4 },
