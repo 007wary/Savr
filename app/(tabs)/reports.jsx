@@ -218,18 +218,6 @@ if (!userRef.current) userRef.current = user
     return Object.entries(dayTotals).sort((a, b) => b[1] - a[1])[0] || null
   }, [expenses])
 
-  const streak = useMemo(() => {
-    let count = 0
-    for (let i = 0; i < 30; i++) {
-      const d = getNow()
-      d.setDate(d.getDate() - i)
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      if (dailyMap[dateStr]) count++
-      else break
-    }
-    return count
-  }, [dailyMap])
-
   const biggestExpense = useMemo(() =>
     expenses.length > 0 ? [...expenses].sort((a, b) => b.amount - a.amount)[0] : null,
   [expenses])
@@ -346,18 +334,6 @@ if (!userRef.current) userRef.current = user
               </Text>
             </View>
           </ScrollView>
-
-          {streak > 0 && (
-            <View style={styles.streakCard}>
-              <View style={styles.streakIconBox}>
-                <Ionicons name="flame-outline" size={22} color="#FF8C42" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.streakTitle}>{streak} Day Streak!</Text>
-                <Text style={styles.streakSub}>You've logged expenses {streak} day{streak > 1 ? 's' : ''} in a row</Text>
-              </View>
-            </View>
-          )}
 
           <View style={styles.forecastCard}>
             <View style={styles.forecastHeader}>
@@ -593,10 +569,6 @@ const styles = StyleSheet.create({
   miniCard: { backgroundColor: COLORS.card, borderRadius: 14, padding: 14, marginRight: 10, minWidth: 130, borderWidth: 1, borderColor: COLORS.border },
   miniLabel: { fontSize: 9, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8 },
   miniValue: { fontSize: 15, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
-  streakCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#FF8C4244' },
-  streakIconBox: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FF8C4222', justifyContent: 'center', alignItems: 'center' },
-  streakTitle: { fontSize: 16, fontWeight: '700', color: COLORS.text },
-  streakSub: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
   forecastCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   forecastHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   forecastTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5 },

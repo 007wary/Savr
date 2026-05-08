@@ -218,6 +218,20 @@ export default function Dashboard() {
 
       if (offsetSnapshot === 0) {
         checkWeeklySummary(filtered)
+        const currentStreak = (() => {
+          let count = 0
+          for (let i = 0; i < 30; i++) {
+            const d = new Date()
+            d.setDate(d.getDate() - i)
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+            if (filtered.some(e => e.date === dateStr)) count++
+            else break
+          }
+          return count
+        })()
+        import('../../src/lib/notifications').then(({ scheduleStreakReminder }) => {
+          scheduleStreakReminder(currentStreak).catch(() => {})
+        }).catch(() => {})
       }
 
       try {
@@ -353,20 +367,35 @@ export default function Dashboard() {
   }).filter(c => c.total > 0).sort((a, b) => b.total - a.total), [expenses])
 
   const recent = useMemo(() => expenses.slice(0, 5), [expenses])
-  const last7 = useMemo(() => {
-  const result = []
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date()
-    d.setDate(d.getDate() - i)
-    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    const label = i === 0 ? 'Today' : d.toLocaleString('default', { weekday: 'short' })
-    const amount = expenses.filter(e => e.date === dateStr).reduce((sum, e) => sum + parseFloat(e.amount), 0)
-    result.push({ dateStr, label, amount, isToday: i === 0 })
-  }
-  return result
-}, [expenses])
 
-const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
+  const streak = useMemo(() => {
+    if (!isCurrentMonth) return 0
+    let count = 0
+    for (let i = 0; i < 30; i++) {
+      const d = new Date()
+      d.setDate(d.getDate() - i)
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      if (expenses.some(e => e.date === dateStr)) count++
+      else break
+    }
+    return count
+  }, [expenses, isCurrentMonth])
+
+  useEffect(() => {
+    if (!isCurrentMonth || streak === 0) return
+    const milestones = { 7: 'Week Streak!', 30: 'Month Streak!', 100: '100 Day Streak!' }
+    if (!milestones[streak]) return
+    const key = `savr_milestone_${streak}`
+    AsyncStorage.getItem(key).then(done => {
+      if (done) return
+      AsyncStorage.setItem(key, 'true')
+      showAlert(
+        `${streak} Day ${milestones[streak]}`,
+        `You've logged expenses ${streak} days in a row. Incredible consistency — keep it up!`,
+        [{ text: 'Keep going!', style: 'default' }]
+      )
+    }).catch(() => {})
+  }, [streak, isCurrentMonth])
 
   const goalPercentage = spendingGoal ? Math.min((total / spendingGoal) * 100, 100) : 0
   const goalExceeded = spendingGoal && total > spendingGoal
@@ -634,25 +663,33 @@ const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
           </View>
         )}
 
-        {expenses.length > 0 && isCurrentMonth && (
-          <View style={styles.last7Card}>
-            <Text style={styles.last7Title}>Last 7 Days</Text>
-            <View style={styles.last7Chart}>
-              {last7.map((d, i) => (
-                <View key={i} style={styles.last7Col}>
-                  <View style={styles.last7BarWrap}>
-                    <View style={[styles.last7Bar, {
-                      height: `${Math.max((d.amount / max7) * 100, d.amount > 0 ? 8 : 0)}%`,
-                      backgroundColor: d.isToday ? COLORS.accent : COLORS.accent + '55',
-                    }]} />
-                  </View>
-                  <Text style={[styles.last7Label, d.isToday && { color: COLORS.accent, fontWeight: '700' }]}>
-                    {d.label}
-                  </Text>
-                </View>
-              ))}
+        {isCurrentMonth && (
+          <TouchableOpacity
+            style={[styles.streakCard, streak === 0 && styles.streakCardEmpty]}
+            onPress={() => router.push('/(tabs)/reports')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.streakIconBox, { backgroundColor: streak > 0 ? '#FF8C4222' : COLORS.accent + '22' }]}>
+              <Ionicons
+                name={streak > 0 ? 'flame' : 'flame-outline'}
+                size={22}
+                color={streak > 0 ? '#FF8C42' : COLORS.accent}
+              />
             </View>
-          </View>
+            <View style={{ flex: 1 }}>
+              {streak > 0 ? (
+                <>
+                  <Text style={styles.streakTitle}>{streak} Day Streak!</Text>
+                  <Text style={styles.streakSub}>Keep going — log an expense today to continue</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.streakTitle}>Start your streak today</Text>
+                  <Text style={styles.streakSub}>Log an expense to begin your first streak</Text>
+                </>
+              )}
+            </View>
+          </TouchableOpacity>
         )}
 
         {insights.length > 0 && (
@@ -880,7 +917,6 @@ const styles = StyleSheet.create({
   modalClearBtn: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   modalClearBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 14 },
   cashFlowCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
-  last7Card: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   quickStatsGrid: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   quickStatCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: COLORS.border },
   quickStatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
@@ -891,12 +927,11 @@ const styles = StyleSheet.create({
   quickStatBadgeText: { fontSize: 10, color: '#4CAF50', fontWeight: '700' },
   quickStatBadgePurple: { backgroundColor: COLORS.accent + '22', borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8, borderWidth: 1, borderColor: COLORS.accent + '44' },
   quickStatBadgeTextPurple: { fontSize: 10, color: COLORS.accent, fontWeight: '700' },
-  last7Title: { fontSize: 15, fontWeight: '700', color: COLORS.text, marginBottom: 14 },
-  last7Chart: { flexDirection: 'row', alignItems: 'flex-end', height: 80, gap: 6 },
-  last7Col: { flex: 1, alignItems: 'center', height: '100%', justifyContent: 'flex-end' },
-  last7BarWrap: { flex: 1, width: '100%', justifyContent: 'flex-end' },
-  last7Bar: { width: '60%', borderRadius: 6, minHeight: 0, alignSelf: 'center' },
-  last7Label: { fontSize: 11, color: COLORS.textMuted, marginTop: 6 },
+  streakCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#FF8C4244' },
+  streakCardEmpty: { borderColor: COLORS.border },
+  streakIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  streakTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  streakSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   cashFlowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   cashFlowTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.3 },
   cashFlowRow: { flexDirection: 'row', alignItems: 'center' },

@@ -109,76 +109,38 @@ export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
 
 const DAILY_REMINDER_ID_KEY = 'savr_daily_reminder_id'
 
-export async function scheduleDailyReminder() {
+export async function scheduleStreakReminder(streak = 0) {
   try {
     const granted = await isNotificationGranted()
     if (!granted) return
 
-    // Cancel existing reminder first to avoid duplicates
     const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
     if (existingId) {
       await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {})
     }
 
+    const title = streak > 0
+      ? `${streak} day streak — keep it going!`
+      : 'Log your expenses today'
+    const body = streak > 0
+      ? `Don't break your ${streak} day streak. Log an expense before midnight.`
+      : 'Tap to add an expense and start building your streak.'
+
     const id = await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "Don't forget to log your expenses! 💰",
-        body: "Tap to add today's expenses and stay on track.",
-        sound: true,
-        data: { type: 'daily_reminder' },
-      },
-      trigger: {
-        type: 'daily',
-        hour: 12,
-        minute: 0,
-        repeats: true,
-      },
+      content: { title, body, sound: true, data: { type: 'streak_reminder' } },
+      trigger: { type: 'daily', hour: 21, minute: 0, repeats: true },
     })
 
     await AsyncStorage.setItem(DAILY_REMINDER_ID_KEY, id)
   } catch {}
 }
 
-export async function cancelDailyReminder() {
+export async function cancelStreakReminder() {
   try {
     const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
     if (existingId) {
       await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {})
       await AsyncStorage.removeItem(DAILY_REMINDER_ID_KEY)
-    }
-  } catch {}
-}
-
-export async function handleDailyReminderOnOpen() {
-  try {
-    const granted = await isNotificationGranted()
-    if (!granted) return
-
-    const now = new Date()
-    const hour = now.getHours()
-    const minute = now.getMinutes()
-    const today = now.toISOString().split('T')[0]
-
-    const suppressedDate = await AsyncStorage.getItem('savr_reminder_suppressed_date')
-
-    if (hour < 12) {
-      // User opened before 12 PM — suppress today's reminder but schedule for tomorrow
-      if (suppressedDate !== today) {
-        const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
-        if (existingId) {
-          await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {})
-          await AsyncStorage.removeItem(DAILY_REMINDER_ID_KEY)
-        }
-        await AsyncStorage.setItem('savr_reminder_suppressed_date', today)
-        // Reschedule for tomorrow so user still gets reminder tomorrow
-        await scheduleDailyReminder()
-      }
-    } else {
-      // User opened at or after 12 PM — ensure reminder is scheduled
-      const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
-      if (!existingId) {
-        await scheduleDailyReminder()
-      }
     }
   } catch {}
 }

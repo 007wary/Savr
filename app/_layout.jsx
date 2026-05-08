@@ -75,14 +75,6 @@ export default function RootLayout() {
             }
           }).catch(() => {})
 
-          // Deferred tasks — run after UI is shown
-          setTimeout(async () => {
-            try {
-              const { handleDailyReminderOnOpen } = await import('../src/lib/notifications')
-              handleDailyReminderOnOpen().catch(() => {})
-            } catch {}
-          }, 2000)
-
           // Request FCM permission
           setTimeout(async () => {
             try {
@@ -198,8 +190,8 @@ setTimeout(async () => {
             }
             import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
             registerBackupTask().catch(() => {})
-            import('../src/lib/notifications').then(({ scheduleDailyReminder }) => {
-              scheduleDailyReminder().catch(() => {})
+            import('../src/lib/notifications').then(({ scheduleStreakReminder }) => {
+              scheduleStreakReminder(0).catch(() => {})
             }).catch(() => {})
           } catch {}
         }, 1000)
@@ -254,7 +246,7 @@ try {
   AsyncStorage.removeItem('savr_last_backup_hash'),
   AsyncStorage.removeItem('savr_reminder_suppressed_date'),
 ]).catch(() => {})
-        import('../src/lib/notifications').then(({ cancelDailyReminder }) => cancelDailyReminder()).catch(() => {})
+        import('../src/lib/notifications').then(({ cancelStreakReminder }) => cancelStreakReminder()).catch(() => {})
         unregisterBackupTask().catch(() => {})
         recurringProcessedRef.current = false
         router.replace('/(auth)/login')
