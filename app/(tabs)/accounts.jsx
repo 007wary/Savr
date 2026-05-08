@@ -45,8 +45,9 @@ export default function Accounts() {
       const code = await loadCurrency()
       setCurrencySymbol(symbol)
       setCurrencyCode(code)
-      const user = getCachedUser() || await getUser()
+      const user = getCachedUser() || userRef.current || await getUser()
       if (!user) return
+      if (!userRef.current) userRef.current = user
       userRef.current = user
       const data = await getAccounts(user.id)
       setAccounts(data)
@@ -172,7 +173,7 @@ export default function Accounts() {
               const balance = parseFloat(account.balance)
               const isNegative = balance < 0
               return (
-                <TouchableOpacity key={account.id} style={styles.accountCard} onPress={() => openEdit(account)}>
+                <TouchableOpacity key={account.id} style={styles.accountCard} onPress={() => openEdit(account)} activeOpacity={0.7}>
                   <View style={[styles.accountIcon, { backgroundColor: typeInfo.color + '22' }]}>
                     <Ionicons name={typeInfo.icon} size={22} color={typeInfo.color} />
                   </View>
@@ -185,7 +186,7 @@ export default function Accounts() {
                       {isLoan ? '-' : ''}{formatAmount(Math.abs(balance), currencySymbol, currencyCode)}
                     </Text>
                   </View>
-                  <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(account)}>
+                  <TouchableOpacity style={styles.deleteBtn} onPress={(e) => { e.stopPropagation(); handleDelete(account) }}>
                     <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
                   </TouchableOpacity>
                 </TouchableOpacity>

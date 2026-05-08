@@ -99,7 +99,6 @@ const [userInitials, setUserInitials] = useState('??')
   const router = useRouter()
   const userRef = useRef(null)
   const isFocusedRef = useRef(false)
-const isMountedRef = useRef(false)
 const backupTimerRef = useRef(null)
   const backupExistsRef = useRef(null)
 
@@ -227,14 +226,8 @@ const backupTimerRef = useRef(null)
     }
   }
 
-  useEffect(() => {
-  if (!isMountedRef.current) return
-  fetchData()
-}, [monthOffset])
-
-useFocusEffect(useCallback(() => {
+  useFocusEffect(useCallback(() => {
     isFocusedRef.current = true
-    isMountedRef.current = true
     fetchData()
 
     if (backupTimerRef.current) clearTimeout(backupTimerRef.current)
@@ -441,12 +434,14 @@ const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
               <CountUp value={total} style={styles.totalAmount} symbol={currencySymbol} currencyCode={currencyCode} />
               <Text style={styles.totalSub}>{expenses.length} transactions</Text>
             </View>
-            <View style={styles.totalDivider} />
-            <View style={styles.totalRight}>
-              <Text style={styles.totalLabel}>TODAY SPENT</Text>
-              <CountUp value={todayTotal} style={styles.totalAmount} symbol={currencySymbol} currencyCode={currencyCode} />
-              <Text style={styles.totalSub}>{todayExpenses.length} today</Text>
-            </View>
+            {isCurrentMonth && <>
+              <View style={styles.totalDivider} />
+              <View style={styles.totalRight}>
+                <Text style={styles.totalLabel}>TODAY SPENT</Text>
+                <CountUp value={todayTotal} style={styles.totalAmount} symbol={currencySymbol} currencyCode={currencyCode} />
+                <Text style={styles.totalSub}>{todayExpenses.length} today</Text>
+              </View>
+            </>}
           </View>
           <View style={styles.totalHDivider} />
           <View style={styles.totalRow}>

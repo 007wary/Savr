@@ -265,6 +265,17 @@ export default function AddExpense() {
       await clearCache(`savr_cache_dashboard_${incomeMonth}`)
       await clearCache(`savr_cache_reports_${incomeMonth}`)
 
+      const newIncome = {
+        ...incomeData,
+        id: `temp_${Date.now()}`,
+        type: 'income',
+        user_id: user.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      const historyCached = await loadCache('savr_cache_history') || []
+      await saveCache('savr_cache_history', [newIncome, ...historyCached])
+
       router.replace('/(tabs)/dashboard')
     } catch (e) {
       showAlert('Error', 'Could not save income. Please try again.')

@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import * as WebBrowser from 'expo-web-browser'
 import * as AuthSession from 'expo-auth-session'
 import { useRouter } from 'expo-router'
+import { setSigningIn } from '../../src/lib/authState'
 
 WebBrowser.maybeCompleteAuthSession()
 

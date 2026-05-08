@@ -145,7 +145,6 @@ export default function History() {
 
   const sections = groupByDate(filtered)
   const activeFilters = (selectedCategory !== 'All' ? 1 : 0) + (selectedMonth !== 'All' ? 1 : 0)
-  const incomeCategories = ['Salary', 'Freelance', 'Business', 'Investment', 'Rental', 'Gift', 'Other']
 
   function clearFilters() {
     setSelectedCategory('All')
@@ -405,22 +404,18 @@ export default function History() {
         <View style={styles.chipRow}>
           {selectedCategory !== 'All' && (
             <TouchableOpacity style={styles.chip} onPress={() => setSelectedCategory('All')}>
-              <TouchableOpacity style={styles.chip} onPress={() => setSelectedCategory('All')}>
-  <View style={styles.chipInner}>
-    <Text style={styles.chipText}>{selectedCategory}</Text>
-    <Ionicons name="close" size={12} color={COLORS.accent} />
-  </View>
-</TouchableOpacity>
+              <View style={styles.chipInner}>
+                <Text style={styles.chipText}>{selectedCategory}</Text>
+                <Ionicons name="close" size={12} color={COLORS.accent} />
+              </View>
             </TouchableOpacity>
           )}
           {selectedMonth !== 'All' && (
             <TouchableOpacity style={styles.chip} onPress={() => setSelectedMonth('All')}>
-              <TouchableOpacity style={styles.chip} onPress={() => setSelectedMonth('All')}>
-  <View style={styles.chipInner}>
-    <Text style={styles.chipText}>{selectedMonth}</Text>
-    <Ionicons name="close" size={12} color={COLORS.accent} />
-  </View>
-</TouchableOpacity>
+              <View style={styles.chipInner}>
+                <Text style={styles.chipText}>{selectedMonth}</Text>
+                <Ionicons name="close" size={12} color={COLORS.accent} />
+              </View>
             </TouchableOpacity>
           )}
           <TouchableOpacity onPress={clearFilters}>

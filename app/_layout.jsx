@@ -185,8 +185,6 @@ setTimeout(async () => {
   } catch {}
 }, 2000)
 
-        recurringProcessedRef.current = false
-
         setTimeout(async () => {
           try {
             if (session?.user) {

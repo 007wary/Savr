@@ -11,7 +11,7 @@ import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/cur
 import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
-import { getExpenses, getIncomeByMonth, getMonthlyIncomeTotal } from '../../src/services/sqliteService'
+import { getExpenses, getMonthlyIncomeTotal } from '../../src/services/sqliteService'
 
 function AnimatedBar({ percentage, color, delay = 0 }) {
   const anim = useRef(new Animated.Value(0)).current
@@ -99,13 +99,12 @@ if (!userRef.current) userRef.current = user
 
       const incomeTotal = await getMonthlyIncomeTotal(user.id, freshCurrentMonth)
 
-      const incomeByMonth = []
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(freshYear, freshMonth - 1 - i, 1)
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-        const total = await getMonthlyIncomeTotal(user.id, key)
-        incomeByMonth.push({ key, amount: total })
-      }
+      const incomeKeys = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date(freshYear, freshMonth - 1 - (5 - i), 1)
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      })
+      const incomeTotals = await Promise.all(incomeKeys.map(key => getMonthlyIncomeTotal(user.id, key)))
+      const incomeByMonth = incomeKeys.map((key, i) => ({ key, amount: incomeTotals[i] }))
 
       setExpenses(currentData)
       setLastMonthExpenses(lastMonthData)
