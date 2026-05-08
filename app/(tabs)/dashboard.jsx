@@ -94,12 +94,13 @@ export default function Dashboard() {
   const [accountsTotal, setAccountsTotal] = useState({ total: 0, count: 0 })
   const [todayIncome, setTodayIncome] = useState(0)
   const [avatarUrl, setAvatarUrl] = useState(null)
-const [userInitials, setUserInitials] = useState('??')
+  const [userInitials, setUserInitials] = useState('??')
+  const [goalBanner, setGoalBanner] = useState(null)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
   const userRef = useRef(null)
   const isFocusedRef = useRef(false)
-const backupTimerRef = useRef(null)
+  const backupTimerRef = useRef(null)
   const backupExistsRef = useRef(null)
 
   const { month: currentMonth, name: monthName } = getMonthInfo(monthOffset)
@@ -229,7 +230,7 @@ const backupTimerRef = useRef(null)
             const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
             const alreadyGranted = await isNotificationGranted()
             if (!alreadyGranted) {
-              setTimeout(() => requestNotificationPermission(), 5000)
+              setTimeout(() => requestNotificationPermission(), 8000)
             }
           }
         }
@@ -314,15 +315,18 @@ const backupTimerRef = useRef(null)
   }, [currentMonth]))
 
   async function handleSaveGoal() {
-    const amount = parseFloat(goalInput)
-    if (!goalInput || isNaN(amount) || amount <= 0) return
-    const user = getCachedUser() || userRef.current || await getUser()
-    if (!user) return
-    await saveGoal(user.id, amount)
-    setSpendingGoal(amount)
-    setShowGoalModal(false)
-    setGoalInput('')
-  }
+  const amount = parseFloat(goalInput)
+  if (!goalInput || isNaN(amount) || amount <= 0) return
+  const user = getCachedUser() || userRef.current || await getUser()
+  if (!user) return
+  const isFirstTime = !spendingGoal
+  await saveGoal(user.id, amount)
+  setSpendingGoal(amount)
+  setShowGoalModal(false)
+  setGoalInput('')
+  setGoalBanner({ type: isFirstTime ? 'first' : 'updated', amount })
+  setTimeout(() => setGoalBanner(null), 3500)
+}
 
   async function handleClearGoal() {
     const user = getCachedUser() || userRef.current || await getUser()
@@ -547,6 +551,17 @@ const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
             <Text style={styles.quickStatSub}>total balance</Text>
           </TouchableOpacity>
         </View>
+
+        {goalBanner && (
+  <View style={[styles.goalBannerWrap, { backgroundColor: goalBanner.type === 'first' ? COLORS.accent : COLORS.accentGreen }]}>
+    <Ionicons name={goalBanner.type === 'first' ? 'flag' : 'checkmark-circle'} size={16} color="#fff" />
+    <Text style={styles.goalBannerText}>
+      {goalBanner.type === 'first'
+        ? `Goal set! Tracking your ${currencySymbol}${goalBanner.amount.toLocaleString('en-IN')} this month.`
+        : `Goal updated to ${currencySymbol}${goalBanner.amount.toLocaleString('en-IN')}`}
+    </Text>
+  </View>
+)}
 
         {isCurrentMonth && (
           <TouchableOpacity
@@ -890,4 +905,6 @@ const styles = StyleSheet.create({
   cashFlowLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
   cashFlowAmount: { fontSize: 13, fontWeight: '800', letterSpacing: -0.3, textAlign: 'center' },
   cashFlowDivider: { width: 1, height: 60, backgroundColor: COLORS.border, marginHorizontal: 4 },
+  goalBannerWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: SCREEN.paddingHorizontal, marginBottom: 10, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
+  goalBannerText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#fff' },
 })
