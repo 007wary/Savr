@@ -218,6 +218,23 @@ const backupTimerRef = useRef(null)
       if (offsetSnapshot === 0) {
         checkWeeklySummary(filtered)
       }
+
+      try {
+        const shouldRequest = await AsyncStorage.getItem('savr_request_notif_after_load')
+        if (shouldRequest === 'true') {
+          await AsyncStorage.removeItem('savr_request_notif_after_load')
+          const notifAsked = await AsyncStorage.getItem('savr_notif_asked')
+          if (!notifAsked) {
+            await AsyncStorage.setItem('savr_notif_asked', 'true')
+            const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
+            const alreadyGranted = await isNotificationGranted()
+            if (!alreadyGranted) {
+              setTimeout(() => requestNotificationPermission(), 500)
+            }
+          }
+        }
+      } catch {}
+
     } catch (e) {}
     finally {
       setLoading(false)
@@ -531,23 +548,6 @@ const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
           </TouchableOpacity>
         </View>
 
-        {isCurrentMonth && expenses.length === 0 && !spendingGoal && (
-          <TouchableOpacity
-            style={styles.budgetPromptCard}
-            onPress={() => { setGoalInput(''); setShowGoalModal(true) }}
-            activeOpacity={0.85}
-          >
-            <View style={styles.budgetPromptIcon}>
-              <Ionicons name="flag-outline" size={22} color="#FF8C42" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.budgetPromptTitle}>Set a monthly budget</Text>
-              <Text style={styles.budgetPromptSub}>Know when you're overspending before it's too late</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
-          </TouchableOpacity>
-        )}
-
         {isCurrentMonth && (
           <TouchableOpacity
             style={[styles.goalCard, goalExceeded && styles.goalCardExceeded]}
@@ -850,10 +850,6 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', marginTop: 60 },
   emptyBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.accent, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 24, marginTop: 20 },
   emptyBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
-  budgetPromptCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#FF8C4233' },
-  budgetPromptIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#FF8C4222', justifyContent: 'center', alignItems: 'center' },
-  budgetPromptTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  budgetPromptSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },
   fab: { position: 'absolute', bottom: 24, right: 24, width: 58, height: 58, borderRadius: 29, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },

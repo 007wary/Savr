@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, Platform, Switch, ActivityIndicator, ScrollView
+  StyleSheet, Platform, Switch, ActivityIndicator, ScrollView, Animated, Modal
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import DateTimePicker from '@react-native-community/datetimepicker'
@@ -19,6 +19,7 @@ import { checkBudgetAlerts } from '../../src/lib/notifications'
 import { addExpense, addRecurring, addIncome, addRecurringIncome, addTransfer, getExpenses, getBudgets, getAccounts, updateAccountBalance } from '../../src/services/sqliteService'
 import { Analytics } from '../../src/lib/analytics'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import ConfettiCannon from 'react-native-confetti-cannon'
 
 const FREQUENCIES = [
   { label: 'Daily', value: 'daily', icon: 'sunny-outline' },
@@ -62,6 +63,28 @@ export default function AddExpense() {
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
   const userRef = useRef(null)
+  const [showCelebration, setShowCelebration] = useState(false)
+  const celebrationScale = useRef(new Animated.Value(0)).current
+  const confettiRef = useRef(null)
+
+  function triggerCelebration() {
+    setShowCelebration(true)
+    setTimeout(() => {
+      confettiRef.current?.start()
+    }, 100)
+    Animated.spring(celebrationScale, {
+      toValue: 1,
+      friction: 6,
+      tension: 80,
+      useNativeDriver: true,
+    }).start()
+  }
+
+  function handleCelebrationDone() {
+    setShowCelebration(false)
+    celebrationScale.setValue(0)
+    router.replace('/(tabs)/dashboard')
+  }
 
   async function requestNotifIfNeeded() {
     try {
@@ -222,8 +245,13 @@ export default function AddExpense() {
         if (budgets.length > 0) checkBudgetAlerts(allExpenses, budgets, expenseMonth)
       } catch {}
 
-      router.replace('/(tabs)/dashboard')
-      setTimeout(() => requestNotifIfNeeded(), 3000)
+      await AsyncStorage.setItem('savr_request_notif_after_load', 'true')
+      const allAfter = await getExpenses(user.id)
+      if (allAfter.length === 1) {
+        triggerCelebration()
+      } else {
+        router.replace('/(tabs)/dashboard')
+      }
     } catch (e) {
       showAlert('Error', 'Could not save expense. Please try again.')
     } finally {
@@ -785,6 +813,33 @@ export default function AddExpense() {
         buttons={alertConfig.buttons}
         onClose={hideAlert}
       />
+
+      <Modal visible={showCelebration} transparent animationType="fade" onRequestClose={handleCelebrationDone}>
+        <View style={styles.celebrationOverlay}>
+          <ConfettiCannon
+            ref={confettiRef}
+            count={120}
+            origin={{ x: 0, y: 0 }}
+            autoStart={false}
+            fadeOut
+            colors={[COLORS.accent, '#FFB800', '#00D9A5', '#FF6B6B', '#fff']}
+          />
+          <Animated.View style={[styles.celebrationCard, { transform: [{ scale: celebrationScale }] }]}>
+            <Text style={styles.celebrationEmoji}>🎉</Text>
+            <Text style={styles.celebrationTitle}>First expense logged!</Text>
+            <Text style={styles.celebrationMessage}>
+              Great start! You're on your way to taking control of your money.{'\n\n'}Come back tomorrow to build your streak.
+            </Text>
+            <TouchableOpacity
+              style={styles.celebrationBtn}
+              onPress={handleCelebrationDone}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.celebrationBtnText}>Let's go! 🚀</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   )
 }
@@ -842,4 +897,11 @@ const styles = StyleSheet.create({
   accountSelectBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
   accountSelectBtnActive: (color) => ({ backgroundColor: color, borderColor: color }),
   accountSelectText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
+  celebrationOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
+  celebrationCard: { backgroundColor: COLORS.card, borderRadius: 24, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: COLORS.accent + '44', width: '100%' },
+  celebrationEmoji: { fontSize: 64, marginBottom: 16 },
+  celebrationTitle: { fontSize: 24, fontWeight: '900', color: COLORS.text, marginBottom: 12, textAlign: 'center', letterSpacing: -0.5 },
+  celebrationMessage: { fontSize: 15, color: COLORS.textMuted, textAlign: 'center', lineHeight: 24, marginBottom: 28 },
+  celebrationBtn: { backgroundColor: COLORS.accent, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40, width: '100%', alignItems: 'center', shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },
+  celebrationBtnText: { fontSize: 17, fontWeight: '800', color: '#fff' },
 })
