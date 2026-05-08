@@ -3,6 +3,8 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, Platform, Switch, ActivityIndicator, ScrollView, Animated, Modal
 } from 'react-native'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import ConfettiCannon from 'react-native-confetti-cannon'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { Ionicons } from '@expo/vector-icons'
@@ -65,24 +67,35 @@ export default function AddExpense() {
   const userRef = useRef(null)
   const [showCelebration, setShowCelebration] = useState(false)
   const celebrationScale = useRef(new Animated.Value(0)).current
+  const celebrationOpacity = useRef(new Animated.Value(0)).current
   const confettiRef = useRef(null)
+  const confettiRef2 = useRef(null)
 
   function triggerCelebration() {
     setShowCelebration(true)
     setTimeout(() => {
       confettiRef.current?.start()
-    }, 100)
-    Animated.spring(celebrationScale, {
-      toValue: 1,
-      friction: 6,
-      tension: 80,
-      useNativeDriver: true,
-    }).start()
+      setTimeout(() => confettiRef2.current?.start(), 150)
+    }, 300)
+    Animated.parallel([
+      Animated.spring(celebrationScale, {
+        toValue: 1,
+        friction: 7,
+        tension: 70,
+        useNativeDriver: true,
+      }),
+      Animated.timing(celebrationOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start()
   }
 
   function handleCelebrationDone() {
     setShowCelebration(false)
     celebrationScale.setValue(0)
+    celebrationOpacity.setValue(0)
     router.replace('/(tabs)/dashboard')
   }
 
@@ -818,14 +831,27 @@ export default function AddExpense() {
         <View style={styles.celebrationOverlay}>
           <ConfettiCannon
             ref={confettiRef}
-            count={120}
-            origin={{ x: 0, y: 0 }}
+            count={100}
+            origin={{ x: -10, y: 0 }}
             autoStart={false}
             fadeOut
             colors={[COLORS.accent, '#FFB800', '#00D9A5', '#FF6B6B', '#fff']}
           />
-          <Animated.View style={[styles.celebrationCard, { transform: [{ scale: celebrationScale }] }]}>
-            <Text style={styles.celebrationEmoji}>🎉</Text>
+          <ConfettiCannon
+            ref={confettiRef2}
+            count={100}
+            origin={{ x: 400, y: 0 }}
+            autoStart={false}
+            fadeOut
+            colors={[COLORS.accent, '#FFB800', '#00D9A5', '#FF6B6B', '#fff']}
+          />
+          <Animated.View style={[styles.celebrationCard, {
+            transform: [{ scale: celebrationScale }],
+            opacity: celebrationOpacity,
+          }]}>
+            <View style={styles.celebrationEmojiWrap}>
+              <Text style={styles.celebrationEmoji}>🎉</Text>
+            </View>
             <Text style={styles.celebrationTitle}>First expense logged!</Text>
             <Text style={styles.celebrationMessage}>
               Great start! You're on your way to taking control of your money.{'\n\n'}Come back tomorrow to build your streak.
@@ -897,11 +923,12 @@ const styles = StyleSheet.create({
   accountSelectBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
   accountSelectBtnActive: (color) => ({ backgroundColor: color, borderColor: color }),
   accountSelectText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
-  celebrationOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
-  celebrationCard: { backgroundColor: COLORS.card, borderRadius: 24, padding: 28, alignItems: 'center', borderWidth: 1, borderColor: COLORS.accent + '44', width: '100%' },
-  celebrationEmoji: { fontSize: 64, marginBottom: 16 },
-  celebrationTitle: { fontSize: 24, fontWeight: '900', color: COLORS.text, marginBottom: 12, textAlign: 'center', letterSpacing: -0.5 },
-  celebrationMessage: { fontSize: 15, color: COLORS.textMuted, textAlign: 'center', lineHeight: 24, marginBottom: 28 },
-  celebrationBtn: { backgroundColor: COLORS.accent, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40, width: '100%', alignItems: 'center', shadowColor: COLORS.accent, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 8 },
+  celebrationOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 },
+  celebrationCard: { backgroundColor: COLORS.card, borderRadius: 28, padding: 28, alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.accent + '55', width: '100%' },
+  celebrationEmojiWrap: { width: 88, height: 88, borderRadius: 44, backgroundColor: COLORS.accent + '18', borderWidth: 1.5, borderColor: COLORS.accent + '44', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  celebrationEmoji: { fontSize: 44 },
+  celebrationTitle: { fontSize: 24, fontWeight: '900', color: COLORS.text, marginBottom: 10, textAlign: 'center', letterSpacing: -0.5 },
+  celebrationMessage: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: 28 },
+  celebrationBtn: { backgroundColor: COLORS.accent, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40, width: '100%', alignItems: 'center', elevation: 4 },
   celebrationBtnText: { fontSize: 17, fontWeight: '800', color: '#fff' },
 })
