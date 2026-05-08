@@ -3,8 +3,6 @@ import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, Platform, Switch, ActivityIndicator, ScrollView, Animated, Modal
 } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
-import ConfettiCannon from 'react-native-confetti-cannon'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { Ionicons } from '@expo/vector-icons'
