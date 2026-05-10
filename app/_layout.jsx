@@ -369,7 +369,7 @@ backupToDrive().catch(() => {})
       <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
       <Stack.Screen name="webview" options={{ animation: 'default' }} />
       <Stack.Screen name="index" />
-      <Stack.Screen name="onboarding" />
+      <Stack.Screen name="onboarding" options={{ animation: 'default' }} />
       <Stack.Screen name="recurring" options={{ animation: 'default' }} />
       <Stack.Screen name="backup" options={{ animation: 'default' }} />
       <Stack.Screen name="manage-data" options={{ animation: 'default' }} />

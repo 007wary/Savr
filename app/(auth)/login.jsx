@@ -56,7 +56,9 @@ export default function Login() {
       })
       if (error) throw error
 
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
+      setSigningIn(true)
+const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
+setSigningIn(false)
 
       if (result.type === 'success') {
         const url = result.url
@@ -69,6 +71,7 @@ export default function Login() {
         const provider_refresh_token = hashParams.get('provider_refresh_token') || queryParams.get('provider_refresh_token')
 
         if (access_token) {
+          setGoogleLoading(false)
           await supabase.auth.setSession({ access_token, refresh_token })
 
           if (provider_token) {
