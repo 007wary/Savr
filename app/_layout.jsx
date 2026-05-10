@@ -352,10 +352,10 @@ backupToDrive().catch(() => {})
         router.replace('/(auth)/login')
         return
       }
-      if (session && inAuth && !isSigningIn()) {
-        router.replace('/(tabs)/dashboard')
-        return
-      }
+      if (session && !inTabs && !isSigningIn()) {
+  router.replace('/(tabs)/dashboard')
+  return
+}
     }
   }, [session, segments, onboardingDone])
 
