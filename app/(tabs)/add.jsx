@@ -848,7 +848,7 @@ export default function AddExpense() {
             opacity: celebrationOpacity,
           }]}>
             <View style={styles.celebrationEmojiWrap}>
-  <Ionicons name="star" size={44} color={COLORS.accent} />
+  <Ionicons name="trophy-outline" size={44} color={COLORS.accent} />
 </View>
             <Text style={styles.celebrationTitle}>First expense logged!</Text>
             <Text style={styles.celebrationMessage}>
