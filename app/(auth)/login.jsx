@@ -71,8 +71,8 @@ setSigningIn(false)
         const provider_refresh_token = hashParams.get('provider_refresh_token') || queryParams.get('provider_refresh_token')
 
         if (access_token) {
-          setGoogleLoading(false)
-          await supabase.auth.setSession({ access_token, refresh_token })
+  setGoogleLoading(false)
+  await supabase.auth.setSession({ access_token, refresh_token })
 
           if (provider_token) {
             await AsyncStorage.setItem('savr_google_token', provider_token)

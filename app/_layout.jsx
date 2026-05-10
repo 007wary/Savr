@@ -29,7 +29,6 @@ export default function RootLayout() {
   const segments = useSegments()
 
   useEffect(() => {
-    if (!segments || segments.length === 0) return
     const screen = segments.join('/')
     Analytics.screen(screen)
   }, [segments])
@@ -352,7 +351,7 @@ backupToDrive().catch(() => {})
         router.replace('/(auth)/login')
         return
       }
-      if (session && !inTabs && !isSigningIn()) {
+      if (session && inAuth && !isSigningIn()) {
   router.replace('/(tabs)/dashboard')
   return
 }
