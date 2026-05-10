@@ -58,21 +58,21 @@ export default function Login() {
 
       setSigningIn(true)
 const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
-setSigningIn(false)
 
-      if (result.type === 'success') {
-        const url = result.url
-        const hashParams = new URLSearchParams(url.split('#')[1] || '')
-        const queryParams = new URLSearchParams(url.split('?')[1] || '')
+if (result.type === 'success') {
+  const url = result.url
+  const hashParams = new URLSearchParams(url.split('#')[1] || '')
+  const queryParams = new URLSearchParams(url.split('?')[1] || '')
 
-        const access_token = hashParams.get('access_token') || queryParams.get('access_token')
-        const refresh_token = hashParams.get('refresh_token') || queryParams.get('refresh_token')
-        const provider_token = hashParams.get('provider_token') || queryParams.get('provider_token')
-        const provider_refresh_token = hashParams.get('provider_refresh_token') || queryParams.get('provider_refresh_token')
+  const access_token = hashParams.get('access_token') || queryParams.get('access_token')
+  const refresh_token = hashParams.get('refresh_token') || queryParams.get('refresh_token')
+  const provider_token = hashParams.get('provider_token') || queryParams.get('provider_token')
+  const provider_refresh_token = hashParams.get('provider_refresh_token') || queryParams.get('provider_refresh_token')
 
-        if (access_token) {
-  setGoogleLoading(false)
-  await supabase.auth.setSession({ access_token, refresh_token })
+  if (access_token) {
+    setGoogleLoading(false)
+    await supabase.auth.setSession({ access_token, refresh_token })
+    setSigningIn(false)
 
           if (provider_token) {
             await AsyncStorage.setItem('savr_google_token', provider_token)

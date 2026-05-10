@@ -117,7 +117,8 @@ export default function Dashboard() {
   }, [])
 
   async function fetchData(forceRefresh = false) {
-    const cacheKey = `savr_cache_dashboard_${currentMonth}`
+    const { month: offsetMonth } = getMonthInfo(monthOffset)
+const cacheKey = `savr_cache_dashboard_${offsetMonth}`
     setMonthLoading(true)
     if (!forceRefresh) {
       const cached = await loadCache(cacheKey)
@@ -509,48 +510,33 @@ export default function Dashboard() {
           </View>
         </LinearGradient>
 
-        {(monthlyIncome > 0 || total > 0) && (
-          <View style={styles.cashFlowCard}>
-            <View style={styles.cashFlowTitleRow}>
-              <Ionicons name="swap-vertical-outline" size={16} color={COLORS.textMuted} />
-              <Text style={styles.cashFlowTitle}>Cash Flow — {monthName}</Text>
+        {isCurrentMonth && (
+          <TouchableOpacity
+            style={[styles.streakCard, streak === 0 && styles.streakCardEmpty]}
+            onPress={() => router.push('/(tabs)/reports')}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.streakIconBox, { backgroundColor: streak > 0 ? '#FF8C4222' : COLORS.accent + '22' }]}>
+              <Ionicons
+                name={streak > 0 ? 'flame' : 'flame-outline'}
+                size={22}
+                color={streak > 0 ? '#FF8C42' : COLORS.accent}
+              />
             </View>
-            <View style={styles.cashFlowRow}>
-              <View style={styles.cashFlowItem}>
-                <View style={[styles.cashFlowIconBox, { backgroundColor: '#4CAF5022' }]}>
-                  <Ionicons name="arrow-down-circle-outline" size={20} color="#4CAF50" />
-                </View>
-                <Text style={styles.cashFlowLabel}>Income</Text>
-                <Text style={[styles.cashFlowAmount, { color: '#4CAF50' }]}>
-                  {formatAmount(monthlyIncome, currencySymbol, currencyCode)}
-                </Text>
-              </View>
-              <View style={styles.cashFlowDivider} />
-              <View style={styles.cashFlowItem}>
-                <View style={[styles.cashFlowIconBox, { backgroundColor: COLORS.accentRed + '22' }]}>
-                  <Ionicons name="arrow-up-circle-outline" size={20} color={COLORS.accentRed} />
-                </View>
-                <Text style={styles.cashFlowLabel}>Expenses</Text>
-                <Text style={[styles.cashFlowAmount, { color: COLORS.accentRed }]}>
-                  {formatAmount(total, currencySymbol, currencyCode)}
-                </Text>
-              </View>
-              <View style={styles.cashFlowDivider} />
-              <View style={styles.cashFlowItem}>
-                <View style={[styles.cashFlowIconBox, { backgroundColor: monthlyIncome >= total ? '#4CAF5022' : COLORS.accentRed + '22' }]}>
-                  <Ionicons
-                    name={monthlyIncome >= total ? 'trending-up-outline' : 'trending-down-outline'}
-                    size={20}
-                    color={monthlyIncome >= total ? '#4CAF50' : COLORS.accentRed}
-                  />
-                </View>
-                <Text style={styles.cashFlowLabel}>Net</Text>
-                <Text style={[styles.cashFlowAmount, { color: monthlyIncome >= total ? '#4CAF50' : COLORS.accentRed }]}>
-                  {monthlyIncome >= total ? '+' : '-'}{formatAmount(Math.abs(monthlyIncome - total), currencySymbol, currencyCode)}
-                </Text>
-              </View>
+            <View style={{ flex: 1 }}>
+              {streak > 0 ? (
+                <>
+                  <Text style={styles.streakTitle}>{streak} Day Streak!</Text>
+                  <Text style={styles.streakSub}>Keep going — log an expense today to continue</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.streakTitle}>Start your streak today</Text>
+                  <Text style={styles.streakSub}>Log an expense to begin your first streak</Text>
+                </>
+              )}
             </View>
-          </View>
+          </TouchableOpacity>
         )}
 
         <View style={styles.quickStatsGrid}>
@@ -661,35 +647,6 @@ export default function Dashboard() {
               </Text>
             </View>
           </View>
-        )}
-
-        {isCurrentMonth && (
-          <TouchableOpacity
-            style={[styles.streakCard, streak === 0 && styles.streakCardEmpty]}
-            onPress={() => router.push('/(tabs)/reports')}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.streakIconBox, { backgroundColor: streak > 0 ? '#FF8C4222' : COLORS.accent + '22' }]}>
-              <Ionicons
-                name={streak > 0 ? 'flame' : 'flame-outline'}
-                size={22}
-                color={streak > 0 ? '#FF8C42' : COLORS.accent}
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              {streak > 0 ? (
-                <>
-                  <Text style={styles.streakTitle}>{streak} Day Streak!</Text>
-                  <Text style={styles.streakSub}>Keep going — log an expense today to continue</Text>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.streakTitle}>Start your streak today</Text>
-                  <Text style={styles.streakSub}>Log an expense to begin your first streak</Text>
-                </>
-              )}
-            </View>
-          </TouchableOpacity>
         )}
 
         {insights.length > 0 && (
@@ -916,7 +873,6 @@ const styles = StyleSheet.create({
   modalSaveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
   modalClearBtn: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border },
   modalClearBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 14 },
-  cashFlowCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   quickStatsGrid: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   quickStatCard: { flex: 1, backgroundColor: COLORS.card, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: COLORS.border },
   quickStatHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
@@ -932,14 +888,6 @@ const styles = StyleSheet.create({
   streakIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   streakTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
   streakSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  cashFlowTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
-  cashFlowTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.3 },
-  cashFlowRow: { flexDirection: 'row', alignItems: 'center' },
-  cashFlowItem: { flex: 1, alignItems: 'center', gap: 6 },
-  cashFlowIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  cashFlowLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600', letterSpacing: 0.5, textTransform: 'uppercase' },
-  cashFlowAmount: { fontSize: 13, fontWeight: '800', letterSpacing: -0.3, textAlign: 'center' },
-  cashFlowDivider: { width: 1, height: 60, backgroundColor: COLORS.border, marginHorizontal: 4 },
   goalBannerWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: SCREEN.paddingHorizontal, marginBottom: 10, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
   goalBannerText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#fff' },
 })
