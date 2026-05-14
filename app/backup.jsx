@@ -93,7 +93,7 @@ export default function BackupScreen() {
     } else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
       showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again.')
     } else if (result.error === 'NO_DATA') {
-      showAlert('Nothing to Backup', 'Add some expenses first before backing up.')
+      showAlert('Nothing to Backup', 'Add expenses, income, accounts, or budgets before backing up.')
     } else {
       showAlert('Backup Failed', result.error || 'Something went wrong. Please try again.')
     }

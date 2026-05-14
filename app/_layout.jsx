@@ -10,6 +10,7 @@ import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { initializeDatabase } from '../src/services/sqliteService'
 import { registerBackupTask, unregisterBackupTask, registerFCMBackupHandler } from '../src/services/backgroundBackup'
+import { cacheGoogleAccessToken, clearGoogleAccessToken } from '../src/lib/googleAccessToken'
 import { Analytics, setUserId } from '../src/lib/analytics'
 import crashlytics from '@react-native-firebase/crashlytics'
 import { setCachedUser, getCachedUser, loadCachedUser } from '../src/lib/auth'
@@ -200,10 +201,7 @@ setTimeout(async () => {
         ;(async () => {
           try {
             const providerToken = session?.provider_token
-            if (providerToken) {
-              await AsyncStorage.setItem('savr_google_token', providerToken)
-              await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
-            }
+            if (providerToken) await cacheGoogleAccessToken(providerToken)
           } catch {}
         })()
 
@@ -211,16 +209,19 @@ setTimeout(async () => {
         ;(async () => {
           try {
             const d = new Date()
-const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
-if (lastTrigger === today) return
+            const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+            const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
+            if (lastTrigger === today) return
             const user = session?.user
             if (!user) return
             const { hasDataChanged, backupToDrive } = await import('../src/services/driveBackupService')
-            await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
-const changed = await hasDataChanged(user.id)
-if (!changed) return
-backupToDrive().catch(() => {})
+            const changed = await hasDataChanged(user.id)
+            if (!changed) {
+              await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
+              return
+            }
+            const result = await backupToDrive()
+            if (result.success) await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
           } catch {}
         })()
       }
@@ -236,7 +237,7 @@ try {
   }
 } catch {}
         Promise.allSettled([
-  AsyncStorage.removeItem('savr_google_token'),
+  clearGoogleAccessToken(),
   AsyncStorage.removeItem('savr_notif_asked'),
   AsyncStorage.removeItem(LAST_BACKUP_TRIGGER_KEY),
   AsyncStorage.removeItem(LAST_RECURRING_CHECK_KEY),
@@ -305,16 +306,19 @@ try {
   if (nextAppState !== 'active') return
   try {
     const d = new Date()
-const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
-if (lastTrigger === today) return
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
+    if (lastTrigger === today) return
     const user = getCachedUser()
     if (!user) return
     const { hasDataChanged, backupToDrive } = await import('../src/services/driveBackupService')
-    await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
-const changed = await hasDataChanged(user.id)
-if (!changed) return
-backupToDrive().catch(() => {})
+    const changed = await hasDataChanged(user.id)
+    if (!changed) {
+      await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
+      return
+    }
+    const result = await backupToDrive()
+    if (result.success) await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
   } catch {}
 }
     const appStateSub = AppState.addEventListener('change', handleAppStateChange)

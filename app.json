@@ -73,7 +73,9 @@
       "router": {},
       "eas": {
         "projectId": "06661bbd-b3e6-4e14-8480-9d3cd0ecda34"
-      }
+      },
+      "supabaseUrl": "https://fsrbsqhlgfdqugixqtxc.supabase.co",
+      "supabaseAnonKey": "sb_publishable_fTC_70PzCNPOs0_sNh1nEQ_Boj4EjqC"
     },
     "owner": "mwnswrang"
   }

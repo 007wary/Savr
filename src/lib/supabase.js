@@ -5,8 +5,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import Constants from 'expo-constants'
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://fsrbsqhlgfdqugixqtxc.supabase.co'
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_fTC_70PzCNPOs0_sNh1nEQ_Boj4EjqC'
+const extra = Constants.expoConfig?.extra ?? {}
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || extra.supabaseUrl
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || extra.supabaseAnonKey
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Missing Supabase URL/anon key: set EXPO_PUBLIC_SUPABASE_* in .env or app.json extra.supabaseUrl / extra.supabaseAnonKey.',
+  )
+}
+
+export const SUPABASE_PROJECT_URL = supabaseUrl
+export const SUPABASE_ANON_KEY = supabaseAnonKey
 
 const isExpoGo = Constants.appOwnership === 'expo'
 

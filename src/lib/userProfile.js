@@ -26,8 +26,6 @@ export async function syncUserProfile(user) {
       android_version: String(Device.osVersion) || null,
       timezone: Localization.getCalendars()[0]?.timeZone || null,
       country: Localization.getLocales()[0]?.regionCode || null,
-      timezone: Localization.getCalendars()[0]?.timeZone || null,
-      country: Localization.getLocales()[0]?.regionCode || null,
       last_active: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'id' })

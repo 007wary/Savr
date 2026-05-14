@@ -313,6 +313,11 @@ const cacheKey = `savr_cache_dashboard_${offsetMonth}`
                           onPress: () => fetchDataRef.current?.(true)
                         }
                       ])
+                    } else if (result.error === 'BACKUP_USER_MISMATCH') {
+                      showAlert(
+                        'Wrong account',
+                        'This backup belongs to a different Savr account. Sign in with the same Google account that created the backup.',
+                      )
                     } else {
                       showAlert('Failed', result.error || 'Restore failed.')
                     }

@@ -8,15 +8,14 @@ const LAST_BACKUP_TRIGGER_KEY = 'savr_last_backup_trigger'
 
 TaskManager.defineTask(BACKUP_TASK_NAME, async () => {
   try {
-    const today = new Date().toISOString().split('T')[0]
+    const d = new Date()
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-    // Only run once per day
     const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
     if (lastTrigger === today) return BackgroundFetch.BackgroundFetchResult.NoData
 
-    // Check if data changed before backing up
-    const { getCachedUser } = await import('../lib/auth')
-    const user = getCachedUser()
+    const { loadCachedUser } = await import('../lib/auth')
+    const user = await loadCachedUser()
     if (!user) return BackgroundFetch.BackgroundFetchResult.NoData
 
     const { hasDataChanged, backupToDrive } = await import('./driveBackupService')
@@ -37,23 +36,21 @@ TaskManager.defineTask(BACKUP_TASK_NAME, async () => {
   }
 })
 
-// FCM silent push backup task
 TaskManager.defineTask(FCM_BACKUP_TASK_NAME, async ({ data, error }) => {
   try {
     if (error) return
 
-    // Only handle our silent backup push type
     const messageData = data?.notification?.data || data?.data || {}
     if (messageData.type !== 'silent_backup') return
 
-    const today = new Date().toISOString().split('T')[0]
+    const d = new Date()
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-    // Only run once per day
     const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
     if (lastTrigger === today) return
 
-    const { getCachedUser } = await import('../lib/auth')
-    const user = getCachedUser()
+    const { loadCachedUser } = await import('../lib/auth')
+    const user = await loadCachedUser()
     if (!user) return
 
     const { hasDataChanged, backupToDrive } = await import('./driveBackupService')
@@ -103,7 +100,6 @@ export async function unregisterBackupTask() {
   } catch {}
 }
 
-// Call this once on app start to register FCM background handler
 export function registerFCMBackupHandler() {
   try {
     const messaging = require('@react-native-firebase/messaging').default
@@ -112,12 +108,13 @@ export function registerFCMBackupHandler() {
         const messageType = remoteMessage?.data?.type
         if (messageType !== 'silent_backup') return
 
-        const today = new Date().toISOString().split('T')[0]
+        const d = new Date()
+        const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
         const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
         if (lastTrigger === today) return
 
-        const { getCachedUser } = await import('../lib/auth')
-        const user = getCachedUser()
+        const { loadCachedUser } = await import('../lib/auth')
+        const user = await loadCachedUser()
         if (!user) return
 
         const { hasDataChanged, backupToDrive } = await import('./driveBackupService')

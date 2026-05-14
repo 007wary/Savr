@@ -3,8 +3,8 @@ import {
   View, Text, TouchableOpacity,
   StyleSheet, ActivityIndicator
 } from 'react-native'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
+import { cacheGoogleAccessToken } from '../../src/lib/googleAccessToken'
 import { supabase } from '../../src/lib/supabase'
 import { COLORS, SCREEN } from '../../src/constants/theme'
 import CustomAlert from '../../src/components/CustomAlert'
@@ -57,46 +57,41 @@ export default function Login() {
       if (error) throw error
 
       setSigningIn(true)
-const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
 
-if (result.type === 'success') {
-  const url = result.url
-  const hashParams = new URLSearchParams(url.split('#')[1] || '')
-  const queryParams = new URLSearchParams(url.split('?')[1] || '')
-
-  const access_token = hashParams.get('access_token') || queryParams.get('access_token')
-  const refresh_token = hashParams.get('refresh_token') || queryParams.get('refresh_token')
-  const provider_token = hashParams.get('provider_token') || queryParams.get('provider_token')
-  const provider_refresh_token = hashParams.get('provider_refresh_token') || queryParams.get('provider_refresh_token')
-
-  if (access_token) {
-    await supabase.auth.setSession({ access_token, refresh_token })
-    setSigningIn(false)
-
-          if (provider_token) {
-            await AsyncStorage.setItem('savr_google_token', provider_token)
-            await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
-          }
-
-          if (provider_refresh_token) {
-            await SecureStore.setItemAsync('savr_google_refresh_token', provider_refresh_token)
-          } else {
-            const existingToken = await SecureStore.getItemAsync('savr_google_refresh_token')
-            if (existingToken) {
-              await SecureStore.deleteItemAsync('savr_google_refresh_token')
-            }
-          }
-        } else {
-          setGoogleLoading(false)
-          setSigningIn(false)
-        }
-      } else {
-        setGoogleLoading(false)
+      if (result.type !== 'success') {
         setSigningIn(false)
+        return
       }
-      } catch (error) {
+
+      const url = result.url
+      const hashParams = new URLSearchParams(url.split('#')[1] || '')
+      const queryParams = new URLSearchParams(url.split('?')[1] || '')
+
+      const access_token = hashParams.get('access_token') || queryParams.get('access_token')
+      const refresh_token = hashParams.get('refresh_token') || queryParams.get('refresh_token')
+      const provider_token = hashParams.get('provider_token') || queryParams.get('provider_token')
+      const provider_refresh_token = hashParams.get('provider_refresh_token') || queryParams.get('provider_refresh_token')
+
+      if (!access_token) {
+        setSigningIn(false)
+        return
+      }
+
+      await supabase.auth.setSession({ access_token, refresh_token })
+      setSigningIn(false)
+
+      if (provider_token) {
+        await cacheGoogleAccessToken(provider_token)
+      }
+
+      if (provider_refresh_token) {
+        await SecureStore.setItemAsync('savr_google_refresh_token', provider_refresh_token)
+      }
+    } catch (error) {
       setSigningIn(false)
       showAlert('Error', error.message)
+    } finally {
       setGoogleLoading(false)
     }
   }

@@ -2,33 +2,39 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as SecureStore from 'expo-secure-store'
 import { getDB } from './sqliteService'
 import { getUser, getCachedUser } from '../lib/auth'
-import { supabase } from '../lib/supabase'
+import { supabase, SUPABASE_PROJECT_URL, SUPABASE_ANON_KEY } from '../lib/supabase'
+import {
+  getGoogleAccessToken,
+  setGoogleAccessToken,
+  setGoogleAccessTokenCachedAtNow,
+} from '../lib/googleAccessToken'
 
 const BACKUP_FILE_NAME = 'savr_backup.json'
 const FOLDER_NAME = 'Savr'
 const DRIVE_API_BASE = 'https://www.googleapis.com/drive/v3'
 const DRIVE_UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3'
 
+function backupPayloadHasRows(data) {
+  if (!data || typeof data !== 'object') return false
+  return Object.values(data).some((v) => Array.isArray(v) && v.length > 0)
+}
+
 async function getAccessToken() {
   try {
-    // Check cached token FIRST — avoid network call if still fresh
     const tokenTime = await AsyncStorage.getItem('savr_google_token_time')
-    const storedToken = await AsyncStorage.getItem('savr_google_token')
+    const storedToken = await getGoogleAccessToken()
     if (storedToken && tokenTime) {
-      const age = Date.now() - parseInt(tokenTime)
+      const age = Date.now() - parseInt(tokenTime, 10)
       if (age < 55 * 60 * 1000) return storedToken
     }
 
-    // Token expired or missing — try Supabase session refresh
     const { data: refreshed } = await supabase.auth.refreshSession()
     if (refreshed?.session?.provider_token) {
-      await AsyncStorage.setItem('savr_google_token', refreshed.session.provider_token)
-      await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
+      await setGoogleAccessToken(refreshed.session.provider_token)
+      await setGoogleAccessTokenCachedAtNow()
       return refreshed.session.provider_token
     }
 
-    // Migrate refresh token from AsyncStorage to SecureStore if needed
-    // This handles users who had the old version before SecureStore fix
     let refreshToken = await SecureStore.getItemAsync('savr_google_refresh_token')
     if (!refreshToken) {
       const oldToken = await AsyncStorage.getItem('savr_google_refresh_token')
@@ -39,30 +45,30 @@ async function getAccessToken() {
       }
     }
 
-    // Try using refresh token via secure Edge Function
     if (refreshToken) {
       try {
-        const response = await fetch(
-          'https://fsrbsqhlgfdqugixqtxc.supabase.co/functions/v1/google-token-refresh',
-          {
+        const { data: { session } } = await supabase.auth.getSession()
+        const jwt = session?.access_token
+        if (SUPABASE_PROJECT_URL && SUPABASE_ANON_KEY && jwt) {
+          const response = await fetch(`${SUPABASE_PROJECT_URL}/functions/v1/google-token-refresh`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'apikey': process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_fTC_70PzCNPOs0_sNh1nEQ_Boj4EjqC',
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${jwt}`,
             },
             body: JSON.stringify({ refresh_token: refreshToken }),
+          })
+          const data = await response.json()
+          if (data.access_token) {
+            await setGoogleAccessToken(data.access_token)
+            await setGoogleAccessTokenCachedAtNow()
+            return data.access_token
           }
-        )
-        const data = await response.json()
-        if (data.access_token) {
-          await AsyncStorage.setItem('savr_google_token', data.access_token)
-          await AsyncStorage.setItem('savr_google_token_time', Date.now().toString())
-          return data.access_token
         }
       } catch {}
     }
 
-    // Final fallback — return stored token even if possibly expired
     if (storedToken) return storedToken
     return null
   } catch {
@@ -226,13 +232,20 @@ async function restoreAllDataToSQLite(userId, data) {
 export async function generateDataHash(userId) {
   try {
     const db = await getDB()
-    const [exp, inc, acc, tr] = await Promise.all([
+    const [
+      exp, inc, acc, tr, bud, rec, goals, recInc,
+    ] = await Promise.all([
       db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM expenses WHERE user_id = ?`, [userId]),
       db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM income WHERE user_id = ?`, [userId]),
       db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM accounts WHERE user_id = ?`, [userId]),
       db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM transfers WHERE user_id = ?`, [userId]),
+      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM budgets WHERE user_id = ?`, [userId]),
+      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM recurring_expenses WHERE user_id = ?`, [userId]),
+      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM spending_goals WHERE user_id = ?`, [userId]),
+      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM recurring_income WHERE user_id = ?`, [userId]),
     ])
-    return `${exp?.count || 0}_${exp?.latest || ''}_${inc?.count || 0}_${inc?.latest || ''}_${acc?.count || 0}_${acc?.latest || ''}_${tr?.count || 0}_${tr?.latest || ''}`
+    const p = (row) => `${row?.count || 0}_${row?.latest || ''}`
+    return [exp, inc, acc, tr, bud, rec, goals, recInc].map(p).join('|')
   } catch {
     return null
   }
@@ -261,9 +274,8 @@ export async function backupToDrive() {
     const user = getCachedUser() || await getUser()
     if (!user) return { success: false, error: 'No user found' }
 
-    // Never backup empty database — prevents overwriting real backup
     const data = await getAllDataFromSQLite(user.id)
-    if (!data.expenses || data.expenses.length === 0) {
+    if (!backupPayloadHasRows(data)) {
       return { success: false, error: 'NO_DATA' }
     }
 
@@ -332,11 +344,11 @@ export async function backupToDrive() {
     }
 
     await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
-await saveBackupHash(user.id)
-return {
-  success: true,
-  backedUpAt: backupPayload.backedUpAt,
-}
+    await saveBackupHash(user.id)
+    return {
+      success: true,
+      backedUpAt: backupPayload.backedUpAt,
+    }
   } catch (e) {
     return { success: false, error: e.message }
   }
@@ -351,7 +363,7 @@ export async function restoreFromDrive() {
     if (!isValid) return { success: false, error: 'SESSION_EXPIRED' }
 
     const user = getCachedUser() || await getUser()
-if (!user) return { success: false, error: 'No user found' }
+    if (!user) return { success: false, error: 'No user found' }
 
     const folderId = await getOrCreateFolder(accessToken)
     let existingFile = await findBackupFileId(accessToken, folderId)
@@ -366,6 +378,10 @@ if (!user) return { success: false, error: 'No user found' }
 
     const backupPayload = await response.json()
     if (!backupPayload.data) return { success: false, error: 'Invalid backup file' }
+
+    if (backupPayload.userId && backupPayload.userId !== user.id) {
+      return { success: false, error: 'BACKUP_USER_MISMATCH' }
+    }
 
     await restoreAllDataToSQLite(user.id, backupPayload.data)
     await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
