@@ -8,10 +8,10 @@ import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
-import { checkWeeklySummary } from '../../src/lib/notifications'
+import { checkWeeklySummary, checkBudgetAlerts } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { getExpenses, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal, getAccountsTotal, getTodayIncomeTotal } from '../../src/services/sqliteService'
+import { getExpenses, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal, getAccountsTotal, getTodayIncomeTotal, getBudgets } from '../../src/services/sqliteService'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 
@@ -178,13 +178,14 @@ const cacheKey = `savr_cache_dashboard_${offsetMonth}`
       const todayDate = new Date()
       const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`
       const { month: snapshotMonth } = getMonthInfo(offsetSnapshot)
-      const [currentExpenses, lastTotal, recurringItems, incomeTotal, accTotal, todayIncomeTotal] = await Promise.all([
+      const [currentExpenses, lastTotal, recurringItems, incomeTotal, accTotal, todayIncomeTotal, budgets] = await Promise.all([
         getExpenses(user.id, { month: snapshotMonth }),
         getMonthlyTotal(user.id, lastMonthInfo.month),
         getRecurring(user.id),
         getMonthlyIncomeTotal(user.id, snapshotMonth),
         getAccountsTotal(user.id),
         getTodayIncomeTotal(user.id, todayStr),
+        getBudgets(user.id, snapshotMonth),
       ])
       const filtered = sortExpenses(currentExpenses)
       const now = new Date()
@@ -224,6 +225,7 @@ const cacheKey = `savr_cache_dashboard_${offsetMonth}`
 
       if (offsetSnapshot === 0) {
         checkWeeklySummary(filtered)
+        checkBudgetAlerts(filtered, budgets, snapshotMonth).catch(() => {})
         const currentStreak = (() => {
           let count = 0
           for (let i = 0; i < 30; i++) {

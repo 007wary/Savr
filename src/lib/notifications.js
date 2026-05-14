@@ -128,7 +128,7 @@ export async function scheduleStreakReminder(streak = 0) {
 
     const id = await Notifications.scheduleNotificationAsync({
       content: { title, body, sound: true, data: { type: 'streak_reminder' } },
-      trigger: { type: 'daily', hour: 21, minute: 0, repeats: true },
+      trigger: { hour: 21, minute: 0, repeats: true },
     })
 
     await AsyncStorage.setItem(DAILY_REMINDER_ID_KEY, id)
