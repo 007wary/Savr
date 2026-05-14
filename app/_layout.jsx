@@ -182,6 +182,7 @@ setTimeout(async () => {
               if (!recurringProcessedRef.current) {
                 recurringProcessedRef.current = true
                 processDueRecurring(session.user.id)
+                processRecurringIncome(session.user.id)
               }
               import('../src/lib/userProfile').then(({ syncUserProfile }) => {
                 syncUserProfile(session.user)

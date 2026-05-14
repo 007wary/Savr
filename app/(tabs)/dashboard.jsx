@@ -102,6 +102,8 @@ export default function Dashboard() {
   const isFocusedRef = useRef(false)
   const backupTimerRef = useRef(null)
   const backupExistsRef = useRef(null)
+const syncTokenRef = useRef(0)
+const fetchDataRef = useRef(null)
 
   const { month: currentMonth, name: monthName } = getMonthInfo(monthOffset)
   const isCurrentMonth = monthOffset === 0
@@ -117,6 +119,7 @@ export default function Dashboard() {
   }, [])
 
   async function fetchData(forceRefresh = false) {
+    fetchDataRef.current = fetchData
     const { month: offsetMonth } = getMonthInfo(monthOffset)
 const cacheKey = `savr_cache_dashboard_${offsetMonth}`
     setMonthLoading(true)
@@ -146,9 +149,11 @@ const cacheKey = `savr_cache_dashboard_${offsetMonth}`
   }
 
   async function syncFromSQLite(cacheKey, offsetSnapshot) {
+    const token = ++syncTokenRef.current
     try {
       const user = getCachedUser() || userRef.current || await getUser()
       if (!user) { setLoading(false); setRefreshing(false); setMonthLoading(false); return }
+      if (!isFocusedRef.current) { setLoading(false); setRefreshing(false); setMonthLoading(false); return }
       if (!userRef.current) userRef.current = user
       const meta = user.user_metadata?.display_name || user.user_metadata?.full_name
       const emailName = user.email.split('@')[0]
@@ -202,7 +207,7 @@ const cacheKey = `savr_cache_dashboard_${offsetMonth}`
         savedAt: Date.now(),
       })
 
-      if (!isFocusedRef.current) return
+      if (!isFocusedRef.current || token !== syncTokenRef.current) return
       setExpenses(filtered)
       setUserName(firstName)
       setLastMonthTotal(lastTotal)
@@ -305,7 +310,7 @@ const cacheKey = `savr_cache_dashboard_${offsetMonth}`
                       showAlert('✅ Restored!', `${result.expenseCount} expenses restored successfully.`, [
                         {
                           text: 'OK',
-                          onPress: () => fetchData(true)
+                          onPress: () => fetchDataRef.current?.(true)
                         }
                       ])
                     } else {
@@ -888,6 +893,6 @@ const styles = StyleSheet.create({
   streakIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   streakTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
   streakSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  goalBannerWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: SCREEN.paddingHorizontal, marginBottom: 10, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
+  goalBannerWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
   goalBannerText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#fff' },
 })
