@@ -225,11 +225,11 @@ backupToDrive().catch(() => {})
       }
 
       if (event === 'SIGNED_OUT') {
+        const offlineUser = getCachedUser()
         Analytics.logout()
         await clearAllCache()
         // Set offline status
 try {
-  const offlineUser = getCachedUser()
   if (offlineUser) {
     supabase.from('user_profiles').update({ is_online: false }).eq('id', offlineUser.id).then(() => {}).catch(() => {})
   }

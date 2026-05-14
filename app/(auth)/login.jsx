@@ -70,7 +70,6 @@ if (result.type === 'success') {
   const provider_refresh_token = hashParams.get('provider_refresh_token') || queryParams.get('provider_refresh_token')
 
   if (access_token) {
-    setGoogleLoading(false)
     await supabase.auth.setSession({ access_token, refresh_token })
     setSigningIn(false)
 
@@ -81,8 +80,19 @@ if (result.type === 'success') {
 
           if (provider_refresh_token) {
             await SecureStore.setItemAsync('savr_google_refresh_token', provider_refresh_token)
+          } else {
+            const existingToken = await SecureStore.getItemAsync('savr_google_refresh_token')
+            if (existingToken) {
+              await SecureStore.deleteItemAsync('savr_google_refresh_token')
+            }
           }
+        } else {
+          setGoogleLoading(false)
+          setSigningIn(false)
         }
+      } else {
+        setGoogleLoading(false)
+        setSigningIn(false)
       }
       } catch (error) {
       setSigningIn(false)
