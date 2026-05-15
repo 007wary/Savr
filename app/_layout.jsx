@@ -24,6 +24,7 @@ const LAST_RECURRING_CHECK_KEY = 'savr_last_recurring_check'
 export default function RootLayout() {
   const [session, setSession] = useState(undefined)
   const [onboardingDone, setOnboardingDone] = useState(undefined)
+  const [transitioning, setTransitioning] = useState(false)
   const recurringProcessedRef = useRef(false)
   const initialSessionLoadedRef = useRef(false)
   const router = useRouter()
@@ -158,6 +159,7 @@ if (user) {
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
+        setTransitioning(true)
         if (session?.user?.id) {
           setUserId(session.user.id).catch(() => {})
           crashlytics().setUserId(session.user.id).catch(() => {})
@@ -338,7 +340,7 @@ try {
     const inAuth = segments[0] === '(auth)'
     const inTabs = segments[0] === '(tabs)'
 
-    if (!onboardingDone && !inOnboarding && session) {
+    if (!onboardingDone && !inOnboarding && session && !isSigningIn()) {
       AsyncStorage.getItem('savr_onboarding_done').then(done => {
         if (done === 'true') {
           setOnboardingDone(true)
@@ -357,13 +359,14 @@ try {
         return
       }
       if (session && inAuth && !isSigningIn()) {
+  setTransitioning(false)
   router.replace('/(tabs)/dashboard')
   return
 }
     }
   }, [session, segments, onboardingDone])
 
-  if (session === undefined || onboardingDone === undefined) {
+  if (session === undefined || onboardingDone === undefined || transitioning) {
     return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />
   }
 

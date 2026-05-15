@@ -60,7 +60,6 @@ export default function Login() {
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
 
       if (result.type !== 'success') {
-        setSigningIn(false)
         return
       }
 
@@ -74,25 +73,21 @@ export default function Login() {
       const provider_refresh_token = hashParams.get('provider_refresh_token') || queryParams.get('provider_refresh_token')
 
       if (!access_token) {
-        setSigningIn(false)
         return
       }
 
       await supabase.auth.setSession({ access_token, refresh_token })
       setSigningIn(false)
 
-      if (provider_token) {
-        await cacheGoogleAccessToken(provider_token)
-      }
-
-      if (provider_refresh_token) {
-        await SecureStore.setItemAsync('savr_google_refresh_token', provider_refresh_token)
-      }
+      try {
+        if (provider_token) await cacheGoogleAccessToken(provider_token)
+        if (provider_refresh_token) await SecureStore.setItemAsync('savr_google_refresh_token', provider_refresh_token)
+      } catch {}
     } catch (error) {
-      setSigningIn(false)
       showAlert('Error', error.message)
     } finally {
       setGoogleLoading(false)
+      setSigningIn(false)
     }
   }
 
@@ -135,21 +130,19 @@ export default function Login() {
           ))}
         </View>
 
-        <TouchableOpacity
-          style={styles.acceptRow}
-          onPress={() => setAccepted(!accepted)}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
-            {accepted && <Ionicons name="checkmark" size={14} color="#fff" />}
-          </View>
+        <View style={styles.acceptRow}>
+          <TouchableOpacity onPress={() => setAccepted(!accepted)} activeOpacity={0.7}>
+            <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
+              {accepted && <Ionicons name="checkmark" size={14} color="#fff" />}
+            </View>
+          </TouchableOpacity>
           <Text style={styles.acceptText}>
             I agree to the{' '}
             <Text style={styles.acceptLink} onPress={openTerms}>Terms of Service</Text>
             {' '}and{' '}
             <Text style={styles.acceptLink} onPress={openPrivacyPolicy}>Privacy Policy</Text>
           </Text>
-        </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           style={[styles.googleBtn, !accepted && styles.googleBtnDisabled]}

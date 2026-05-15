@@ -69,6 +69,8 @@ export function clearUserCache() {
   AsyncStorage.removeItem(CACHED_USER_KEY).catch(() => {})
 }
 
+// Intentional: this listener keeps cachedUser in sync independently of _layout.jsx
+// Both listeners serve different purposes (cache vs navigation) — do not merge
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT') {
     cachedUser = null
