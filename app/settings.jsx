@@ -56,14 +56,16 @@ export default function Settings() {
     } catch {}
   }
 
-  async function fetchUser(forceRefresh = false) {
-  if (!forceRefresh) {
+  async function fetchUser() {
+  {
     const cached = await loadCache(CACHE_KEY)
     if (cached) {
       setUser(cached.user)
       setDisplayName(cached.displayName)
       setPhone(cached.phone)
       setCurrency(cached.currency)
+      const cachedAvatar = cached.user?.user_metadata?.picture || cached.user?.user_metadata?.avatar_url || null
+      if (cachedAvatar) setAvatarUrl(cachedAvatar)
       setLoading(false)
       syncFromAuth()
       return
@@ -74,7 +76,7 @@ export default function Settings() {
 
   async function syncFromAuth() {
     try {
-      const u = getCachedUser() || await getUser(true)
+      const u = await getUser(true) || getCachedUser()
       if (!u) { setLoading(false); return }
       setUser(u)
       const name = u.user_metadata?.display_name ||
@@ -87,6 +89,9 @@ export default function Settings() {
 if (avatar) {
   setAvatarUrl(avatar)
   AsyncStorage.setItem('savr_avatar_url', avatar).catch(() => {})
+} else {
+  setAvatarUrl(null)
+  AsyncStorage.removeItem('savr_avatar_url').catch(() => {})
 }
       const savedCurrency = await loadCurrency()
       setCurrency(savedCurrency)
@@ -136,11 +141,14 @@ if (avatar) {
       setPhone(editPhone.trim())
       setProfileModalVisible(false)
       clearUserCache()
-      await clearCache(CACHE_KEY)
-      const now = new Date()
-      const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-      await clearCache(`savr_cache_dashboard_${currentMonth}`)
-      showAlert('✅ Saved!', 'Your profile has been updated.')
+    await clearCache(CACHE_KEY)
+    await saveCache(CACHE_KEY, {
+      user: { ...user, user_metadata: { ...user.user_metadata, display_name: editName.trim(), phone_number: editPhone.trim() } },
+      displayName: editName.trim(),
+      phone: editPhone.trim(),
+      currency,
+    })
+    showAlert('✅ Saved!', 'Your profile has been updated.')
     } catch {
       showAlert('Error', 'Failed to save. Please try again.')
     } finally {
