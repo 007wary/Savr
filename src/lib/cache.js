@@ -81,8 +81,8 @@ export async function clearExpiredCache() {
     const cacheKeys = keys.filter(k => k.startsWith('savr_cache_'))
     const expiredKeys = []
 
-    for (const key of cacheKeys) {
-      const raw = await AsyncStorage.getItem(key)
+    const pairs = await AsyncStorage.multiGet(cacheKeys)
+    for (const [key, raw] of pairs) {
       if (!raw) continue
       const { timestamp } = JSON.parse(raw)
       const expiry = getExpiry(key)

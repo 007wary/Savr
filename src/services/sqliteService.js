@@ -39,10 +39,13 @@ export const getDB = async () => {
       db = null
     }
   }
-  opening = SQLite.openDatabaseAsync('savr.db')
-  db = await opening
-  opening = null
-  return db
+  try {
+    opening = SQLite.openDatabaseAsync('savr.db')
+    db = await opening
+    return db
+  } finally {
+    opening = null
+  }
 }
 
 export const initializeDatabase = async () => {

@@ -23,7 +23,7 @@ export async function syncUserProfile(user) {
       provider: user.app_metadata?.provider || 'google',
       app_version: Constants.expoConfig?.version || '1.0',
       device_model: Device.modelName || null,
-      android_version: String(Device.osVersion) || null,
+      android_version: Device.osVersion != null ? String(Device.osVersion) : null,
       timezone: Localization.getCalendars()[0]?.timeZone || null,
       country: Localization.getLocales()[0]?.regionCode || null,
       last_active: new Date().toISOString(),
@@ -47,7 +47,7 @@ export async function syncUserProfile(user) {
 export async function updateUserProfile(userId, updates) {
   try {
     if (!userId) return { error: null }
-    await supabase
+    const { error } = await supabase
       .from('user_profiles')
       .update({
         ...updates,
@@ -55,9 +55,9 @@ export async function updateUserProfile(userId, updates) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', userId)
-    return { error: null }
-  } catch {
-    return { error: null }
+    return { error }
+  } catch (e) {
+    return { error: e }
   }
 }
 

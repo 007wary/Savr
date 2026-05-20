@@ -54,7 +54,8 @@ export async function loadCachedUser() {
 export async function getUser(forceRefresh = false) {
   if (cachedUser && !forceRefresh) return cachedUser
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user }, error } = await supabase.auth.getUser()
+    if (error) throw error
     cachedUser = user
     return user
   } catch {
