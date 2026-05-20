@@ -224,8 +224,9 @@ const cacheKey = `savr_cache_dashboard_${offsetMonth}`
       if (goal !== null) setSpendingGoal(goal)
 
       if (offsetSnapshot === 0) {
-        checkWeeklySummary(filtered)
-        checkBudgetAlerts(filtered, budgets, snapshotMonth).catch(() => {})
+        const allRecentExpenses = await getExpenses(user.id)
+checkWeeklySummary(allRecentExpenses)
+checkBudgetAlerts(filtered, budgets, snapshotMonth).catch(() => {})
         const currentStreak = (() => {
           let count = 0
           for (let i = 0; i < 30; i++) {

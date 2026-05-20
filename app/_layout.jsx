@@ -121,8 +121,14 @@ if (user) {
 }, 3500)
 
           setTimeout(() => {
-            import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
-          }, 5000)
+  import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
+}, 5000)
+
+setTimeout(() => {
+  import('../src/lib/notifications').then(({ scheduleStreakReminder }) => {
+    scheduleStreakReminder(0).catch(() => {})
+  }).catch(() => {})
+}, 6000)
 
         } else {
           // No cached user — wait for Supabase with timeout
