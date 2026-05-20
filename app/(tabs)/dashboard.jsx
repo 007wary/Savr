@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, TextInput, Modal, KeyboardAvoidingView, Platform, Image } from 'react-native'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform, Image } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -80,7 +80,6 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [monthLoading, setMonthLoading] = useState(false)
-  const [monthOffset, setMonthOffset] = useState(0)
   const [lastMonthTotal, setLastMonthTotal] = useState(0)
   const [daysInMonth, setDaysInMonth] = useState(1)
   const [currencySymbol, setCurrencySymbol] = useState('₹')
@@ -105,8 +104,8 @@ export default function Dashboard() {
 const syncTokenRef = useRef(0)
 const fetchDataRef = useRef(null)
 
-  const { month: currentMonth, name: monthName } = getMonthInfo(monthOffset)
-  const isCurrentMonth = monthOffset === 0
+  const { month: currentMonth, name: monthName } = getMonthInfo(0)
+const isCurrentMonth = true
 
   useEffect(() => {
     async function loadAvatarFromStorage() {
@@ -340,7 +339,7 @@ const cacheKey = `savr_cache_dashboard_${offsetMonth}`
       if (backupTimerRef.current) clearTimeout(backupTimerRef.current)
       hideAlert()
     }
-  }, [currentMonth]))
+  }, []))
 
   async function handleSaveGoal() {
   const amount = parseFloat(goalInput)
@@ -455,30 +454,6 @@ const cacheKey = `savr_cache_dashboard_${offsetMonth}`
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(true) }} tintColor={COLORS.accent} />
         }
       >
-
-        <View style={styles.monthNav}>
-          <TouchableOpacity style={styles.monthNavBtn} onPress={() => setMonthOffset(o => o - 1)}>
-            <Ionicons name="chevron-back" size={20} color={COLORS.text} />
-          </TouchableOpacity>
-          <View style={styles.monthNavCenter}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={styles.monthNavText}>{monthName}</Text>
-              {monthLoading && <ActivityIndicator size="small" color={COLORS.accent} />}
-            </View>
-            {!isCurrentMonth && (
-              <TouchableOpacity onPress={() => setMonthOffset(0)}>
-                <Text style={styles.monthNavBack}>Back to today</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <TouchableOpacity
-            style={[styles.monthNavBtn, isCurrentMonth && styles.monthNavBtnDisabled]}
-            onPress={() => { if (!isCurrentMonth) setMonthOffset(o => o + 1) }}
-            disabled={isCurrentMonth}
-          >
-            <Ionicons name="chevron-forward" size={20} color={isCurrentMonth ? COLORS.border : COLORS.text} />
-          </TouchableOpacity>
-        </View>
 
         <LinearGradient colors={['#7C75FF', '#6C63FF', '#5A50FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.totalCard}>
           <View style={styles.totalRow}>
@@ -798,12 +773,6 @@ const styles = StyleSheet.create({
   avatarImage: { width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: COLORS.accent },
   avatarFallback: { width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: COLORS.accent + '66' },
   avatarInitials: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 14, padding: 12, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },
-  monthNavBtn: { padding: 4 },
-  monthNavBtnDisabled: { opacity: 0.3 },
-  monthNavCenter: { alignItems: 'center' },
-  monthNavText: { fontSize: 16, fontWeight: '700', color: COLORS.text, letterSpacing: -0.3 },
-  monthNavBack: { fontSize: 12, color: COLORS.accent, marginTop: 4 },
   totalCard: { borderRadius: 24, padding: 24, marginBottom: 16 },
   totalRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
   totalLeft: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
-  RefreshControl, TouchableOpacity, Animated
+  RefreshControl, TouchableOpacity, Animated, ActivityIndicator
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useFocusEffect } from 'expo-router'
@@ -12,6 +12,16 @@ import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import { getExpenses, getMonthlyIncomeTotal } from '../../src/services/sqliteService'
+
+function getMonthInfo(offset) {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() + offset)
+  const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  const name = d.toLocaleString('default', { month: 'long', year: 'numeric' })
+  const totalDays = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+  return { month, name, totalDays }
+}
 
 function AnimatedBar({ percentage, color, delay = 0 }) {
   const anim = useRef(new Animated.Value(0)).current
@@ -43,6 +53,8 @@ export default function Reports() {
   const [expandedCategory, setExpandedCategory] = useState(null)
   const [monthlyIncome, setMonthlyIncome] = useState(0)
   const [last6MonthsIncome, setLast6MonthsIncome] = useState([])
+  const [monthOffset, setMonthOffset] = useState(0)
+  const [monthLoading, setMonthLoading] = useState(false)
   const userRef = useRef(null)
 
   // getNow() called fresh each time to avoid stale date if app open past midnight
@@ -55,14 +67,16 @@ export default function Reports() {
 
   useFocusEffect(useCallback(() => {
     fetchData()
-  }, []))
+  }, [monthOffset]))
 
   async function fetchData(forceRefresh = false) {
-    const CACHE_KEY = `savr_cache_reports_${getCurrentMonth()}`
+    const { month: selectedMonth } = getMonthInfo(monthOffset)
+    const CACHE_KEY = `savr_cache_reports_${selectedMonth}`
     const symbol = await getCurrencySymbol()
     const code = await loadCurrency()
     setCurrencySymbol(symbol)
     setCurrencyCode(code)
+    setMonthLoading(true)
     if (!forceRefresh) {
       const cached = await loadCache(CACHE_KEY)
       if (cached) {
@@ -72,6 +86,7 @@ export default function Reports() {
         setMonthlyIncome(cached.monthlyIncome || 0)
         setLast6MonthsIncome(cached.last6MonthsIncome || [])
         setLoading(false)
+        setMonthLoading(false)
         setTimeout(() => loadFromSQLite(), 100)
         return
       }
@@ -82,24 +97,24 @@ export default function Reports() {
   async function loadFromSQLite() {
     try {
       const user = getCachedUser() || userRef.current || await getUser()
-if (!user) { setLoading(false); setRefreshing(false); return }
-if (!userRef.current) userRef.current = user
+      if (!user) { setLoading(false); setRefreshing(false); setMonthLoading(false); return }
+      if (!userRef.current) userRef.current = user
+      const { month: selectedMonth, totalDays } = getMonthInfo(monthOffset)
       const allData = await getExpenses(user.id)
-      const freshNow = getNow()
-      const freshYear = freshNow.getFullYear()
-      const freshMonth = freshNow.getMonth() + 1
-      const freshCurrentMonth = `${freshYear}-${String(freshMonth).padStart(2, '0')}`
-      const lastMonthDate = new Date(freshYear, freshMonth - 2, 1)
+      const selectedDate = new Date(selectedMonth + '-01')
+      const selectedYear = selectedDate.getFullYear()
+      const selectedMonthNum = selectedDate.getMonth() + 1
+      const lastMonthDate = new Date(selectedYear, selectedMonthNum - 2, 1)
       const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
-      const sixMonthsAgo = new Date(freshYear, freshMonth - 7, 1)
-      const currentData = allData.filter(e => e.date.startsWith(freshCurrentMonth))
+      const sixMonthsAgo = new Date(selectedYear, selectedMonthNum - 7, 1)
+      const currentData = allData.filter(e => e.date.startsWith(selectedMonth))
       const lastMonthData = allData.filter(e => e.date.startsWith(lastMonthKey))
       const sixMonthData = allData.filter(e => new Date(e.date) >= sixMonthsAgo)
 
-      const incomeTotal = await getMonthlyIncomeTotal(user.id, freshCurrentMonth)
+      const incomeTotal = await getMonthlyIncomeTotal(user.id, selectedMonth)
 
       const incomeKeys = Array.from({ length: 6 }, (_, i) => {
-        const d = new Date(freshYear, freshMonth - 1 - (5 - i), 1)
+        const d = new Date(selectedYear, selectedMonthNum - 1 - (5 - i), 1)
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
       })
       const incomeTotals = await Promise.all(incomeKeys.map(key => getMonthlyIncomeTotal(user.id, key)))
@@ -110,6 +125,7 @@ if (!userRef.current) userRef.current = user
       setAllExpenses(sixMonthData)
       setMonthlyIncome(incomeTotal)
       setLast6MonthsIncome(incomeByMonth)
+      const CACHE_KEY = `savr_cache_reports_${selectedMonth}`
       await saveCache(CACHE_KEY, {
         expenses: currentData, lastMonthExpenses: lastMonthData,
         allExpenses: sixMonthData, monthlyIncome: incomeTotal,
@@ -119,12 +135,13 @@ if (!userRef.current) userRef.current = user
     finally {
       setLoading(false)
       setRefreshing(false)
+      setMonthLoading(false)
     }
   }
 
   const now = getNow()
-  const currentMonth = getCurrentMonth()
-  const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' })
+  const { month: currentMonth, name: monthName, totalDays: daysInSelectedMonth } = getMonthInfo(monthOffset)
+  const isCurrentMonth = monthOffset === 0
 
   const total = useMemo(() =>
     expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0),
@@ -134,10 +151,9 @@ if (!userRef.current) userRef.current = user
     lastMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0),
   [lastMonthExpenses])
 
-  const daysElapsed = now.getDate()
+  const daysElapsed = isCurrentMonth ? now.getDate() : daysInSelectedMonth
   const dailyAvg = total / Math.max(daysElapsed, 1)
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-  const forecast = dailyAvg * daysInMonth
+  const forecast = dailyAvg * daysInSelectedMonth
 
   const categoryTotals = useMemo(() => CATEGORIES.map(cat => {
     const catExpenses = expenses.filter(e => e.category === cat.label)
@@ -179,14 +195,13 @@ if (!userRef.current) userRef.current = user
   const max6 = useMemo(() => Math.max(...last6Months.map(m => Math.max(m.amount, m.income)), 1), [last6Months])
 
   const heatmapDays = useMemo(() => {
-    const daysInCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
     const result = []
-    for (let d = 1; d <= daysInCurrentMonth; d++) {
-      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    for (let d = 1; d <= daysInSelectedMonth; d++) {
+      const dateStr = `${currentMonth}-${String(d).padStart(2, '0')}`
       result.push({ day: d, amount: dailyMap[dateStr] || 0, dateStr })
     }
     return result
-  }, [dailyMap])
+  }, [dailyMap, currentMonth, daysInSelectedMonth])
 
   const maxHeatmap = useMemo(() => Math.max(...heatmapDays.map(d => d.amount), 1), [heatmapDays])
 
@@ -227,7 +242,29 @@ if (!userRef.current) userRef.current = user
     <View style={styles.outerContainer}>
       <View style={styles.stickyHeader}>
         <Text style={styles.heading}>Reports</Text>
-        <Text style={styles.subheading}>{monthName}</Text>
+        <View style={styles.monthNav}>
+          <TouchableOpacity style={styles.monthNavBtn} onPress={() => setMonthOffset(o => o - 1)}>
+            <Ionicons name="chevron-back" size={20} color={COLORS.text} />
+          </TouchableOpacity>
+          <View style={styles.monthNavCenter}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={styles.monthNavText}>{monthName}</Text>
+              {monthLoading && <ActivityIndicator size="small" color={COLORS.accent} />}
+            </View>
+            {!isCurrentMonth && (
+              <TouchableOpacity onPress={() => setMonthOffset(0)}>
+                <Text style={styles.monthNavBack}>Back to today</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <TouchableOpacity
+            style={[styles.monthNavBtn, isCurrentMonth && styles.monthNavBtnDisabled]}
+            onPress={() => { if (!isCurrentMonth) setMonthOffset(o => o + 1) }}
+            disabled={isCurrentMonth}
+          >
+            <Ionicons name="chevron-forward" size={20} color={isCurrentMonth ? COLORS.border : COLORS.text} />
+          </TouchableOpacity>
+        </View>
       </View>
       <ScrollView
         style={styles.scrollView}
@@ -422,7 +459,7 @@ if (!userRef.current) userRef.current = user
               <View style={styles.heatmap}>
                 {heatmapDays.map((d, i) => {
                   const intensity = d.amount > 0 ? Math.max(0.15, d.amount / maxHeatmap) : 0
-                  const isToday = d.day === now.getDate()
+                  const isToday = isCurrentMonth && d.day === now.getDate()
                   return (
                     <View key={i} style={[styles.heatmapCell, { backgroundColor: d.amount > 0 ? `rgba(108, 99, 255, ${intensity})` : COLORS.cardAlt }, isToday && { borderWidth: 1, borderColor: COLORS.accent }]}>
                       <Text style={[styles.heatmapDay, d.amount > 0 && intensity > 0.5 && { color: '#fff' }]}>{d.day}</Text>
@@ -630,6 +667,12 @@ const styles = StyleSheet.create({
   bigNote: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
   bigDate: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
   bigAmount: { fontSize: 20, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5 },
+  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 14, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
+  monthNavBtn: { padding: 4 },
+  monthNavBtnDisabled: { opacity: 0.3 },
+  monthNavCenter: { alignItems: 'center' },
+  monthNavText: { fontSize: 16, fontWeight: '700', color: COLORS.text, letterSpacing: -0.3 },
+  monthNavBack: { fontSize: 12, color: COLORS.accent, marginTop: 4 },
   empty: { alignItems: 'center', marginTop: 80 },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },
