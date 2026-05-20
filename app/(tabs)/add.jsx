@@ -18,7 +18,7 @@ import { detectAnomaly } from '../../src/lib/anomalyDetector'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
 import { addExpense, addRecurring, addIncome, addRecurringIncome, addTransfer, getExpenses, getBudgets, getAccounts, updateAccountBalance } from '../../src/services/sqliteService'
 import { Analytics } from '../../src/lib/analytics'
-import { checkAndRequestReview } from '../../src/lib/reviewService'
+import { scheduleBackup } from '../../src/services/backgroundBackup'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import ConfettiCannon from 'react-native-confetti-cannon'
 
@@ -263,7 +263,8 @@ export default function AddExpense() {
         triggerCelebration()
       } else {
         if (!isRecurring) await checkAndRequestReview()
-        router.replace('/(tabs)/dashboard')
+      scheduleBackup()
+      router.replace('/(tabs)/dashboard')
       }
     } catch (e) {
       showAlert('Error', 'Could not save expense. Please try again.')
@@ -318,6 +319,7 @@ export default function AddExpense() {
       await saveCache('savr_cache_history', [newIncome, ...historyCached])
 
       if (!isRecurringIncome) await checkAndRequestReview()
+      scheduleBackup()
       router.replace('/(tabs)/dashboard')
     } catch (e) {
       showAlert('Error', 'Could not save income. Please try again.')
@@ -356,6 +358,7 @@ export default function AddExpense() {
       setTransferFromId(null)
       setTransferToId(null)
       setTransferDate(new Date())
+      scheduleBackup()
       router.replace('/(tabs)/dashboard')
     } catch {
       showAlert('Error', 'Could not save transfer. Please try again.')

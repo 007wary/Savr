@@ -171,7 +171,7 @@ export default function BackupScreen() {
         <View style={styles.noteCard}>
           <Ionicons name="information-circle-outline" size={16} color={COLORS.textMuted} />
           <Text style={styles.noteText}>
-            Your data is automatically backed up once every 24 hours when connected to the internet.
+            Your data is automatically backed up whenever you add, edit, or delete a transaction, and each time you open the app.
           </Text>
         </View>
 

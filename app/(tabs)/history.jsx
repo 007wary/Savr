@@ -19,6 +19,7 @@ import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getExpenses, updateExpense, deleteExpense, deleteRecurring, getRecurring, getIncome, getTransfers, getAccounts } from '../../src/services/sqliteService'
+import { scheduleBackup } from '../../src/services/backgroundBackup'
 
 const CACHE_KEY = 'savr_cache_history'
 
@@ -212,6 +213,7 @@ export default function History() {
     }
   }
   await AsyncStorage.removeItem('savr_last_backup_count')
+  scheduleBackup()
 } catch (e) {
   setExpenses(expenses)
   await saveCache(CACHE_KEY, expenses)
@@ -261,6 +263,7 @@ export default function History() {
         date: editDate,
       })
       await AsyncStorage.removeItem('savr_last_backup_count')
+      scheduleBackup()
     } catch (e) {}
     setSaving(false)
   }

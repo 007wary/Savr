@@ -9,7 +9,7 @@ import { processDueRecurring, processRecurringIncome } from '../src/lib/recurrin
 import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { initializeDatabase } from '../src/services/sqliteService'
-import { registerBackupTask, unregisterBackupTask, registerFCMBackupHandler } from '../src/services/backgroundBackup'
+import { backupOnAppOpen, scheduleBackup } from '../src/services/backgroundBackup'
 import { cacheGoogleAccessToken, clearGoogleAccessToken } from '../src/lib/googleAccessToken'
 import { Analytics, setUserId } from '../src/lib/analytics'
 import crashlytics from '@react-native-firebase/crashlytics'
@@ -18,7 +18,6 @@ import { isSigningIn } from '../src/lib/authState'
 
 SplashScreen.preventAutoHideAsync()
 
-const LAST_BACKUP_TRIGGER_KEY = 'savr_last_backup_trigger'
 const LAST_RECURRING_CHECK_KEY = 'savr_last_recurring_check'
 
 export default function RootLayout() {
@@ -38,7 +37,6 @@ export default function RootLayout() {
   useEffect(() => {
     async function init() {
       clearExpiredCache().catch(() => {})
-      registerFCMBackupHandler()
 
       // Check cached user immediately before anything else
       const cachedUser = await loadCachedUser()
@@ -192,7 +190,6 @@ setTimeout(async () => {
               }).catch(() => {})
             }
             import('../src/lib/ads').then(({ initializeAds }) => initializeAds()).catch(() => {})
-            registerBackupTask().catch(() => {})
             import('../src/lib/notifications').then(({ scheduleStreakReminder }) => {
               scheduleStreakReminder(0).catch(() => {})
             }).catch(() => {})
@@ -204,26 +201,6 @@ setTimeout(async () => {
           try {
             const providerToken = session?.provider_token
             if (providerToken) await cacheGoogleAccessToken(providerToken)
-          } catch {}
-        })()
-
-        // Daily auto backup with hash check
-        ;(async () => {
-          try {
-            const d = new Date()
-            const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-            const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
-            if (lastTrigger === today) return
-            const user = session?.user
-            if (!user) return
-            const { hasDataChanged, backupToDrive } = await import('../src/services/driveBackupService')
-            const changed = await hasDataChanged(user.id)
-            if (!changed) {
-              await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
-              return
-            }
-            const result = await backupToDrive()
-            if (result.success) await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
           } catch {}
         })()
       }
@@ -241,7 +218,6 @@ try {
         Promise.allSettled([
   clearGoogleAccessToken(),
   AsyncStorage.removeItem('savr_notif_asked'),
-  AsyncStorage.removeItem(LAST_BACKUP_TRIGGER_KEY),
   AsyncStorage.removeItem(LAST_RECURRING_CHECK_KEY),
   AsyncStorage.removeItem('savr_restore_offered'),
   AsyncStorage.removeItem('savr_last_backup'),
@@ -250,7 +226,6 @@ try {
   AsyncStorage.removeItem('savr_reminder_suppressed_date'),
 ]).catch(() => {})
         import('../src/lib/notifications').then(({ cancelStreakReminder }) => cancelStreakReminder()).catch(() => {})
-        unregisterBackupTask().catch(() => {})
         recurringProcessedRef.current = false
         router.replace('/(auth)/login')
       }
@@ -306,22 +281,7 @@ try {
   } catch {}
 
   if (nextAppState !== 'active') return
-  try {
-    const d = new Date()
-    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    const lastTrigger = await AsyncStorage.getItem(LAST_BACKUP_TRIGGER_KEY)
-    if (lastTrigger === today) return
-    const user = getCachedUser()
-    if (!user) return
-    const { hasDataChanged, backupToDrive } = await import('../src/services/driveBackupService')
-    const changed = await hasDataChanged(user.id)
-    if (!changed) {
-      await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
-      return
-    }
-    const result = await backupToDrive()
-    if (result.success) await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, today)
-  } catch {}
+  backupOnAppOpen().catch(() => {})
 }
     const appStateSub = AppState.addEventListener('change', handleAppStateChange)
 
