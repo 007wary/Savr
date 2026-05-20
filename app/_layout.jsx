@@ -9,7 +9,7 @@ import { processDueRecurring, processRecurringIncome } from '../src/lib/recurrin
 import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { initializeDatabase } from '../src/services/sqliteService'
-import { backupOnAppOpen, scheduleBackup } from '../src/services/backgroundBackup'
+import { backupOnAppOpen } from '../src/services/backgroundBackup'
 import { cacheGoogleAccessToken, clearGoogleAccessToken } from '../src/lib/googleAccessToken'
 import { Analytics, setUserId } from '../src/lib/analytics'
 import crashlytics from '@react-native-firebase/crashlytics'
@@ -164,6 +164,7 @@ setTimeout(() => {
 
       if (event === 'SIGNED_IN') {
         setTransitioning(true)
+        if (session?.user) setCachedUser(session.user)
         if (session?.user?.id) {
           setUserId(session.user.id).catch(() => {})
           crashlytics().setUserId(session.user.id).catch(() => {})

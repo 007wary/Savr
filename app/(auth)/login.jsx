@@ -147,7 +147,7 @@ export default function Login() {
         <TouchableOpacity
           style={[styles.googleBtn, !accepted && styles.googleBtnDisabled]}
           onPress={handleGoogleLogin}
-          disabled={googleLoading}
+          disabled={googleLoading || !accepted}
           activeOpacity={0.85}
         >
           {googleLoading
