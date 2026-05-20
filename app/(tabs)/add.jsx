@@ -18,6 +18,7 @@ import { detectAnomaly } from '../../src/lib/anomalyDetector'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
 import { addExpense, addRecurring, addIncome, addRecurringIncome, addTransfer, getExpenses, getBudgets, getAccounts, updateAccountBalance } from '../../src/services/sqliteService'
 import { Analytics } from '../../src/lib/analytics'
+import { checkAndRequestReview } from '../../src/lib/reviewService'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import ConfettiCannon from 'react-native-confetti-cannon'
 
@@ -261,6 +262,7 @@ export default function AddExpense() {
       if (allAfter.length === 1) {
         triggerCelebration()
       } else {
+        if (!isRecurring) await checkAndRequestReview()
         router.replace('/(tabs)/dashboard')
       }
     } catch (e) {
@@ -315,6 +317,7 @@ export default function AddExpense() {
       const historyCached = await loadCache('savr_cache_history') || []
       await saveCache('savr_cache_history', [newIncome, ...historyCached])
 
+      if (!isRecurringIncome) await checkAndRequestReview()
       router.replace('/(tabs)/dashboard')
     } catch (e) {
       showAlert('Error', 'Could not save income. Please try again.')
