@@ -312,9 +312,10 @@ try {
         if (done === 'true') {
           setOnboardingDone(true)
         } else {
-          router.replace('/onboarding')
-        }
-      }).catch(() => { router.replace('/onboarding') })
+            setTransitioning(false)
+            router.replace('/onboarding')
+          }
+        }).catch(() => { setTransitioning(false); router.replace('/onboarding') })
       return
     }
 
