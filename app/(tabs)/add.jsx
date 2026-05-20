@@ -19,6 +19,7 @@ import { checkBudgetAlerts } from '../../src/lib/notifications'
 import { addExpense, addRecurring, addIncome, addRecurringIncome, addTransfer, getExpenses, getBudgets, getAccounts, updateAccountBalance } from '../../src/services/sqliteService'
 import { Analytics } from '../../src/lib/analytics'
 import { scheduleBackup } from '../../src/services/backgroundBackup'
+import { checkAndRequestReview } from '../../src/lib/reviewService'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import ConfettiCannon from 'react-native-confetti-cannon'
 
@@ -96,19 +97,6 @@ export default function AddExpense() {
     celebrationScale.setValue(0)
     celebrationOpacity.setValue(0)
     router.replace('/(tabs)/dashboard')
-  }
-
-  async function requestNotifIfNeeded() {
-    try {
-      const notifAsked = await AsyncStorage.getItem('savr_notif_asked')
-      if (notifAsked) return
-      await AsyncStorage.setItem('savr_notif_asked', 'true')
-      const { requestNotificationPermission, isNotificationGranted } = await import('../../src/lib/notifications')
-      const alreadyGranted = await isNotificationGranted()
-      if (!alreadyGranted) {
-        await requestNotificationPermission()
-      }
-    } catch {}
   }
 
   useEffect(() => {

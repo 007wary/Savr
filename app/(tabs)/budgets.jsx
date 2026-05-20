@@ -35,9 +35,7 @@ function getLast3MonthKeys() {
 }
 
 export default function Budgets() {
-  const currentMonth = getCurrentMonth()
   const monthName = getMonthName()
-  const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
 
   const [budgets, setBudgets] = useState([])
   const [expenses, setExpenses] = useState([])
@@ -55,6 +53,8 @@ export default function Budgets() {
   const userRef = useRef(null)
 
   async function fetchData(forceRefresh = false) {
+    const currentMonth = getCurrentMonth()
+    const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
     const symbol = await getCurrencySymbol()
     const code = await loadCurrency()
     setCurrencySymbol(symbol)
@@ -114,7 +114,6 @@ export default function Budgets() {
   useFocusEffect(useCallback(() => { fetchData() }, []))
 
   async function handleSaveBudget(category, customLimit = null) {
-    // Bug 3 fix — reject zero or negative custom limits
     const limitValue = (customLimit !== null && customLimit > 0) ? String(customLimit) : inputValue
     if (!limitValue || isNaN(parseFloat(limitValue)) || parseFloat(limitValue) <= 0) {
       return showAlert('Invalid', 'Please enter a valid amount')
@@ -160,7 +159,6 @@ export default function Budgets() {
             const user = getCachedUser() || userRef.current || await getUser()
             if (!userRef.current) userRef.current = user
 
-            // Bug 2 fix — optimistically update state before fetchData
             const optimisticBudgets = [...budgets]
             Object.entries(recommendations).forEach(([category, rec]) => {
               const existing = optimisticBudgets.find(b => b.category === category)

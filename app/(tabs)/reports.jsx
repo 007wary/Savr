@@ -53,13 +53,12 @@ export default function Reports() {
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`
   }
 
-  const CACHE_KEY = `savr_cache_reports_${getCurrentMonth()}`
-
   useFocusEffect(useCallback(() => {
     fetchData()
   }, []))
 
   async function fetchData(forceRefresh = false) {
+    const CACHE_KEY = `savr_cache_reports_${getCurrentMonth()}`
     const symbol = await getCurrencySymbol()
     const code = await loadCurrency()
     setCurrencySymbol(symbol)
@@ -148,9 +147,9 @@ if (!userRef.current) userRef.current = user
 
   const dailyMap = useMemo(() => {
     const map = {}
-    expenses.forEach(e => { map[e.date] = (map[e.date] || 0) + parseFloat(e.amount) })
+    allExpenses.forEach(e => { map[e.date] = (map[e.date] || 0) + parseFloat(e.amount) })
     return map
-  }, [expenses])
+  }, [allExpenses])
 
   const last7 = useMemo(() => {
     const result = []

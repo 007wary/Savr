@@ -13,6 +13,7 @@ import useAlert from '../../src/hooks/useAlert'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import { formatAmount, getCurrencySymbol, loadCurrency } from '../../src/lib/currency'
 import { getAccounts, addAccount, updateAccount, deleteAccount } from '../../src/services/sqliteService'
+import { clearCache } from '../../src/lib/cache'
 
 const ACCOUNT_TYPES = [
   { label: 'Cash', icon: 'cash-outline', color: '#4CAF50' },
@@ -46,7 +47,6 @@ export default function Accounts() {
       setCurrencyCode(code)
       const user = getCachedUser() || userRef.current || await getUser()
       if (!user) return
-      if (!userRef.current) userRef.current = user
       userRef.current = user
       const data = await getAccounts(user.id)
       setAccounts(data)
@@ -88,6 +88,7 @@ export default function Accounts() {
           balance: parseFloat(balance) || 0,
           currency: currencyCode,
         })
+        await clearCache(`savr_cache_dashboard_${new Date().toISOString().slice(0, 7)}`)
         setAccounts(prev => prev.map(a =>
           a.id === editingAccount.id
             ? { ...a, name: name.trim(), type, balance: parseFloat(balance) || 0 }
@@ -125,6 +126,7 @@ export default function Accounts() {
         onPress: async () => {
           await deleteAccount(account.id)
           setAccounts(prev => prev.filter(a => a.id !== account.id))
+          await clearCache(`savr_cache_dashboard_${new Date().toISOString().slice(0, 7)}`)
         }
       }
     ])

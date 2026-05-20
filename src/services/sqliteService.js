@@ -505,6 +505,11 @@ export async function getTransfers(userId) {
   )
 }
 
+export async function deleteTransfer(id) {
+  const database = await getDB()
+  await runWithRetry(database, `DELETE FROM transfers WHERE id = ?`, [id])
+}
+
 // ─── RECURRING INCOME ───────────────────────────────────────
 export async function addRecurringIncome(userId, { amount, category, note, frequency, next_due }) {
   const database = await getDB()

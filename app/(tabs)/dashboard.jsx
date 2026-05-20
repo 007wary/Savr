@@ -225,22 +225,22 @@ const cacheKey = `savr_cache_dashboard_${offsetMonth}`
 
       if (offsetSnapshot === 0) {
         const allRecentExpenses = await getExpenses(user.id)
-checkWeeklySummary(allRecentExpenses)
-checkBudgetAlerts(filtered, budgets, snapshotMonth).catch(() => {})
-        const currentStreak = (() => {
-          let count = 0
-          for (let i = 0; i < 30; i++) {
-            const d = new Date()
-            d.setDate(d.getDate() - i)
-            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-            if (filtered.some(e => e.date === dateStr)) count++
-            else break
-          }
-          return count
-        })()
+        checkWeeklySummary(allRecentExpenses)
+        checkBudgetAlerts(filtered, budgets, snapshotMonth).catch(() => {})
+        let currentStreak = 0
+        for (let i = 0; i < 30; i++) {
+          const d = new Date()
+          d.setDate(d.getDate() - i)
+          const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          if (allRecentExpenses.some(e => e.date === dateStr)) currentStreak++
+          else break
+        }
+        setStreak(currentStreak)
         import('../../src/lib/notifications').then(({ scheduleStreakReminder }) => {
           scheduleStreakReminder(currentStreak).catch(() => {})
         }).catch(() => {})
+      } else {
+        setStreak(0)
       }
 
       try {
@@ -382,18 +382,7 @@ checkBudgetAlerts(filtered, budgets, snapshotMonth).catch(() => {})
 
   const recent = useMemo(() => expenses.slice(0, 5), [expenses])
 
-  const streak = useMemo(() => {
-    if (!isCurrentMonth) return 0
-    let count = 0
-    for (let i = 0; i < 30; i++) {
-      const d = new Date()
-      d.setDate(d.getDate() - i)
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      if (expenses.some(e => e.date === dateStr)) count++
-      else break
-    }
-    return count
-  }, [expenses, isCurrentMonth])
+  const [streak, setStreak] = useState(0)
 
   useEffect(() => {
     if (!isCurrentMonth || streak === 0) return

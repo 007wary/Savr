@@ -18,7 +18,7 @@ import * as Sharing from 'expo-sharing'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { getExpenses, updateExpense, deleteExpense, deleteRecurring, getRecurring, getIncome, getTransfers, getAccounts } from '../../src/services/sqliteService'
+import { getExpenses, updateExpense, deleteExpense, deleteRecurring, getRecurring, getIncome, deleteIncome, getTransfers, deleteTransfer, getAccounts, updateAccountBalance } from '../../src/services/sqliteService'
 import { scheduleBackup } from '../../src/services/backgroundBackup'
 
 const CACHE_KEY = 'savr_cache_history'
@@ -140,7 +140,7 @@ export default function History() {
       .map(date => ({
         title: date,
         data: groups[date],
-        total: groups[date].reduce((sum, e) => sum + parseFloat(e.amount), 0)
+        total: groups[date].filter(e => e.type !== 'income').reduce((sum, e) => sum + parseFloat(e.amount), 0)
       }))
   }
 
@@ -164,8 +164,7 @@ export default function History() {
       try {
         const user = getCachedUser() || userRef.current || await getUser()
         if (user) {
-          const { getRecurring: getrec } = await import('../../src/services/sqliteService')
-          const recurringItems = await getrec(user.id)
+          const recurringItems = await getRecurring(user.id)
           const recTotal = recurringItems.reduce((sum, r) => sum + parseFloat(r.amount), 0)
           const recCount = recurringItems.length
           await saveCache(dashCacheKey, {
@@ -181,8 +180,9 @@ export default function History() {
     }
   }
 
-  async function handleDelete(id) {
-    showAlert('Delete Expense', 'Are you sure you want to delete this expense?', [
+  async function handleDelete(id, type = 'expense') {
+    const label = type === 'income' ? 'Income' : type === 'transfer' ? 'Transfer' : 'Expense'
+    showAlert(`Delete ${label}`, `Are you sure you want to delete this ${label.toLowerCase()}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete', style: 'destructive',
@@ -196,28 +196,41 @@ export default function History() {
           await clearCache(`savr_cache_budgets_${currentMonth}`)
           await clearCache(`savr_cache_reports_${currentMonth}`)
           try {
-  await deleteExpense(id)
-  // If this was a recurring expense, deactivate the recurring entry too
-  const deletedExpense = (expenses || []).find(e => e.id === id)
-  if (deletedExpense?.recurring_id) {
-    await deleteRecurring(deletedExpense.recurring_id).catch(() => {})
-  } else if (deletedExpense?.is_recurring) {
-    // fallback — find by matching amount and category
-    const user = getCachedUser() || userRef.current || await getUser()
-    if (user) {
-      const recurringItems = await getRecurring(user.id)
-      const match = recurringItems.find(r =>
-        r.amount === deletedExpense.amount && r.category === deletedExpense.category
-      )
-      if (match) await deleteRecurring(match.id).catch(() => {})
-    }
-  }
-  await AsyncStorage.removeItem('savr_last_backup_count')
-  scheduleBackup()
-} catch (e) {
-  setExpenses(expenses)
-  await saveCache(CACHE_KEY, expenses)
-}
+            const deletedItem = (expenses || []).find(e => e.id === id)
+            if (type === 'income') {
+              await deleteIncome(id)
+              if (deletedItem?.account_id) {
+                await updateAccountBalance(deletedItem.account_id, -deletedItem.amount)
+              }
+            } else if (type === 'transfer') {
+              await deleteTransfer(id)
+              if (deletedItem?.from_account_id) {
+                await updateAccountBalance(deletedItem.from_account_id, deletedItem.amount)
+              }
+              if (deletedItem?.to_account_id) {
+                await updateAccountBalance(deletedItem.to_account_id, -deletedItem.amount)
+              }
+            } else {
+              await deleteExpense(id)
+              if (deletedItem?.recurring_id) {
+                await deleteRecurring(deletedItem.recurring_id).catch(() => {})
+              } else if (deletedItem?.is_recurring) {
+                const user = getCachedUser() || userRef.current || await getUser()
+                if (user) {
+                  const recurringItems = await getRecurring(user.id)
+                  const match = recurringItems.find(r =>
+                    r.amount === deletedItem.amount && r.category === deletedItem.category
+                  )
+                  if (match) await deleteRecurring(match.id).catch(() => {})
+                }
+              }
+            }
+            await AsyncStorage.removeItem('savr_last_backup_count')
+            scheduleBackup()
+          } catch (e) {
+            setExpenses(expenses)
+            await saveCache(CACHE_KEY, expenses)
+          }
         }
       }
     ])
@@ -271,8 +284,8 @@ export default function History() {
   async function handleExport() {
     try {
       if (!expenses || expenses.length === 0) return showAlert('No data', 'No expenses to export')
-      const headers = 'Date,Category,Amount,Note\n'
-      const rows = expenses.map(e => `${e.date},${e.category},${e.amount},"${e.note || ''}"`).join('\n')
+      const headers = 'Date,Type,Category,Amount,Note\n'
+      const rows = expenses.map(e => `${e.date},${e.type || 'expense'},${e.category},${e.amount},"${e.note || ''}"`).join('\n')
       const fileUri = FileSystem.cacheDirectory + 'expenses.csv'
       await FileSystem.writeAsStringAsync(fileUri, headers + rows, { encoding: 'utf8' })
       const isAvailable = await Sharing.isAvailableAsync()
@@ -338,8 +351,18 @@ export default function History() {
             {isIncome ? '+' : ''}{formatAmount(item.amount, currencySymbol, currencyCode)}
           </Text>
         </View>
-        {!isIncome && !isTransfer && (
-          <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id)}>
+        {!isTransfer && !isIncome && (
+          <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id, 'expense')}>
+            <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
+          </TouchableOpacity>
+        )}
+        {isIncome && (
+          <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id, 'income')}>
+            <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
+          </TouchableOpacity>
+        )}
+        {isTransfer && (
+          <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id, 'transfer')}>
             <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
           </TouchableOpacity>
         )}
