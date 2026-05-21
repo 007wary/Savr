@@ -255,9 +255,8 @@ export default function AddExpense() {
       router.replace('/(tabs)/dashboard')
       }
     } catch (e) {
-  console.error('SAVR_ERR', e?.message)
-  showAlert('Error', e?.message || 'Unknown error')
-} finally {
+    showAlert('Error', 'Could not save expense. Please try again.')
+  } finally {
       setSubmitting(false)
     }
   }
