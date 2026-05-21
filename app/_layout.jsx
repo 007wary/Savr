@@ -132,6 +132,8 @@ setTimeout(() => {
   }).catch(() => {})
 }, 6000)
 
+          backupOnAppOpen().catch(() => {})
+
         } else {
           // No cached user — wait for Supabase with timeout
           await dbReady
