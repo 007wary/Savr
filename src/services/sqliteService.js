@@ -42,6 +42,7 @@ export const getDB = async () => {
   try {
     opening = SQLite.openDatabaseAsync('savr.db')
     db = await opening
+    await db.execAsync('PRAGMA busy_timeout = 5000;')
     return db
   } finally {
     opening = null
