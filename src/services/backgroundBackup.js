@@ -5,13 +5,15 @@ import { hasDataChanged, backupToDrive } from './driveBackupService'
 let backupTimer = null
 
 export async function backupOnAppOpen() {
-  try {
-    const user = getCachedUser()
-    if (!user) return
-    const changed = await hasDataChanged(user.id)
-    if (!changed) return
-    await backupToDrive()
-  } catch {}
+  setTimeout(async () => {
+    try {
+      const user = getCachedUser()
+      if (!user) return
+      const changed = await hasDataChanged(user.id)
+      if (!changed) return
+      await backupToDrive()
+    } catch {}
+  }, 30 * 1000)
 }
 
 export function scheduleBackup() {
@@ -25,5 +27,5 @@ export function scheduleBackup() {
       await backupToDrive()
     } catch {}
     backupTimer = null
-  }, 60 * 1000)
+  }, 30 * 1000)
 }
