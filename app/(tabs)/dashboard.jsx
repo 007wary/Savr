@@ -119,8 +119,8 @@ const isCurrentMonth = true
 
   async function fetchData(forceRefresh = false) {
     fetchDataRef.current = fetchData
-    const { month: offsetMonth } = getMonthInfo(monthOffset)
-const cacheKey = `savr_cache_dashboard_${offsetMonth}`
+    const { month: offsetMonth } = getMonthInfo(0)
+    const cacheKey = `savr_cache_dashboard_${offsetMonth}`
     setMonthLoading(true)
     if (!forceRefresh) {
       const cached = await loadCache(cacheKey)
@@ -140,11 +140,11 @@ const cacheKey = `savr_cache_dashboard_${offsetMonth}`
         if (cached.userInitials) setUserInitials(cached.userInitials)
         setLoading(false)
         setMonthLoading(false)
-        setTimeout(() => syncFromSQLite(cacheKey, monthOffset), 100)
+        setTimeout(() => syncFromSQLite(cacheKey, 0), 100)
         return
       }
     }
-    await syncFromSQLite(cacheKey, monthOffset)
+    await syncFromSQLite(cacheKey, 0)
   }
 
   async function syncFromSQLite(cacheKey, offsetSnapshot) {

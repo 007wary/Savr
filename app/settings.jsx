@@ -433,7 +433,7 @@ if (avatar) {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => Linking.openURL('https://007wary.github.io')}
+          onPress={() => Linking.openURL('https://savrappindia.vercel.app')}
         >
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#00BCD422' }]}>
