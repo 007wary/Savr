@@ -242,29 +242,6 @@ export default function Reports() {
     <View style={styles.outerContainer}>
       <View style={styles.stickyHeader}>
         <Text style={styles.heading}>Reports</Text>
-        <View style={styles.monthNav}>
-          <TouchableOpacity style={styles.monthNavBtn} onPress={() => setMonthOffset(o => o - 1)}>
-            <Ionicons name="chevron-back" size={20} color={COLORS.text} />
-          </TouchableOpacity>
-          <View style={styles.monthNavCenter}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={styles.monthNavText}>{monthName}</Text>
-              {monthLoading && <ActivityIndicator size="small" color={COLORS.accent} />}
-            </View>
-            {!isCurrentMonth && (
-              <TouchableOpacity onPress={() => setMonthOffset(0)}>
-                <Text style={styles.monthNavBack}>Back to today</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <TouchableOpacity
-            style={[styles.monthNavBtn, isCurrentMonth && styles.monthNavBtnDisabled]}
-            onPress={() => { if (!isCurrentMonth) setMonthOffset(o => o + 1) }}
-            disabled={isCurrentMonth}
-          >
-            <Ionicons name="chevron-forward" size={20} color={isCurrentMonth ? COLORS.border : COLORS.text} />
-          </TouchableOpacity>
-        </View>
       </View>
       <ScrollView
         style={styles.scrollView}
@@ -273,6 +250,30 @@ export default function Reports() {
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchData(true) }} tintColor={COLORS.accent} />
         }
       >
+
+      <View style={styles.monthNav}>
+        <TouchableOpacity style={styles.monthNavBtn} onPress={() => setMonthOffset(o => o - 1)}>
+          <Ionicons name="chevron-back" size={18} color={COLORS.text} />
+        </TouchableOpacity>
+        <View style={styles.monthNavCenter}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={styles.monthNavText}>{monthName}</Text>
+            {monthLoading && <ActivityIndicator size="small" color={COLORS.accent} />}
+          </View>
+          {!isCurrentMonth && (
+            <TouchableOpacity onPress={() => setMonthOffset(0)}>
+              <Text style={styles.monthNavBack}>Back to today</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        <TouchableOpacity
+          style={[styles.monthNavBtn, isCurrentMonth && styles.monthNavBtnDisabled]}
+          onPress={() => { if (!isCurrentMonth) setMonthOffset(o => o + 1) }}
+          disabled={isCurrentMonth}
+        >
+          <Ionicons name="chevron-forward" size={18} color={isCurrentMonth ? COLORS.border : COLORS.text} />
+        </TouchableOpacity>
+      </View>
 
       {expenses.length === 0 ? (
         <View style={styles.empty}>
@@ -667,12 +668,12 @@ const styles = StyleSheet.create({
   bigNote: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
   bigDate: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
   bigAmount: { fontSize: 20, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5 },
-  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 14, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
+  monthNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 12, padding: 8, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   monthNavBtn: { padding: 4 },
   monthNavBtnDisabled: { opacity: 0.3 },
   monthNavCenter: { alignItems: 'center' },
-  monthNavText: { fontSize: 16, fontWeight: '700', color: COLORS.text, letterSpacing: -0.3 },
-  monthNavBack: { fontSize: 12, color: COLORS.accent, marginTop: 4 },
+  monthNavText: { fontSize: 13, fontWeight: '700', color: COLORS.text, letterSpacing: -0.3 },
+  monthNavBack: { fontSize: 11, color: COLORS.accent, marginTop: 2 },
   empty: { alignItems: 'center', marginTop: 80 },
   emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
   emptySub: { fontSize: 14, color: COLORS.textMuted, marginTop: 6 },
