@@ -2,7 +2,7 @@
   "expo": {
     "name": "Savr",
     "slug": "savr",
-    "version": "1.9.3",
+    "version": "1.9.4",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -19,7 +19,7 @@
       },
       "package": "com.saver.savr",
       "backgroundColor": "#0F0F0F",
-      "versionCode": 20,
+      "versionCode": 21,
       "targetSdkVersion": 35,
       "googleMobileAdsAppId": "ca-app-pub-6010190127310138~6262367655",
       "permissions": [

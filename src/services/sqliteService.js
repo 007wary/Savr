@@ -31,14 +31,7 @@ async function runWithRetry(database, sql, params = []) {
 
 export const getDB = async () => {
   if (opening) return opening
-  if (db) {
-    try {
-      await db.getFirstAsync('SELECT 1')
-      return db
-    } catch {
-      db = null
-    }
-  }
+  if (db) return db
   try {
     opening = SQLite.openDatabaseAsync('savr.db')
     db = await opening
@@ -54,7 +47,7 @@ export const initializeDatabase = async () => {
 
   await database.execAsync(`
     PRAGMA journal_mode = WAL;
-    PRAGMA busy_timeout = 2000;
+    PRAGMA busy_timeout = 5000;
 
     CREATE TABLE IF NOT EXISTS expenses (
       id TEXT PRIMARY KEY,

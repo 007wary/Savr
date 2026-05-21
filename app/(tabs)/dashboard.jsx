@@ -171,13 +171,13 @@ const isCurrentMonth = true
           await AsyncStorage.setItem('savr_avatar_url', avatar)
         } catch {}
       }
-      const symbol = await getCurrencySymbol()
-      const code = await loadCurrency()
       const lastMonthInfo = getMonthInfo(offsetSnapshot - 1)
       const todayDate = new Date()
       const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`
       const { month: snapshotMonth } = getMonthInfo(offsetSnapshot)
-      const [currentExpenses, lastTotal, recurringItems, incomeTotal, accTotal, todayIncomeTotal, budgets] = await Promise.all([
+      const [symbol, code, currentExpenses, lastTotal, recurringItems, incomeTotal, accTotal, todayIncomeTotal, budgets, allRecentExpenses, goal] = await Promise.all([
+        getCurrencySymbol(),
+        loadCurrency(),
         getExpenses(user.id, { month: snapshotMonth }),
         getMonthlyTotal(user.id, lastMonthInfo.month),
         getRecurring(user.id),
@@ -185,6 +185,8 @@ const isCurrentMonth = true
         getAccountsTotal(user.id),
         getTodayIncomeTotal(user.id, todayStr),
         getBudgets(user.id, snapshotMonth),
+        getExpenses(user.id),
+        loadGoal(user.id),
       ])
       const filtered = sortExpenses(currentExpenses)
       const now = new Date()
@@ -200,7 +202,7 @@ const isCurrentMonth = true
       const recTotal = recurringItems.reduce((sum, r) => sum + parseFloat(r.amount), 0)
       const recCount = recurringItems.length
 
-      await saveCache(cacheKey, {
+      saveCache(cacheKey, {
         expenses: filtered, userName: firstName, lastMonthTotal: lastTotal,
         daysInMonth: daysElapsed, currencySymbol: symbol, currencyCode: code,
         recurringTotal: recTotal, recurringCount: recCount, monthlyIncome: incomeTotal, accountsTotal: accTotal, todayIncome: todayIncomeTotal, avatarUrl: avatar, userInitials: initials,
@@ -219,11 +221,9 @@ const isCurrentMonth = true
       setMonthlyIncome(incomeTotal)
       setAccountsTotal(accTotal)
       setTodayIncome(todayIncomeTotal)
-      const goal = await loadGoal(user.id)
       if (goal !== null) setSpendingGoal(goal)
 
       if (offsetSnapshot === 0) {
-        const allRecentExpenses = await getExpenses(user.id)
         checkWeeklySummary(allRecentExpenses)
         checkBudgetAlerts(filtered, budgets, snapshotMonth).catch(() => {})
         let currentStreak = 0

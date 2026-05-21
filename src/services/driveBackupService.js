@@ -21,8 +21,10 @@ function backupPayloadHasRows(data) {
 
 async function getAccessToken() {
   try {
-    const tokenTime = await AsyncStorage.getItem('savr_google_token_time')
-    const storedToken = await getGoogleAccessToken()
+    const [tokenTime, storedToken] = await Promise.all([
+      AsyncStorage.getItem('savr_google_token_time'),
+      getGoogleAccessToken(),
+    ])
     if (storedToken && tokenTime) {
       const age = Date.now() - parseInt(tokenTime, 10)
       if (age < 55 * 60 * 1000) return storedToken
@@ -138,14 +140,16 @@ async function findBackupFileId(accessToken, folderId) {
 
 async function getAllDataFromSQLite(userId) {
   const db = await getDB()
-  const expenses = await db.getAllAsync('SELECT * FROM expenses WHERE user_id = ?', [userId])
-  const budgets = await db.getAllAsync('SELECT * FROM budgets WHERE user_id = ?', [userId])
-  const recurring = await db.getAllAsync('SELECT * FROM recurring_expenses WHERE user_id = ?', [userId])
-  const goals = await db.getAllAsync('SELECT * FROM spending_goals WHERE user_id = ?', [userId])
-  const accounts = await db.getAllAsync('SELECT * FROM accounts WHERE user_id = ?', [userId])
-  const income = await db.getAllAsync('SELECT * FROM income WHERE user_id = ?', [userId])
-  const transfers = await db.getAllAsync('SELECT * FROM transfers WHERE user_id = ?', [userId])
-  const recurringIncome = await db.getAllAsync('SELECT * FROM recurring_income WHERE user_id = ?', [userId])
+  const [expenses, budgets, recurring, goals, accounts, income, transfers, recurringIncome] = await Promise.all([
+    db.getAllAsync('SELECT * FROM expenses WHERE user_id = ?', [userId]),
+    db.getAllAsync('SELECT * FROM budgets WHERE user_id = ?', [userId]),
+    db.getAllAsync('SELECT * FROM recurring_expenses WHERE user_id = ?', [userId]),
+    db.getAllAsync('SELECT * FROM spending_goals WHERE user_id = ?', [userId]),
+    db.getAllAsync('SELECT * FROM accounts WHERE user_id = ?', [userId]),
+    db.getAllAsync('SELECT * FROM income WHERE user_id = ?', [userId]),
+    db.getAllAsync('SELECT * FROM transfers WHERE user_id = ?', [userId]),
+    db.getAllAsync('SELECT * FROM recurring_income WHERE user_id = ?', [userId]),
+  ])
   return { expenses, budgets, recurring, goals, accounts, income, transfers, recurringIncome }
 }
 
@@ -274,12 +278,13 @@ export async function backupToDrive() {
     const user = getCachedUser() || await getUser()
     if (!user) return { success: false, error: 'No user found' }
 
-    const data = await getAllDataFromSQLite(user.id)
+    const [data, accessToken] = await Promise.all([
+      getAllDataFromSQLite(user.id),
+      getAccessToken(),
+    ])
     if (!backupPayloadHasRows(data)) {
       return { success: false, error: 'NO_DATA' }
     }
-
-    const accessToken = await getAccessToken()
     if (!accessToken) return { success: false, error: 'NO_TOKEN' }
 
     const isValid = await verifyToken(accessToken)

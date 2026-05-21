@@ -39,8 +39,10 @@ export default function RootLayout() {
       clearExpiredCache().catch(() => {})
 
       // Check cached user immediately before anything else
-      const cachedUser = await loadCachedUser()
-      const onboardingDoneRaw = await AsyncStorage.getItem('savr_onboarding_done')
+      const [cachedUser, onboardingDoneRaw] = await Promise.all([
+        loadCachedUser(),
+        AsyncStorage.getItem('savr_onboarding_done'),
+      ])
       setOnboardingDone(onboardingDoneRaw === 'true')
 
       // Initialize database in parallel — don't block startup
