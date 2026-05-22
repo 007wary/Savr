@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router'
 import { View, StyleSheet } from 'react-native'
+import { useEffect } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS } from '../../src/constants/theme'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -20,7 +21,9 @@ function TabIcon({ name, color, focused }) {
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets()
-NavigationBar.setBackgroundColorAsync(COLORS.bg)
+useEffect(() => {
+  NavigationBar.setBackgroundColorAsync(COLORS.bg)
+}, [])
 
   return (
     <Tabs
