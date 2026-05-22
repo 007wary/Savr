@@ -34,7 +34,14 @@
       "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
-      "expo-navigation-bar",
+      [
+  "expo-navigation-bar",
+  {
+    "position": "absolute",
+    "visibility": "visible",
+    "backgroundColor": "#0F0F0F"
+  }
+],
       [
         "react-native-google-mobile-ads",
         {
