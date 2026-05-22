@@ -2,7 +2,7 @@
   "expo": {
     "name": "Savr",
     "slug": "savr",
-    "version": "1.9.4",
+    "version": "1.9.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -20,7 +20,7 @@
       "navigationBarColor": "#0F0F0F",
       "package": "com.saver.savr",
       "backgroundColor": "#0F0F0F",
-      "versionCode": 21,
+      "versionCode": 22,
       "targetSdkVersion": 35,
       "googleMobileAdsAppId": "ca-app-pub-6010190127310138~6262367655",
       "permissions": [
@@ -34,6 +34,7 @@
       "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
+      "expo-navigation-bar",
       [
         "react-native-google-mobile-ads",
         {
