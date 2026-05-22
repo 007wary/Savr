@@ -17,6 +17,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
+      "navigationBarColor": "#0F0F0F",
       "package": "com.saver.savr",
       "backgroundColor": "#0F0F0F",
       "versionCode": 21,
