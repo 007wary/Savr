@@ -36,6 +36,8 @@ function getLast3MonthKeys() {
 
 export default function Budgets() {
   const monthName = getMonthName()
+const currentMonth = getCurrentMonth()
+const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
 
   const [budgets, setBudgets] = useState([])
   const [expenses, setExpenses] = useState([])

@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router'
 import { View, StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { COLORS } from '../../src/constants/theme'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'   // ADD THIS
 
 function TabIcon({ name, color, focused }) {
   return (
@@ -17,6 +18,8 @@ function TabIcon({ name, color, focused }) {
 }
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets()   // ADD THIS
+
   return (
     <Tabs
       lazy={false}
@@ -27,8 +30,8 @@ export default function TabsLayout() {
           backgroundColor: COLORS.card,
           borderTopColor: COLORS.border,
           borderTopWidth: 1,
-          height: 68,
-          paddingBottom: 10,
+          height: 68 + insets.bottom,        // CHANGED
+          paddingBottom: 10 + insets.bottom,  // CHANGED
           paddingTop: 6,
           elevation: 0,
           shadowOpacity: 0,
