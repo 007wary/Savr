@@ -1,7 +1,39 @@
+import { useMemo } from 'react'
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native'
-import { COLORS } from '../constants/theme'
+import { useTheme } from '../lib/themeContext'
 
 export default function CustomAlert({ visible, title, message, buttons, onClose }) {
+  const { COLORS } = useTheme()
+
+  const styles = useMemo(() => StyleSheet.create({
+    overlay: {
+      flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
+      justifyContent: 'center', alignItems: 'center', padding: 32,
+    },
+    box: {
+      backgroundColor: COLORS.card, borderRadius: 20,
+      padding: 24, width: '100%',
+      borderWidth: 1, borderColor: COLORS.border,
+    },
+    title: {
+      fontSize: 18, fontWeight: '700', color: COLORS.text,
+      marginBottom: 8, textAlign: 'center',
+    },
+    message: {
+      fontSize: 14, color: COLORS.textMuted, textAlign: 'center',
+      lineHeight: 22, marginBottom: 24,
+    },
+    btnRow: { flexDirection: 'row', gap: 10 },
+    btn: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center' },
+    btnDefault: { backgroundColor: COLORS.accent },
+    btnCancel: { backgroundColor: COLORS.cardAlt, borderWidth: 1, borderColor: COLORS.border },
+    btnDestructive: { backgroundColor: COLORS.accentRed + '22', borderWidth: 1, borderColor: COLORS.accentRed + '44' },
+    btnText: { fontSize: 15, fontWeight: '700' },
+    btnTextDefault: { color: '#fff' },
+    btnTextCancel: { color: COLORS.textMuted },
+    btnTextDestructive: { color: COLORS.accentRed },
+  }), [COLORS])
+
   if (!visible) return null
 
   const handlePress = (btn) => {
@@ -54,32 +86,3 @@ export default function CustomAlert({ visible, title, message, buttons, onClose 
     </Modal>
   )
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center', alignItems: 'center', padding: 32,
-  },
-  box: {
-    backgroundColor: COLORS.card, borderRadius: 20,
-    padding: 24, width: '100%',
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  title: {
-    fontSize: 18, fontWeight: '700', color: COLORS.text,
-    marginBottom: 8, textAlign: 'center',
-  },
-  message: {
-    fontSize: 14, color: COLORS.textMuted, textAlign: 'center',
-    lineHeight: 22, marginBottom: 24,
-  },
-  btnRow: { flexDirection: 'row', gap: 10 },
-  btn: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center' },
-  btnDefault: { backgroundColor: COLORS.accent },
-  btnCancel: { backgroundColor: COLORS.cardAlt, borderWidth: 1, borderColor: COLORS.border },
-  btnDestructive: { backgroundColor: COLORS.accentRed + '22', borderWidth: 1, borderColor: COLORS.accentRed + '44' },
-  btnText: { fontSize: 15, fontWeight: '700' },
-  btnTextDefault: { color: '#fff' },
-  btnTextCancel: { color: COLORS.textMuted },
-  btnTextDestructive: { color: COLORS.accentRed },
-})
