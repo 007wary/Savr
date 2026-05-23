@@ -1,14 +1,16 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, SCREEN } from '../src/constants/theme'
+import { SCREEN } from '../src/constants/theme'
+import { useTheme } from '../src/lib/themeContext'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { checkBackupExists } from '../src/services/driveBackupService'
 
 export default function ManageDataScreen() {
+  const { COLORS } = useTheme()
   const [lastBackup, setLastBackup] = useState(null)
   const router = useRouter()
 
@@ -37,6 +39,20 @@ ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: tr
       return 'No backup yet'
     }
   }
+
+  const styles = useMemo(() => StyleSheet.create({
+    container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24, paddingHorizontal: SCREEN.paddingHorizontal },
+    backBtn: { padding: 4 },
+    heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
+    card: {},
+    row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: SCREEN.paddingHorizontal },
+    rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
+    rowIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+    rowTitle: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
+    rowSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 1 },
+    divider: { height: 1, backgroundColor: COLORS.border },
+  }), [COLORS])
 
   return (
     <View style={styles.container}>
@@ -83,17 +99,3 @@ ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: tr
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24, paddingHorizontal: SCREEN.paddingHorizontal },
-  backBtn: { padding: 4 },
-  heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
-  card: {},
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: SCREEN.paddingHorizontal },
-  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
-  rowIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  rowTitle: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
-  rowSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 1 },
-  divider: { height: 1, backgroundColor: COLORS.border },
-})

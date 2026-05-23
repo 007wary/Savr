@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import {
   View, Text, StyleSheet,
   TouchableOpacity, RefreshControl, TextInput
@@ -6,7 +6,8 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, CATEGORIES, SCREEN } from '../src/constants/theme'
+import { CATEGORIES, SCREEN } from '../src/constants/theme'
+import { useTheme } from '../src/lib/themeContext'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../src/lib/currency'
 import { getUser, getCachedUser } from '../src/lib/auth'
 import CustomAlert from '../src/components/CustomAlert'
@@ -30,6 +31,7 @@ const INCOME_CATEGORIES = [
 ]
 
 function FrequencyBadge({ frequency }) {
+  const { COLORS } = useTheme()
   const colors = { daily: COLORS.accentGreen, weekly: COLORS.accentYellow, monthly: COLORS.accent }
   const color = colors[frequency] || COLORS.accent
   return (
@@ -40,6 +42,7 @@ function FrequencyBadge({ frequency }) {
 }
 
 export default function RecurringScreen() {
+  const { COLORS } = useTheme()
   const [activeTab, setActiveTab] = useState('expense')
   const [activeItems, setActiveItems] = useState([])
   const [inactiveItems, setInactiveItems] = useState([])
@@ -408,7 +411,7 @@ export default function RecurringScreen() {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = useMemo(() => StyleSheet.create({
   container: { backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
   backBtn: { padding: 4 },
@@ -450,4 +453,4 @@ const styles = StyleSheet.create({
   bottomTabRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border, height: 80, paddingBottom: 24 },
   bottomTabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 6 },
   bottomTabText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
-})
+}), [COLORS])

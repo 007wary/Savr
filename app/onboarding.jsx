@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, Dimensions, StatusBar
@@ -6,7 +6,7 @@ import {
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
-import { COLORS, SCREEN } from '../src/constants/theme'
+import { useTheme } from '../src/lib/themeContext'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const { width } = Dimensions.get('window')
@@ -51,6 +51,7 @@ const SLIDES = [
 ]
 
 export default function Onboarding() {
+  const { COLORS } = useTheme()
   const [currentIndex, setCurrentIndex] = useState(0)
   const scrollRef = useRef(null)
   const router = useRouter()
@@ -187,7 +188,7 @@ export default function Onboarding() {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = useMemo(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
   skipBtn: {
     position: 'absolute', top: 56, right: 24, zIndex: 10,
@@ -251,4 +252,4 @@ const styles = StyleSheet.create({
   },
   nextText: { fontSize: 17, fontWeight: '800', color: '#fff' },
   pageCounter: { fontSize: 12, color: COLORS.textMuted },
-})
+}), [COLORS])
