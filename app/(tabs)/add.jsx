@@ -199,6 +199,7 @@ export default function AddExpense() {
           note: expenseData.note,
           frequency,
           next_due: expenseData.date,
+          account_id: selectedAccountId,
         })
         const { processDueRecurring } = await import('../../src/lib/recurring')
         await processDueRecurring(user.id)
@@ -278,6 +279,7 @@ export default function AddExpense() {
           note: incomeData.note,
           frequency: incomeFrequency,
           next_due: incomeData.date,
+          account_id: selectedAccountId,
         })
         const { processRecurringIncome } = await import('../../src/lib/recurring')
         await processRecurringIncome(user.id)

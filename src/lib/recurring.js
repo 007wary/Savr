@@ -1,4 +1,4 @@
-import { getRecurring, addExpense, updateRecurringAfterLog } from '../services/sqliteService'
+import { getRecurring, addExpense, updateRecurringAfterLog, updateAccountBalance } from '../services/sqliteService'
 
 let isProcessing = false
 
@@ -36,7 +36,9 @@ export async function processDueRecurring(userId) {
             date: currentDue,
             is_recurring: 1,
             recurring_id: item.id,
+            account_id: item.account_id || null,
           })
+          if (item.account_id) await updateAccountBalance(item.account_id, -item.amount)
 
           lastLogged = currentDue
           currentDue = calculateNextDue(currentDue, item.frequency)
@@ -92,7 +94,9 @@ export async function processRecurringIncome(userId) {
             category: item.category,
             note: item.note || `Auto: ${item.category}`,
             date: currentDue,
+            account_id: item.account_id || null,
           })
+          if (item.account_id) await updateAccountBalance(item.account_id, item.amount)
 
           lastLogged = currentDue
           currentDue = calculateNextDue(currentDue, item.frequency)

@@ -45,6 +45,14 @@ export const getDB = async () => {
 export const initializeDatabase = async () => {
   const database = await getDB()
 
+  // Migration: add account_id to recurring tables if missing
+  try {
+    await database.execAsync(`ALTER TABLE recurring_expenses ADD COLUMN account_id TEXT`)
+  } catch {}
+  try {
+    await database.execAsync(`ALTER TABLE recurring_income ADD COLUMN account_id TEXT`)
+  } catch {}
+
   await database.execAsync(`
     PRAGMA journal_mode = WAL;
     PRAGMA busy_timeout = 5000;
@@ -279,14 +287,14 @@ export async function getRecurring(userId) {
   )
 }
 
-export async function addRecurring(userId, { amount, category, note, frequency, next_due }) {
+export async function addRecurring(userId, { amount, category, note, frequency, next_due, account_id = null }) {
   const database = await getDB()
   const newId = id()
   const ts = now()
   await runWithRetry(database,
-    `INSERT INTO recurring_expenses (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, null, 1, ?, ?)`,
-    [newId, userId, amount, category, note || null, frequency, next_due, ts, ts]
+    `INSERT INTO recurring_expenses (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, null, 1, ?, ?, ?)`,
+    [newId, userId, amount, category, note || null, frequency, next_due, account_id, ts, ts]
   )
   return newId
 }
@@ -508,14 +516,14 @@ export async function deleteTransfer(id) {
 }
 
 // ─── RECURRING INCOME ───────────────────────────────────────
-export async function addRecurringIncome(userId, { amount, category, note, frequency, next_due }) {
+export async function addRecurringIncome(userId, { amount, category, note, frequency, next_due, account_id = null }) {
   const database = await getDB()
   const newId = id()
   const ts = now()
   await runWithRetry(database,
-    `INSERT INTO recurring_income (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, null, 1, ?, ?)`,
-    [newId, userId, amount, category, note || null, frequency, next_due, ts, ts]
+    `INSERT INTO recurring_income (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, null, 1, ?, ?, ?)`,
+    [newId, userId, amount, category, note || null, frequency, next_due, account_id, ts, ts]
   )
   return newId
 }
