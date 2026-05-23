@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../src/lib/supabase'
 import { View, AppState } from 'react-native'
-import { COLORS } from '../src/constants/theme'
+import { ThemeProvider, useTheme } from '../src/lib/themeContext'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
 import * as Linking from 'expo-linking'
@@ -18,12 +18,11 @@ import { isSigningIn } from '../src/lib/authState'
 import * as NavigationBar from 'expo-navigation-bar'
 
 SplashScreen.preventAutoHideAsync()
-NavigationBar.setBackgroundColorAsync(COLORS.bg)
-NavigationBar.setButtonStyleAsync('light')
 
 const LAST_RECURRING_CHECK_KEY = 'savr_last_recurring_check'
 
-export default function RootLayout() {
+function RootLayoutInner() {
+  const { COLORS } = useTheme()
   const [session, setSession] = useState(undefined)
   const [onboardingDone, setOnboardingDone] = useState(undefined)
   const [transitioning, setTransitioning] = useState(false)
@@ -31,6 +30,11 @@ export default function RootLayout() {
   const initialSessionLoadedRef = useRef(false)
   const router = useRouter()
   const segments = useSegments()
+
+  useEffect(() => {
+    NavigationBar.setBackgroundColorAsync(COLORS.bg).catch(() => {})
+    NavigationBar.setButtonStyleAsync(COLORS.text === '#FFFFFF' ? 'light' : 'dark').catch(() => {})
+  }, [COLORS])
 
   useEffect(() => {
     const screen = segments.join('/')
@@ -357,5 +361,13 @@ try {
       <Stack.Screen name="manage-data" options={{ animation: 'default' }} />
       <Stack.Screen name="settings" options={{ animation: 'default' }} />
     </Stack>
+  )
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <RootLayoutInner />
+    </ThemeProvider>
   )
 }
