@@ -652,7 +652,7 @@ const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   info: { flex: 1 },
-  category: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2 },
+  category: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2, flexShrink: 1 },
   note: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   right: { alignItems: 'flex-end', marginRight: 10 },
   amount: { fontSize: 15, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5 },
