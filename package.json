@@ -1,6 +1,6 @@
 {
   "name": "Savr",
-  "version": "1.4.8",
+  "version": "1.4.9",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",

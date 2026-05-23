@@ -15,8 +15,11 @@ import { Analytics, setUserId } from '../src/lib/analytics'
 import crashlytics from '@react-native-firebase/crashlytics'
 import { setCachedUser, getCachedUser, loadCachedUser } from '../src/lib/auth'
 import { isSigningIn } from '../src/lib/authState'
+import * as NavigationBar from 'expo-navigation-bar'
 
 SplashScreen.preventAutoHideAsync()
+NavigationBar.setBackgroundColorAsync(COLORS.bg)
+NavigationBar.setButtonStyleAsync('light')
 
 const LAST_RECURRING_CHECK_KEY = 'savr_last_recurring_check'
 
