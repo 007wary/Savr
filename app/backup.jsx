@@ -23,7 +23,6 @@ export default function BackupScreen() {
   const [backingUp, setBackingUp] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
 
-  // Preload last backup time instantly on mount
   useEffect(() => {
     async function preload() {
       try {
@@ -116,6 +115,30 @@ export default function BackupScreen() {
 
   const backupDate = lastBackup ? formatBackupDate(lastBackup) : null
 
+  const styles = useMemo(() => StyleSheet.create({
+    container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
+    backBtn: { padding: 4 },
+    heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
+    statusCard: { borderRadius: 20, padding: 32, alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
+    statusIconBox: { marginBottom: 16 },
+    statusTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5, marginBottom: 8 },
+    statusSub: { fontSize: 13, color: COLORS.textMuted, textAlign: 'center', lineHeight: 20 },
+    infoCard: { backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16, overflow: 'hidden' },
+    infoRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
+    infoIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+    infoText: { flex: 1 },
+    infoLabel: { fontSize: 11, color: COLORS.textMuted, letterSpacing: 0.5, marginBottom: 2 },
+    infoValue: { fontSize: 15, color: COLORS.text, fontWeight: '600' },
+    infoSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+    divider: { height: 1, backgroundColor: COLORS.border, marginLeft: 66 },
+    backupBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.accent, borderRadius: 14, padding: 18, marginBottom: 16 },
+    backupBtnDisabled: { backgroundColor: COLORS.cardAlt, borderWidth: 1, borderColor: COLORS.border },
+    backupBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+    noteCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: COLORS.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border },
+    noteText: { flex: 1, fontSize: 12, color: COLORS.textMuted, lineHeight: 18 },
+  }), [COLORS])
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -126,8 +149,6 @@ export default function BackupScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
-
-        {/* Last Backup Info */}
         <View style={styles.infoCard}>
           <View style={styles.infoRow}>
             <View style={[styles.infoIconBox, { backgroundColor: '#34C75922' }]}>
@@ -149,7 +170,6 @@ export default function BackupScreen() {
           </View>
         </View>
 
-        {/* Backup Now Button */}
         <TouchableOpacity
           style={[
             styles.backupBtn,
@@ -169,14 +189,12 @@ export default function BackupScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* Info Note */}
         <View style={styles.noteCard}>
           <Ionicons name="information-circle-outline" size={16} color={COLORS.textMuted} />
           <Text style={styles.noteText}>
             Your data is automatically backed up whenever you add, edit, or delete a transaction, and each time you open the app.
           </Text>
         </View>
-
       </ScrollView>
 
       <CustomAlert
@@ -189,27 +207,3 @@ export default function BackupScreen() {
     </View>
   )
 }
-
-const styles = useMemo(() => StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
-  backBtn: { padding: 4 },
-  heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
-  statusCard: { borderRadius: 20, padding: 32, alignItems: 'center', marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
-  statusIconBox: { marginBottom: 16 },
-  statusTitle: { fontSize: 22, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5, marginBottom: 8 },
-  statusSub: { fontSize: 13, color: COLORS.textMuted, textAlign: 'center', lineHeight: 20 },
-  infoCard: { backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16, overflow: 'hidden' },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
-  infoIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  infoText: { flex: 1 },
-  infoLabel: { fontSize: 11, color: COLORS.textMuted, letterSpacing: 0.5, marginBottom: 2 },
-  infoValue: { fontSize: 15, color: COLORS.text, fontWeight: '600' },
-  infoSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  divider: { height: 1, backgroundColor: COLORS.border, marginLeft: 66 },
-  backupBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.accent, borderRadius: 14, padding: 18, marginBottom: 16 },
-  backupBtnDisabled: { backgroundColor: COLORS.cardAlt, borderWidth: 1, borderColor: COLORS.border },
-  backupBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  noteCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: COLORS.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border },
-  noteText: { flex: 1, fontSize: 12, color: COLORS.textMuted, lineHeight: 18 },
-}), [COLORS])

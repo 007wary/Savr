@@ -35,8 +35,8 @@ function FrequencyBadge({ frequency }) {
   const colors = { daily: COLORS.accentGreen, weekly: COLORS.accentYellow, monthly: COLORS.accent }
   const color = colors[frequency] || COLORS.accent
   return (
-    <View style={[styles.freqBadge, { backgroundColor: color + '22', borderColor: color + '44' }]}>
-      <Text style={[styles.freqBadgeText, { color }]}>{frequency?.charAt(0).toUpperCase() + frequency?.slice(1)}</Text>
+    <View style={{ borderRadius: 6, paddingVertical: 2, paddingHorizontal: 8, borderWidth: 1, backgroundColor: color + '22', borderColor: color + '44' }}>
+      <Text style={{ fontSize: 10, fontWeight: '700', color }}>{frequency?.charAt(0).toUpperCase() + frequency?.slice(1)}</Text>
     </View>
   )
 }
@@ -328,6 +328,50 @@ export default function RecurringScreen() {
   const currentInactive = activeTab === 'expense' ? inactiveItems : inactiveIncomeItems
   const isIncome = activeTab === 'income'
 
+  const styles = useMemo(() => StyleSheet.create({
+    container: { backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
+    header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
+    backBtn: { padding: 4 },
+    heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
+    sectionLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1.2, marginBottom: 12, marginLeft: 4 },
+    emptyCard: { alignItems: 'center', paddingVertical: 40, backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 12 },
+    emptyText: { fontSize: 16, color: COLORS.textMuted, fontWeight: '600', marginTop: 12 },
+    emptySub: { fontSize: 13, color: COLORS.textMuted, marginTop: 4 },
+    card: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border },
+    inactiveCard: { opacity: 0.6 },
+    cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+    cardInfo: { flex: 1 },
+    cardTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+    cardSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+    cardRight: { alignItems: 'flex-end', gap: 4 },
+    cardAmount: { fontSize: 15, fontWeight: '800', color: COLORS.accentGreen },
+    freqBadge: { borderRadius: 6, paddingVertical: 2, paddingHorizontal: 8, borderWidth: 1 },
+    freqBadgeText: { fontSize: 10, fontWeight: '700' },
+    inactiveBadge: { backgroundColor: COLORS.border, borderRadius: 6, paddingVertical: 2, paddingHorizontal: 8 },
+    inactiveBadgeText: { fontSize: 10, color: COLORS.textMuted, fontWeight: '600' },
+    cardActions: { flexDirection: 'row', gap: 10, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border },
+    editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.accent + '22', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: COLORS.accent + '44' },
+    editBtnText: { fontSize: 12, color: COLORS.accent, fontWeight: '600' },
+    deleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.accentRed + '11', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: COLORS.accentRed + '33' },
+    deleteBtnText: { fontSize: 12, color: COLORS.accentRed, fontWeight: '600' },
+    editSection: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border },
+    editLabel: { fontSize: 12, color: COLORS.textMuted, marginBottom: 6, marginTop: 8 },
+    editInput: { backgroundColor: COLORS.cardAlt, borderRadius: 10, padding: 12, color: COLORS.text, fontSize: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 4 },
+    freqRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+    freqBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', backgroundColor: COLORS.cardAlt },
+    freqBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+    freqBtnText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
+    editActions: { flexDirection: 'row', gap: 10 },
+    cancelBtn: { flex: 1, borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
+    cancelBtnText: { color: COLORS.textMuted, fontWeight: '600' },
+    saveBtn: { flex: 1, backgroundColor: COLORS.accent, borderRadius: 10, padding: 12, alignItems: 'center' },
+    saveBtnText: { color: '#fff', fontWeight: '700' },
+    bottomTabRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border, height: 80, paddingBottom: 24 },
+    bottomTabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 6 },
+    bottomTabText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
+  }), [COLORS])
+
   if (loading) {
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal }}>
@@ -410,47 +454,3 @@ export default function RecurringScreen() {
     </View>
   )
 }
-
-const styles = useMemo(() => StyleSheet.create({
-  container: { backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
-  backBtn: { padding: 4 },
-  heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
-  sectionLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1.2, marginBottom: 12, marginLeft: 4 },
-  emptyCard: { alignItems: 'center', paddingVertical: 40, backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 12 },
-  emptyText: { fontSize: 16, color: COLORS.textMuted, fontWeight: '600', marginTop: 12 },
-  emptySub: { fontSize: 13, color: COLORS.textMuted, marginTop: 4 },
-  card: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border },
-  inactiveCard: { opacity: 0.6 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  cardInfo: { flex: 1 },
-  cardTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  cardSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  cardRight: { alignItems: 'flex-end', gap: 4 },
-  cardAmount: { fontSize: 15, fontWeight: '800', color: COLORS.accentGreen },
-  freqBadge: { borderRadius: 6, paddingVertical: 2, paddingHorizontal: 8, borderWidth: 1 },
-  freqBadgeText: { fontSize: 10, fontWeight: '700' },
-  inactiveBadge: { backgroundColor: COLORS.border, borderRadius: 6, paddingVertical: 2, paddingHorizontal: 8 },
-  inactiveBadgeText: { fontSize: 10, color: COLORS.textMuted, fontWeight: '600' },
-  cardActions: { flexDirection: 'row', gap: 10, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border },
-  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.accent + '22', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: COLORS.accent + '44' },
-  editBtnText: { fontSize: 12, color: COLORS.accent, fontWeight: '600' },
-  deleteBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.accentRed + '11', borderRadius: 8, paddingVertical: 6, paddingHorizontal: 12, borderWidth: 1, borderColor: COLORS.accentRed + '33' },
-  deleteBtnText: { fontSize: 12, color: COLORS.accentRed, fontWeight: '600' },
-  editSection: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border },
-  editLabel: { fontSize: 12, color: COLORS.textMuted, marginBottom: 6, marginTop: 8 },
-  editInput: { backgroundColor: COLORS.cardAlt, borderRadius: 10, padding: 12, color: COLORS.text, fontSize: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 4 },
-  freqRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  freqBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', backgroundColor: COLORS.cardAlt },
-  freqBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  freqBtnText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
-  editActions: { flexDirection: 'row', gap: 10 },
-  cancelBtn: { flex: 1, borderRadius: 10, padding: 12, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
-  cancelBtnText: { color: COLORS.textMuted, fontWeight: '600' },
-  saveBtn: { flex: 1, backgroundColor: COLORS.accent, borderRadius: 10, padding: 12, alignItems: 'center' },
-  saveBtnText: { color: '#fff', fontWeight: '700' },
-  bottomTabRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border, height: 80, paddingBottom: 24 },
-  bottomTabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 6 },
-  bottomTabText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
-}), [COLORS])

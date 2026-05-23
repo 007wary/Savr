@@ -82,6 +82,44 @@ export default function Onboarding() {
 
   const slide = SLIDES[currentIndex]
 
+  const styles = useMemo(() => StyleSheet.create({
+    container: { flex: 1, backgroundColor: COLORS.bg },
+    skipBtn: {
+      position: 'absolute', top: 56, right: 24, zIndex: 10,
+      paddingVertical: 8, paddingHorizontal: 16,
+      borderRadius: 20, backgroundColor: COLORS.card,
+      borderWidth: 1, borderColor: COLORS.border,
+    },
+    skipText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
+    slideScroll: { flex: 1 },
+    slide: { width, paddingHorizontal: 28, paddingTop: 90, alignItems: 'center' },
+    iconCircle: {
+      width: 140, height: 140, borderRadius: 70,
+      justifyContent: 'center', alignItems: 'center',
+      marginBottom: 28, shadowColor: '#000',
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.2, shadowRadius: 12, elevation: 8,
+    },
+    iconInner: {
+      width: 110, height: 110, borderRadius: 55,
+      justifyContent: 'center', alignItems: 'center',
+      backgroundColor: 'rgba(255,255,255,0.15)',
+    },
+    title: { fontSize: 26, fontWeight: '900', color: COLORS.text, textAlign: 'center', letterSpacing: -0.8, marginBottom: 12 },
+    subtitle: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: 24, paddingHorizontal: 4 },
+    featureList: { gap: 10, width: '100%' },
+    featureItem: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.card, borderRadius: 14, padding: 14, borderWidth: 1 },
+    featureIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+    featureText: { fontSize: 14, color: COLORS.text, fontWeight: '500', flex: 1 },
+    bottom: { paddingHorizontal: 24, paddingBottom: 44, paddingTop: 16, alignItems: 'center', gap: 14 },
+    dots: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+    dot: { height: 8, borderRadius: 4 },
+    nextBtnGradient: { width: '100%', borderRadius: 16, shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
+    nextBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16 },
+    nextText: { fontSize: 17, fontWeight: '800', color: '#fff' },
+    pageCounter: { fontSize: 12, color: COLORS.textMuted },
+  }), [COLORS])
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
@@ -187,69 +225,3 @@ export default function Onboarding() {
     </View>
   )
 }
-
-const styles = useMemo(() => StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  skipBtn: {
-    position: 'absolute', top: 56, right: 24, zIndex: 10,
-    paddingVertical: 8, paddingHorizontal: 16,
-    borderRadius: 20, backgroundColor: COLORS.card,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  skipText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
-  slideScroll: { flex: 1 },
-  slide: {
-    width,
-    paddingHorizontal: 28,
-    paddingTop: 90,
-    alignItems: 'center',
-  },
-  iconCircle: {
-    width: 140, height: 140, borderRadius: 70,
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2, shadowRadius: 12, elevation: 8,
-  },
-  iconInner: {
-    width: 110, height: 110, borderRadius: 55,
-    justifyContent: 'center', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-  },
-  title: {
-    fontSize: 26, fontWeight: '900', color: COLORS.text,
-    textAlign: 'center', letterSpacing: -0.8, marginBottom: 12,
-  },
-  subtitle: {
-    fontSize: 14, color: COLORS.textMuted, textAlign: 'center',
-    lineHeight: 22, marginBottom: 24, paddingHorizontal: 4,
-  },
-  featureList: { gap: 10, width: '100%' },
-  featureItem: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: COLORS.card, borderRadius: 14,
-    padding: 14, borderWidth: 1,
-  },
-  featureIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  featureText: { fontSize: 14, color: COLORS.text, fontWeight: '500', flex: 1 },
-  bottom: {
-    paddingHorizontal: 24, paddingBottom: 44, paddingTop: 16,
-    alignItems: 'center', gap: 14,
-  },
-  dots: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  dot: { height: 8, borderRadius: 4 },
-  nextBtnGradient: {
-    width: '100%', borderRadius: 16,
-    shadowColor: '#6C63FF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
-  },
-  nextBtn: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 10,
-    padding: 16,
-  },
-  nextText: { fontSize: 17, fontWeight: '800', color: '#fff' },
-  pageCounter: { fontSize: 12, color: COLORS.textMuted },
-}), [COLORS])
