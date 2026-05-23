@@ -13,7 +13,7 @@ export const SCREEN = {
   isTablet: SCREEN_WIDTH >= 600,
 }
 
-export const COLORS = {
+export const DARK_COLORS = {
   bg: '#0F0F0F',
   card: '#1A1A1A',
   cardAlt: '#222222',
@@ -25,6 +25,22 @@ export const COLORS = {
   textMuted: '#888888',
   border: '#2A2A2A',
 }
+
+export const LIGHT_COLORS = {
+  bg: '#FFFFFF',
+  card: '#F5F5F5',
+  cardAlt: '#EEEEEE',
+  accent: '#6C63FF',
+  accentGreen: '#00A880',
+  accentRed: '#E03E3E',
+  accentYellow: '#D49700',
+  text: '#0F0F0F',
+  textMuted: '#777777',
+  border: '#E0E0E0',
+}
+
+// Backward-compat alias — screens still importing COLORS directly won't break
+export const COLORS = DARK_COLORS
 
 export const CATEGORIES = [
   { label: 'Food',          icon: 'restaurant-outline',   color: '#FF6B6B' },
