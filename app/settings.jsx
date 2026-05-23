@@ -32,7 +32,7 @@ export default function Settings() {
   const [budgetAlerts, setBudgetAlerts] = useState(false)
   const [profileModalVisible, setProfileModalVisible] = useState(false)
   const [showCurrencyModal, setShowCurrencyModal] = useState(false)
-  const [currency, setCurrency] = useState('INR')
+  const [currency, setCurrency] = useState('USD')
   const [currencySearch, setCurrencySearch] = useState('')
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
@@ -225,7 +225,7 @@ if (avatar) {
     try {
       const d = new Date(dateStr)
       if (isNaN(d.getTime())) return 'No backup yet — tap Backup Now'
-      return `Last backup: ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+      return `Last backup: ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}`
     } catch {
       return 'No backup yet — tap Backup Now'
     }
@@ -572,7 +572,7 @@ if (avatar) {
             <Text style={styles.label}>Phone Number</Text>
             <TextInput
               style={styles.input}
-              placeholder="+91 00000 00000"
+              placeholder="+1 000 000 0000"
               placeholderTextColor={COLORS.textMuted}
               value={editPhone}
               onChangeText={setEditPhone}

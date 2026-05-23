@@ -104,8 +104,8 @@ export default function BackupScreen() {
       const d = new Date(dateStr)
       if (isNaN(d.getTime())) return null
       return {
-        date: d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }),
-        time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+        date: d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+        time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true }),
       }
     } catch {
       return null

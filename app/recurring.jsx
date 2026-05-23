@@ -47,8 +47,8 @@ export default function RecurringScreen() {
   const [inactiveIncomeItems, setInactiveIncomeItems] = useState([])
   const [refreshing, setRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [currencySymbol, setCurrencySymbol] = useState('₹')
-  const [currencyCode, setCurrencyCode] = useState('INR')
+  const [currencySymbol, setCurrencySymbol] = useState('$')
+  const [currencyCode, setCurrencyCode] = useState('USD')
   const [editingId, setEditingId] = useState(null)
   const [editAmount, setEditAmount] = useState('')
   const [editNote, setEditNote] = useState('')
@@ -97,7 +97,7 @@ export default function RecurringScreen() {
 
   function formatDate(dateStr) {
     if (!dateStr) return 'N/A'
-    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
   async function handleDelete(item) {

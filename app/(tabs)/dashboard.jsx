@@ -82,8 +82,8 @@ export default function Dashboard() {
   const [monthLoading, setMonthLoading] = useState(false)
   const [lastMonthTotal, setLastMonthTotal] = useState(0)
   const [daysInMonth, setDaysInMonth] = useState(1)
-  const [currencySymbol, setCurrencySymbol] = useState('₹')
-  const [currencyCode, setCurrencyCode] = useState('INR')
+  const [currencySymbol, setCurrencySymbol] = useState('$')
+  const [currencyCode, setCurrencyCode] = useState('USD')
   const [spendingGoal, setSpendingGoal] = useState(null)
   const [showGoalModal, setShowGoalModal] = useState(false)
   const [goalInput, setGoalInput] = useState('')
@@ -130,7 +130,7 @@ const isCurrentMonth = true
         setLastMonthTotal(cached.lastMonthTotal)
         setDaysInMonth(cached.daysInMonth)
         setCurrencySymbol(cached.currencySymbol)
-        setCurrencyCode(cached.currencyCode || 'INR')
+        setCurrencyCode(cached.currencyCode || 'USD')
         setRecurringTotal(cached.recurringTotal || 0)
         setRecurringCount(cached.recurringCount || 0)
         setMonthlyIncome(cached.monthlyIncome || 0)
@@ -549,8 +549,8 @@ const isCurrentMonth = true
     <Ionicons name={goalBanner.type === 'first' ? 'flag' : 'checkmark-circle'} size={16} color="#fff" />
     <Text style={styles.goalBannerText}>
       {goalBanner.type === 'first'
-        ? `Goal set! Tracking your ${currencySymbol}${goalBanner.amount.toLocaleString('en-IN')} this month.`
-        : `Goal updated to ${currencySymbol}${goalBanner.amount.toLocaleString('en-IN')}`}
+        ? `Goal set! Tracking your ${currencySymbol}${goalBanner.amount.toLocaleString('en-US')} this month.`
+        : `Goal updated to ${currencySymbol}${goalBanner.amount.toLocaleString('en-US')}`}
     </Text>
   </View>
 )}

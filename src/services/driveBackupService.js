@@ -203,7 +203,7 @@ async function restoreAllDataToSQLite(userId, data) {
       await db.runAsync(
         `INSERT OR REPLACE INTO accounts (id, user_id, name, type, balance, currency, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [a.id, userId, a.name, a.type, a.balance || 0, a.currency || 'INR', a.created_at || now, a.updated_at || now]
+        [a.id, userId, a.name, a.type, a.balance || 0, a.currency || 'USD', a.created_at || now, a.updated_at || now]
       )
     }
 

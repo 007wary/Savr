@@ -33,8 +33,8 @@ export default function History() {
   const [editDate, setEditDate] = useState('')
   const [showEditDatePicker, setShowEditDatePicker] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [currencySymbol, setCurrencySymbol] = useState('₹')
-  const [currencyCode, setCurrencyCode] = useState('INR')
+  const [currencySymbol, setCurrencySymbol] = useState('$')
+  const [currencyCode, setCurrencyCode] = useState('USD')
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [selectedMonth, setSelectedMonth] = useState('All')
@@ -581,7 +581,8 @@ export default function History() {
           <TouchableOpacity style={styles.datePicker} onPress={() => setShowEditDatePicker(true)}>
             <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} style={{ marginRight: 10 }} />
             <Text style={styles.datePickerText}>
-              {editDate ? new Date(editDate + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+              {editDate ? new Date(editDate + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+: ''}
             </Text>
           </TouchableOpacity>
           {showEditDatePicker && (

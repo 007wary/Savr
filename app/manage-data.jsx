@@ -31,7 +31,8 @@ export default function ManageDataScreen() {
     try {
       const d = new Date(dateStr)
       if (isNaN(d.getTime())) return 'No backup yet'
-      return `Last backup: ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+      return `Last backup: ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} at
+${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true })}`
     } catch {
       return 'No backup yet'
     }

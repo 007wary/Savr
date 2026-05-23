@@ -34,8 +34,8 @@ export default function Accounts() {
   const [name, setName] = useState('')
   const [type, setType] = useState('Cash')
   const [balance, setBalance] = useState('')
-  const [currencySymbol, setCurrencySymbol] = useState('₹')
-  const [currencyCode, setCurrencyCode] = useState('INR')
+  const [currencySymbol, setCurrencySymbol] = useState('$')
+  const [currencyCode, setCurrencyCode] = useState('USD')
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const userRef = useRef(null)
 

@@ -124,7 +124,7 @@ export const initializeDatabase = async () => {
       name TEXT NOT NULL,
       type TEXT NOT NULL,
       balance REAL DEFAULT 0,
-      currency TEXT DEFAULT 'INR',
+      currency TEXT DEFAULT 'USD',
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -379,7 +379,7 @@ export async function setMeta(key, value) {
 }
 
 // ─── ACCOUNTS ───────────────────────────────────────────────
-export async function addAccount(userId, { name, type, balance = 0, currency = 'INR' }) {
+export async function addAccount(userId, { name, type, balance = 0, currency = 'USD' }) {
   const database = await getDB()
   const newId = id()
   const ts = now()

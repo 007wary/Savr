@@ -1,79 +1,85 @@
 const CATEGORY_KEYWORDS = {
   'Food': [
-    // Indian food apps
-    'swiggy', 'zomato', 'blinkit', 'zepto', 'dunzo', 'bigbasket',
+    // Food delivery apps
+    'swiggy', 'zomato', 'doordash', 'ubereats', 'grubhub',
+    'deliveroo', 'foodpanda', 'talabat', 'grab food',
     // Fast food
     'mcdonalds', 'kfc', 'dominos', 'pizza', 'burger', 'subway',
-    'starbucks', 'cafe coffee day', 'ccd', 'barista',
+    'starbucks', 'dunkin', 'taco bell', 'wendys', 'chipotle',
+    'popeyes', 'five guys', 'shake shack',
     // General
-    'restaurant', 'cafe', 'hotel', 'dhaba', 'canteen', 'mess',
+    'restaurant', 'cafe', 'canteen', 'diner', 'bistro',
     'food', 'eat', 'lunch', 'dinner', 'breakfast', 'snack',
     'tea', 'coffee', 'juice', 'milk', 'grocery', 'vegetables',
-    'fruits', 'chicken', 'mutton', 'fish', 'rice', 'dal',
-    'biryani', 'idli', 'dosa', 'paratha', 'roti', 'bread',
+    'fruits', 'chicken', 'fish', 'rice', 'bread', 'supermarket',
   ],
 
   'Transport': [
-    // Indian ride apps
-    'uber', 'ola', 'rapido', 'namma yatri', 'auto', 'rickshaw',
+    // Ride apps
+    'uber', 'ola', 'lyft', 'grab', 'bolt', 'rapido',
+    'careem', 'didi', 'gojek',
     // Fuel
-    'petrol', 'diesel', 'fuel', 'cng', 'hp', 'indian oil', 'bharat',
+    'petrol', 'diesel', 'fuel', 'gas station', 'shell',
+    'bp', 'exxon', 'chevron', 'total', 'enoc',
     // Public transport
-    'metro', 'bus', 'train', 'local', 'ferry',
+    'metro', 'bus', 'train', 'ferry', 'tram', 'subway',
     // Travel booking
-    'irctc', 'redbus', 'makemytrip', 'goibibo', 'abhibus',
-    'indigo', 'spicejet', 'air india', 'vistara', 'flight',
+    'makemytrip', 'expedia', 'booking.com', 'kayak',
+    'indigo', 'emirates', 'etihad', 'lufthansa', 'flight',
+    'airline', 'airways',
     // General
     'taxi', 'cab', 'parking', 'toll', 'transport', 'travel',
     'bike', 'scooter', 'car', 'vehicle', 'service',
   ],
 
   'Shopping': [
-    // Indian ecommerce
-    'amazon', 'flipkart', 'meesho', 'myntra', 'ajio', 'nykaa',
-    'snapdeal', 'jiomart', 'tata cliq', 'reliance',
+    // Ecommerce
+    'amazon', 'flipkart', 'ebay', 'aliexpress', 'shein',
+    'myntra', 'noon', 'temu', 'etsy', 'walmart',
     // General
-    'mall', 'shop', 'store', 'market', 'bazaar', 'purchase',
-    'cloth', 'clothes', 'shirt', 'pant', 'shoes', 'sandal',
-    'dress', 'saree', 'kurta', 'jacket', 'bag', 'wallet',
+    'mall', 'shop', 'store', 'market', 'purchase',
+    'cloth', 'clothes', 'shirt', 'pants', 'shoes',
+    'dress', 'jacket', 'bag', 'wallet',
     'watch', 'jewellery', 'accessories', 'cosmetics', 'beauty',
+    'tesco', 'ikea', 'zara', 'h&m', 'uniqlo',
   ],
 
   'Bills': [
     // Utilities
-    'electricity', 'electric', 'power', 'water', 'gas', 'lpg',
-    'cylinder', 'indane', 'hp gas', 'bharatgas',
+    'electricity', 'electric', 'power', 'water', 'gas',
+    'utility', 'utilities',
     // Internet & Mobile
-    'wifi', 'internet', 'broadband', 'jio', 'airtel', 'vi',
-    'vodafone', 'bsnl', 'idea', 'recharge', 'mobile', 'phone',
-    'postpaid', 'prepaid', 'sim',
+    'wifi', 'internet', 'broadband', 'jio', 'airtel',
+    'vodafone', 'tmobile', 'att', 'verizon', 'etisalat',
+    'recharge', 'mobile', 'phone', 'postpaid', 'prepaid', 'sim',
     // Streaming
-    'netflix', 'prime', 'hotstar', 'disney', 'sonyliv', 'zee5',
-    'spotify', 'youtube', 'subscription',
+    'netflix', 'prime', 'disney', 'hulu', 'apple tv',
+    'spotify', 'youtube', 'subscription', 'hotstar',
     // Housing
-    'rent', 'maintenance', 'society', 'flat', 'house', 'pg',
-    'hostel', 'emi', 'loan', 'insurance',
+    'rent', 'maintenance', 'flat', 'house', 'emi', 'mortgage',
+    'loan', 'insurance',
   ],
 
   'Health': [
     // Pharmacies
     'pharmacy', 'medicine', 'medical', 'chemist', 'drug',
-    'apollo', 'netmeds', 'pharmeasy', '1mg', 'medplus',
+    'apollo', 'cvs', 'walgreens', 'boots',
     // Healthcare
     'doctor', 'hospital', 'clinic', 'lab', 'test', 'scan',
     'xray', 'blood', 'report', 'checkup', 'consultation',
     'dentist', 'eye', 'optician', 'spectacles', 'lens',
     // Fitness
-    'gym', 'fitness', 'yoga', 'zumba', 'cult', 'sports',
+    'gym', 'fitness', 'yoga', 'pilates', 'crossfit', 'sports',
     'protein', 'supplement', 'vitamin',
   ],
 
   'Entertainment': [
     // Movies
-    'movie', 'cinema', 'pvr', 'inox', 'cinepolis', 'bookmyshow',
+    'movie', 'cinema', 'theater', 'theatre', 'imax',
+    'ticketmaster', 'fandango', 'bookmyshow',
     // Games
-    'game', 'gaming', 'steam', 'playstation', 'xbox', 'bgmi',
-    'pubg', 'freefire',
+    'game', 'gaming', 'steam', 'playstation', 'xbox',
+    'nintendo', 'pubg', 'roblox', 'epic games',
     // Events
     'concert', 'event', 'show', 'ticket', 'park', 'zoo',
     'museum', 'exhibition',
@@ -84,8 +90,8 @@ const CATEGORY_KEYWORDS = {
 
   'Education': [
     // Online learning
-    'udemy', 'coursera', 'unacademy', 'byjus', 'vedantu',
-    'skillshare', 'linkedin learning',
+    'udemy', 'coursera', 'skillshare', 'linkedin learning',
+    'unacademy', 'khan academy', 'duolingo', 'masterclass',
     // General
     'book', 'books', 'notebook', 'stationery', 'pen', 'pencil',
     'course', 'class', 'tuition', 'coaching', 'school',

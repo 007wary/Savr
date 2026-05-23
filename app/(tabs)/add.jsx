@@ -52,8 +52,8 @@ export default function AddExpense() {
   const [isRecurringIncome, setIsRecurringIncome] = useState(false)
   const [incomeFrequency, setIncomeFrequency] = useState('monthly')
   const [submitting, setSubmitting] = useState(false)
-  const [currencySymbol, setCurrencySymbol] = useState('₹')
-  const [currencyCode, setCurrencyCode] = useState('INR')
+  const [currencySymbol, setCurrencySymbol] = useState('$')
+  const [currencyCode, setCurrencyCode] = useState('USD')
   const [quickAmounts, setQuickAmounts] = useState(['50', '100', '200', '500', '1000', '2000'])
   const [accounts, setAccounts] = useState([])
   const [selectedAccountId, setSelectedAccountId] = useState(null)
@@ -166,7 +166,7 @@ export default function AddExpense() {
   }
 
   function formatDisplayDate(d) {
-    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   }
 
   function resetForm() {

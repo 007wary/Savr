@@ -175,7 +175,7 @@ export const TERMS_HTML = `<!DOCTYPE html><html><head><meta name="viewport" cont
 <p><strong>Savr is for personal financial tracking only and does not constitute professional financial, tax, or investment advice.</strong> Always consult a qualified professional for financial decisions.</p>
 <h2>11. Limitation of Liability</h2>
 <p>To the maximum extent permitted by applicable law, Savr and its developer shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of or inability to use the app, including but not limited to loss of data, loss of profits, or financial loss.</p>
-<p>Our total liability to you for any claims arising from these terms shall not exceed INR 500.</p>
+<p>Our total liability to you for any claims arising from these terms shall not exceed USD 5.</p>
 <h2>12. Data Loss</h2>
 <p>Since your financial data is stored locally on your device, we strongly recommend:</p>
 <ul>
@@ -194,7 +194,7 @@ export const TERMS_HTML = `<!DOCTYPE html><html><head><meta name="viewport" cont
 <h2>14. Changes to Terms</h2>
 <p>We may update these terms from time to time. We will notify you of any material changes through the app. The effective date at the top of this page will always reflect the latest version. Continued use of the app after changes constitutes acceptance of the new terms.</p>
 <h2>15. Governing Law</h2>
-<p>These terms are governed by the laws of India. Any disputes arising from these terms shall be subject to the exclusive jurisdiction of the courts of India.</p>
+<p>These terms are governed by applicable law. Any disputes arising from these terms shall be resolved through binding arbitration or the courts of the jurisdiction in which you reside.</p>
 <h2>16. Contact Us</h2>
 <p>App: Savr — Developer: Wary Dev. — Email: <a href="mailto:007mwnswrangwary@gmail.com">007mwnswrangwary@gmail.com</a></p>
 <hr/><p class="footer">Savr — Spend smart, save more.</p>
