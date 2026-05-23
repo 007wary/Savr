@@ -1,17 +1,30 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { WebView } from 'react-native-webview'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS } from '../../src/constants/theme'
+import { useTheme } from '../../src/lib/themeContext'
 import { PRIVACY_POLICY_HTML, TERMS_HTML } from '../../src/constants/legal'
 
 export default function WebViewScreen() {
+  const { COLORS } = useTheme()
   const { type, title } = useLocalSearchParams()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
 
   const html = type === 'privacy' ? PRIVACY_POLICY_HTML : TERMS_HTML
+
+  const styles = useMemo(() => StyleSheet.create({
+    container: { flex: 1, backgroundColor: COLORS.bg },
+    header: {
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingTop: 56, paddingBottom: 16, paddingHorizontal: 20,
+      backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border,
+    },
+    backBtn: { width: 36, height: 36, justifyContent: 'center' },
+    title: { fontSize: 16, fontWeight: '700', color: COLORS.text, flex: 1, textAlign: 'center' },
+    loader: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 10 },
+  }), [COLORS])
 
   return (
     <View style={styles.container}>
@@ -36,15 +49,3 @@ export default function WebViewScreen() {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 56, paddingBottom: 16, paddingHorizontal: 20,
-    backgroundColor: COLORS.card, borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  backBtn: { width: 36, height: 36, justifyContent: 'center' },
-  title: { fontSize: 16, fontWeight: '700', color: COLORS.text, flex: 1, textAlign: 'center' },
-  loader: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center', zIndex: 10 },
-})
