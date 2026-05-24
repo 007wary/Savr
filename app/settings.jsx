@@ -270,7 +270,7 @@ if (avatar) {
   versionPill: { backgroundColor: COLORS.accent + '22', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: COLORS.accent + '44' },
   versionPillText: { fontSize: 12, color: COLORS.accent, fontWeight: '700' },
   footer: { alignItems: 'center', marginTop: 8, marginBottom: 8 },
-  footerSub: { fontSize: 11, color: COLORS.border },
+  footerSub: { fontSize: 11, color: COLORS.textMuted },
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
   currencySearch: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.cardAlt, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border, marginBottom: 12 },
