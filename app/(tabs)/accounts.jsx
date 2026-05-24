@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useMemo } from 'react'
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator
@@ -6,7 +6,8 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, SCREEN } from '../../src/constants/theme'
+import { SCREEN } from '../../src/constants/theme'
+import { useTheme } from '../../src/lib/themeContext'
 import BottomSheet from '../../src/components/BottomSheet'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
@@ -26,6 +27,7 @@ const ACCOUNT_TYPES = [
 ]
 
 export default function Accounts() {
+  const { COLORS } = useTheme()
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -135,6 +137,38 @@ export default function Accounts() {
   function getTypeInfo(typeLabel) {
     return ACCOUNT_TYPES.find(t => t.label === typeLabel) || ACCOUNT_TYPES[ACCOUNT_TYPES.length - 1]
   }
+
+  const styles = useMemo(() => StyleSheet.create({
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
+    heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
+    addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' },
+    container: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
+    centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    accountCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border },
+    accountIcon: { width: 46, height: 46, borderRadius: 13, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
+    accountInfo: { flex: 1 },
+    accountName: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+    accountType: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+    accountRight: { flex: 1, alignItems: 'flex-end', marginRight: 10 },
+    accountBalance: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
+    deleteBtn: { padding: 6 },
+    empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 },
+    emptyIcon: { width: 80, height: 80, borderRadius: 24, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+    emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
+    emptySub: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+    emptyBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.accent, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 24 },
+    emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+    sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
+    label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
+    input: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+    typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
+    typeBtn: { width: '22%', alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, gap: 6 },
+    typeIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+    typeLabel: { fontSize: 10, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
+    saveBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, marginTop: 8, marginBottom: 20 },
+    saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  }), [COLORS])
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
@@ -265,35 +299,3 @@ export default function Accounts() {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
-  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
-  addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center' },
-  container: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  accountCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 1, borderColor: COLORS.border },
-  accountIcon: { width: 46, height: 46, borderRadius: 13, justifyContent: 'center', alignItems: 'center', marginRight: 14 },
-  accountInfo: { flex: 1 },
-  accountName: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  accountType: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  accountRight: { flex: 1, alignItems: 'flex-end', marginRight: 10 },
-  accountBalance: { fontSize: 15, fontWeight: '800', letterSpacing: -0.3 },
-  deleteBtn: { padding: 6 },
-  empty: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 32 },
-  emptyIcon: { width: 80, height: 80, borderRadius: 24, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 10 },
-  emptySub: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  emptyBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.accent, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 24 },
-  emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
-  label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
-  input: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
-  typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
-  typeBtn: { width: '22%', alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, gap: 6 },
-  typeIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  typeLabel: { fontSize: 10, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
-  saveBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, marginTop: 8, marginBottom: 20 },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-})

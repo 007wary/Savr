@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import {
   View, Text, StyleSheet, SectionList, TouchableOpacity,
   RefreshControl, TextInput, ScrollView, Platform
@@ -7,7 +7,8 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { COLORS, CATEGORIES, SCREEN } from '../../src/constants/theme'
+import { CATEGORIES, SCREEN } from '../../src/constants/theme'
+import { useTheme } from '../../src/lib/themeContext'
 import { HistorySkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import BottomSheet from '../../src/components/BottomSheet'
@@ -24,6 +25,7 @@ import { scheduleBackup } from '../../src/services/backgroundBackup'
 const CACHE_KEY = 'savr_cache_history'
 
 export default function History() {
+  const { COLORS } = useTheme()
   const [expenses, setExpenses] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [editingExpense, setEditingExpense] = useState(null)
@@ -370,6 +372,73 @@ export default function History() {
     )
   }
 
+  const styles = useMemo(() => StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
+  headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
+  exportBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
+  exportText: { color: COLORS.accent, fontWeight: '600', fontSize: 13 },
+  searchRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
+  searchInput: { flex: 1, color: COLORS.text, fontSize: 14, paddingVertical: 12 },
+  filterBtn: { width: 46, height: 46, borderRadius: 12, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
+  filterBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  filterBadge: { position: 'absolute', top: 6, right: 6, fontSize: 9, color: '#fff', fontWeight: '700' },
+  chipRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' },
+  chip: { backgroundColor: COLORS.accent + '33', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 12 },
+  chipInner: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  chipText: { color: COLORS.accent, fontSize: 12, fontWeight: '600' },
+  clearText: { color: COLORS.accentRed, fontSize: 12, fontWeight: '600' },
+  resultsText: { fontSize: 12, color: COLORS.textMuted, marginBottom: 10 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, marginTop: 16, marginBottom: 4 },
+  sectionHeaderDate: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5 },
+  sectionHeaderTotal: { fontSize: 13, fontWeight: '800', color: COLORS.text },
+  card: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  info: { flex: 1 },
+  category: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2, flexShrink: 1 },
+  note: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  right: { alignItems: 'flex-end', marginRight: 10 },
+  amount: { fontSize: 15, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5 },
+  deleteBtn: { padding: 6 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
+  filterLabel: { fontSize: 13, color: COLORS.textMuted, marginBottom: 10, marginLeft: 2, fontWeight: '600' },
+  filterGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
+  filterChipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  filterChipText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '500' },
+  applyBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
+  applyBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  clearBtn: { borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, marginBottom: 20 },
+  clearBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 15 },
+  input: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  datePicker: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  datePickerText: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
+  categoryBtn: { width: '22%', alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt, gap: 8 },
+  categoryIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
+  modalBtns: { flexDirection: 'row', gap: 12, marginTop: 8, marginBottom: 60 },
+  cancelBtn: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
+  cancelText: { color: COLORS.textMuted, fontWeight: '600', fontSize: 15 },
+  saveBtn: { flex: 1, backgroundColor: COLORS.accent, borderRadius: 12, padding: 14, alignItems: 'center' },
+  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  typeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  typeBtn: { flex: 1, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, alignItems: 'center' },
+  typeBtnActive: (key) => ({
+    backgroundColor: key === 'income' ? '#4CAF50' : key === 'expense' ? COLORS.accentRed : key === 'transfer' ? '#607D8B' : COLORS.accent,
+    borderColor: key === 'income' ? '#4CAF50' : key === 'expense' ? COLORS.accentRed : key === 'transfer' ? '#607D8B' : COLORS.accent,
+  }),
+  typeBtnText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
+  incomeBadge: { backgroundColor: '#4CAF5022', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 },
+  incomeBadgeText: { fontSize: 10, color: '#4CAF50', fontWeight: '700' },
+  transferBadge: { backgroundColor: '#607D8B22', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 },
+  transferBadgeText: { fontSize: 10, color: '#607D8B', fontWeight: '700' },
+  }), [COLORS])
+
   if (expenses === null) return <HistorySkeleton />
 
   return (
@@ -628,70 +697,3 @@ export default function History() {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
-  headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
-  exportBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
-  exportText: { color: COLORS.accent, fontWeight: '600', fontSize: 13 },
-  searchRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 12, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
-  searchInput: { flex: 1, color: COLORS.text, fontSize: 14, paddingVertical: 12 },
-  filterBtn: { width: 46, height: 46, borderRadius: 12, justifyContent: 'center', alignItems: 'center', backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border },
-  filterBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  filterBadge: { position: 'absolute', top: 6, right: 6, fontSize: 9, color: '#fff', fontWeight: '700' },
-  chipRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' },
-  chip: { backgroundColor: COLORS.accent + '33', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 12 },
-  chipInner: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  chipText: { color: COLORS.accent, fontSize: 12, fontWeight: '600' },
-  clearText: { color: COLORS.accentRed, fontSize: 12, fontWeight: '600' },
-  resultsText: { fontSize: 12, color: COLORS.textMuted, marginBottom: 10 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 4, marginTop: 16, marginBottom: 4 },
-  sectionHeaderDate: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5 },
-  sectionHeaderTotal: { fontSize: 13, fontWeight: '800', color: COLORS.text },
-  card: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  info: { flex: 1 },
-  category: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2, flexShrink: 1 },
-  note: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  right: { alignItems: 'flex-end', marginRight: 10 },
-  amount: { fontSize: 15, fontWeight: '800', color: COLORS.accentGreen, letterSpacing: -0.5 },
-  deleteBtn: { padding: 6 },
-  centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { fontSize: 18, color: COLORS.textMuted, marginTop: 12, fontWeight: '600' },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
-  filterLabel: { fontSize: 13, color: COLORS.textMuted, marginBottom: 10, marginLeft: 2, fontWeight: '600' },
-  filterGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
-  filterChipActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  filterChipText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '500' },
-  applyBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 12 },
-  applyBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  clearBtn: { borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, marginBottom: 20 },
-  clearBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 15 },
-  input: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
-  datePicker: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
-  datePickerText: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
-  categoryBtn: { width: '22%', alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt, gap: 8 },
-  categoryIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
-  modalBtns: { flexDirection: 'row', gap: 12, marginTop: 8, marginBottom: 60 },
-  cancelBtn: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
-  cancelText: { color: COLORS.textMuted, fontWeight: '600', fontSize: 15 },
-  saveBtn: { flex: 1, backgroundColor: COLORS.accent, borderRadius: 12, padding: 14, alignItems: 'center' },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  typeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  typeBtn: { flex: 1, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, alignItems: 'center' },
-  typeBtnActive: (key) => ({
-    backgroundColor: key === 'income' ? '#4CAF50' : key === 'expense' ? COLORS.accentRed : key === 'transfer' ? '#607D8B' : COLORS.accent,
-    borderColor: key === 'income' ? '#4CAF50' : key === 'expense' ? COLORS.accentRed : key === 'transfer' ? '#607D8B' : COLORS.accent,
-  }),
-  typeBtnText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
-  incomeBadge: { backgroundColor: '#4CAF5022', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 },
-  incomeBadgeText: { fontSize: 10, color: '#4CAF50', fontWeight: '700' },
-  transferBadge: { backgroundColor: '#607D8B22', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 },
-  transferBadgeText: { fontSize: 10, color: '#607D8B', fontWeight: '700' },
-})

@@ -9,7 +9,8 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../src/lib/supabase'
-import { COLORS, CURRENCIES, SCREEN } from '../src/constants/theme'
+import { CURRENCIES, SCREEN } from '../src/constants/theme'
+import { useTheme } from '../src/lib/themeContext'
 import { requestNotificationPermission, isNotificationGranted, BUDGET_ALERTS_KEY } from '../src/lib/notifications'
 import { saveCurrency, loadCurrency } from '../src/lib/currency'
 import BottomSheet from '../src/components/BottomSheet'
@@ -25,6 +26,7 @@ const APP_VERSION = Constants.expoConfig?.version || '1.0'
 const CACHE_KEY = 'savr_cache_settings'
 
 export default function Settings() {
+  const { COLORS } = useTheme()
   const [user, setUser] = useState(null)
   const [displayName, setDisplayName] = useState('')
   const [phone, setPhone] = useState('')
@@ -239,6 +241,56 @@ if (avatar) {
       cur.name.toLowerCase().includes(currencySearch.toLowerCase()) ||
       cur.code.toLowerCase().includes(currencySearch.toLowerCase())
     ), [currencySearch])
+
+  const styles = useMemo(() => StyleSheet.create({
+  outerContainer: { flex: 1, backgroundColor: COLORS.bg },
+  stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg, flexDirection: 'row', alignItems: 'center' },
+  scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal, backgroundColor: COLORS.bg },
+  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
+  profileCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20, marginBottom: 0, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+  avatarImage: { width: 56, height: 56, borderRadius: 28, marginRight: 16, borderWidth: 2, borderColor: COLORS.accent },
+  avatarText: { fontSize: 20, fontWeight: '700', color: '#fff' },
+  profileInfo: { flex: 1 },
+  displayName: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 2, letterSpacing: -0.3 },
+  email: { fontSize: 13, color: COLORS.textMuted },
+  phoneRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
+  phoneText: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
+  phoneAdd: { fontSize: 13, color: COLORS.accent, marginTop: 2 },
+  editProfileBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  editProfileText: { fontSize: 13, color: COLORS.accent, fontWeight: '600' },
+  sectionLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1.2, marginTop: 24, marginBottom: 10, marginLeft: 4 },
+  card: { marginBottom: 24 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 4 },
+  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
+  rowIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  rowTitle: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
+  rowSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 1 },
+  divider: { height: 1, backgroundColor: COLORS.border },
+  versionPill: { backgroundColor: COLORS.accent + '22', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: COLORS.accent + '44' },
+  versionPillText: { fontSize: 12, color: COLORS.accent, fontWeight: '700' },
+  footer: { alignItems: 'center', marginTop: 8, marginBottom: 8 },
+  footerSub: { fontSize: 11, color: COLORS.border },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
+  currencySearch: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.cardAlt, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border, marginBottom: 12 },
+  currencySearchInput: { flex: 1, color: COLORS.text, fontSize: 14 },
+  currencyRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 12, marginBottom: 4 },
+  currencyRowActive: { backgroundColor: COLORS.accent + '15' },
+  currencyFlag: { fontSize: 24 },
+  currencyName: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
+  currencyCode: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  currencySymbol: { fontSize: 16, color: COLORS.textMuted, fontWeight: '700' },
+  modalAvatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: 24 },
+  modalAvatarImage: { width: 72, height: 72, borderRadius: 36, alignSelf: 'center', marginBottom: 24, borderWidth: 2, borderColor: COLORS.accent },
+  modalAvatarText: { fontSize: 26, fontWeight: '700', color: '#fff' },
+  label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
+  input: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  readOnlyInput: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 24 },
+  readOnlyText: { fontSize: 15, color: COLORS.textMuted },
+  saveBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
+  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  }), [COLORS])
 
   if (loading) return <SettingsSkeleton />
 
@@ -603,53 +655,3 @@ if (avatar) {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  outerContainer: { flex: 1, backgroundColor: COLORS.bg },
-  stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg, flexDirection: 'row', alignItems: 'center' },
-  scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal, backgroundColor: COLORS.bg },
-  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
-  profileCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20, marginBottom: 0, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', marginRight: 16 },
-  avatarImage: { width: 56, height: 56, borderRadius: 28, marginRight: 16, borderWidth: 2, borderColor: COLORS.accent },
-  avatarText: { fontSize: 20, fontWeight: '700', color: '#fff' },
-  profileInfo: { flex: 1 },
-  displayName: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 2, letterSpacing: -0.3 },
-  email: { fontSize: 13, color: COLORS.textMuted },
-  phoneRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
-  phoneText: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
-  phoneAdd: { fontSize: 13, color: COLORS.accent, marginTop: 2 },
-  editProfileBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  editProfileText: { fontSize: 13, color: COLORS.accent, fontWeight: '600' },
-  sectionLabel: { fontSize: 11, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1.2, marginTop: 24, marginBottom: 10, marginLeft: 4 },
-  card: { marginBottom: 24 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 4 },
-  rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
-  rowIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  rowTitle: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
-  rowSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 1 },
-  divider: { height: 1, backgroundColor: COLORS.border },
-  versionPill: { backgroundColor: COLORS.accent + '22', borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: COLORS.accent + '44' },
-  versionPillText: { fontSize: 12, color: COLORS.accent, fontWeight: '700' },
-  footer: { alignItems: 'center', marginTop: 8, marginBottom: 8 },
-  footerSub: { fontSize: 11, color: COLORS.border },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  sheetTitle: { fontSize: 20, fontWeight: '700', color: COLORS.text },
-  currencySearch: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.cardAlt, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border, marginBottom: 12 },
-  currencySearchInput: { flex: 1, color: COLORS.text, fontSize: 14 },
-  currencyRow: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 12, marginBottom: 4 },
-  currencyRowActive: { backgroundColor: COLORS.accent + '15' },
-  currencyFlag: { fontSize: 24 },
-  currencyName: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
-  currencyCode: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  currencySymbol: { fontSize: 16, color: COLORS.textMuted, fontWeight: '700' },
-  modalAvatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: 24 },
-  modalAvatarImage: { width: 72, height: 72, borderRadius: 36, alignSelf: 'center', marginBottom: 24, borderWidth: 2, borderColor: COLORS.accent },
-  modalAvatarText: { fontSize: 26, fontWeight: '700', color: '#fff' },
-  label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
-  input: { backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
-  readOnlyInput: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: COLORS.cardAlt, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 24 },
-  readOnlyText: { fontSize: 15, color: COLORS.textMuted },
-  saveBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-})

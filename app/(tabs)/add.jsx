@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, Platform, Switch, ActivityIndicator, ScrollView, Animated, Modal
@@ -7,7 +7,8 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter, useFocusEffect } from 'expo-router'
-import { COLORS, CATEGORIES, SCREEN } from '../../src/constants/theme'
+import { CATEGORIES, SCREEN } from '../../src/constants/theme'
+import { useTheme } from '../../src/lib/themeContext'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { clearCache, saveCache, loadCache } from '../../src/lib/cache'
@@ -40,6 +41,7 @@ const INCOME_CATEGORIES = [
 ]
 
 export default function AddExpense() {
+  const { COLORS } = useTheme()
   const [activeTab, setActiveTab] = useState('expense')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
@@ -432,6 +434,68 @@ export default function AddExpense() {
   const selectedCat = CATEGORIES.find(c => c.label === selectedCategory)
 
   const tabColor = activeTab === 'income' ? '#4CAF50' : activeTab === 'transfer' ? '#607D8B' : COLORS.accent
+
+  const styles = useMemo(() => StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
+  headerTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text },
+  container: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 40 },
+  label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
+  input: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 20 },
+  noteContainer: { marginBottom: 20 },
+  noteInput: { marginBottom: 0, height: 80, textAlignVertical: 'top' },
+  autoDetectBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.accentGreen + '15', borderRadius: 8, padding: 8, marginTop: 6, borderWidth: 1, borderColor: COLORS.accentGreen + '33' },
+  autoDetectText: { fontSize: 12, color: COLORS.accentGreen, fontWeight: '600' },
+  categoryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  autoDetectHint: { fontSize: 11, color: COLORS.accentGreen, fontWeight: '600' },
+  autoDetectHintRow: { flexDirection: 'row', alignItems: 'center' },
+  quickAmounts: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20, marginTop: -12 },
+  quickBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
+  quickText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
+  quickTextActive: { color: '#fff' },
+  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
+  categoryBtn: { width: '22%', alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, gap: 8 },
+  categoryBtnAutoDetected: { borderColor: COLORS.accentGreen, backgroundColor: COLORS.accentGreen + '11' },
+  categoryIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
+  autoDetectDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.accentGreen, position: 'absolute', top: 6, right: 6 },
+  datePicker: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 12, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },
+  dateText: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
+  recurringToggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  recurringToggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  recurringIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: COLORS.accent + '22', justifyContent: 'center', alignItems: 'center' },
+  recurringToggleTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text },
+  recurringToggleSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  frequencySection: { backgroundColor: COLORS.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+  freqRow: { flexDirection: 'row', gap: 10 },
+  freqBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
+  freqBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  freqLabel: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
+  btn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderRadius: 12, padding: 16, marginTop: 8, marginBottom: 20 },
+  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  transferStub: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, paddingHorizontal: 32 },
+  transferIconBox: { width: 80, height: 80, borderRadius: 24, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  transferTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 10, textAlign: 'center' },
+  transferSub: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22 },
+  bottomTabRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border, height: 80, paddingBottom: 24 },
+  bottomTabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 6 },
+  bottomTabText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
+  accountPill: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
+  accountPillActive: (color) => ({ backgroundColor: color, borderColor: color }),
+  accountPillText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
+  transferSetupBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.accent, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 24, marginTop: 24 },
+  transferSetupBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  accountSelectGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  accountSelectBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
+  accountSelectBtnActive: (color) => ({ backgroundColor: color, borderColor: color }),
+  accountSelectText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
+  celebrationOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 },
+  celebrationCard: { backgroundColor: COLORS.card, borderRadius: 28, padding: 28, alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.accent + '55', width: '100%' },
+  celebrationEmojiWrap: { width: 88, height: 88, borderRadius: 44, backgroundColor: COLORS.accent + '18', borderWidth: 1.5, borderColor: COLORS.accent + '44', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  celebrationTitle: { fontSize: 24, fontWeight: '900', color: COLORS.text, marginBottom: 10, textAlign: 'center', letterSpacing: -0.5 },
+  celebrationMessage: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: 28 },
+  celebrationBtn: { backgroundColor: COLORS.accent, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40, width: '100%', alignItems: 'center', elevation: 4 },
+  celebrationBtnText: { fontSize: 17, fontWeight: '800', color: '#fff' },
+  }), [COLORS])
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
@@ -866,65 +930,3 @@ export default function AddExpense() {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12 },
-  headerTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text },
-  container: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 40 },
-  label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
-  input: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 20 },
-  noteContainer: { marginBottom: 20 },
-  noteInput: { marginBottom: 0, height: 80, textAlignVertical: 'top' },
-  autoDetectBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.accentGreen + '15', borderRadius: 8, padding: 8, marginTop: 6, borderWidth: 1, borderColor: COLORS.accentGreen + '33' },
-  autoDetectText: { fontSize: 12, color: COLORS.accentGreen, fontWeight: '600' },
-  categoryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  autoDetectHint: { fontSize: 11, color: COLORS.accentGreen, fontWeight: '600' },
-  autoDetectHintRow: { flexDirection: 'row', alignItems: 'center' },
-  quickAmounts: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20, marginTop: -12 },
-  quickBtn: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
-  quickText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
-  quickTextActive: { color: '#fff' },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20 },
-  categoryBtn: { width: '22%', alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, gap: 8 },
-  categoryBtnAutoDetected: { borderColor: COLORS.accentGreen, backgroundColor: COLORS.accentGreen + '11' },
-  categoryIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
-  autoDetectDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.accentGreen, position: 'absolute', top: 6, right: 6 },
-  datePicker: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 12, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: COLORS.border },
-  dateText: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
-  recurringToggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
-  recurringToggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  recurringIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: COLORS.accent + '22', justifyContent: 'center', alignItems: 'center' },
-  recurringToggleTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text },
-  recurringToggleSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  frequencySection: { backgroundColor: COLORS.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
-  freqRow: { flexDirection: 'row', gap: 10 },
-  freqBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
-  freqBtnActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
-  freqLabel: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
-  btn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', borderRadius: 12, padding: 16, marginTop: 8, marginBottom: 20 },
-  btnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  transferStub: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 80, paddingHorizontal: 32 },
-  transferIconBox: { width: 80, height: 80, borderRadius: 24, backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  transferTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 10, textAlign: 'center' },
-  transferSub: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22 },
-  bottomTabRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border, height: 80, paddingBottom: 24 },
-  bottomTabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 6 },
-  bottomTabText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
-  accountPill: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
-  accountPillActive: (color) => ({ backgroundColor: color, borderColor: color }),
-  accountPillText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
-  transferSetupBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.accent, borderRadius: 12, paddingVertical: 14, paddingHorizontal: 24, marginTop: 24 },
-  transferSetupBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  accountSelectGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  accountSelectBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
-  accountSelectBtnActive: (color) => ({ backgroundColor: color, borderColor: color }),
-  accountSelectText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
-  celebrationOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 28 },
-  celebrationCard: { backgroundColor: COLORS.card, borderRadius: 28, padding: 28, alignItems: 'center', borderWidth: 1.5, borderColor: COLORS.accent + '55', width: '100%' },
-  celebrationEmojiWrap: { width: 88, height: 88, borderRadius: 44, backgroundColor: COLORS.accent + '18', borderWidth: 1.5, borderColor: COLORS.accent + '44', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  celebrationTitle: { fontSize: 24, fontWeight: '900', color: COLORS.text, marginBottom: 10, textAlign: 'center', letterSpacing: -0.5 },
-  celebrationMessage: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: 28 },
-  celebrationBtn: { backgroundColor: COLORS.accent, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 40, width: '100%', alignItems: 'center', elevation: 4 },
-  celebrationBtnText: { fontSize: 17, fontWeight: '800', color: '#fff' },
-})

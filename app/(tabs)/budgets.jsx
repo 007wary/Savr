@@ -1,10 +1,11 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, TextInput, RefreshControl, KeyboardAvoidingView, Platform
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
-import { COLORS, CATEGORIES, SCREEN } from '../../src/constants/theme'
+import { CATEGORIES, SCREEN } from '../../src/constants/theme'
+import { useTheme } from '../../src/lib/themeContext'
 import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
 import { BudgetsSkeleton } from '../../src/components/SkeletonLoader'
 import { Ionicons } from '@expo/vector-icons'
@@ -35,6 +36,7 @@ function getLast3MonthKeys() {
 }
 
 export default function Budgets() {
+  const { COLORS } = useTheme()
   const monthName = getMonthName()
 const currentMonth = getCurrentMonth()
 const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
@@ -201,6 +203,61 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
   }
 
   const hasRecommendations = Object.keys(recommendations).length > 0
+
+  const styles = useMemo(() => StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
+  scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal, backgroundColor: COLORS.bg },
+  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8, marginBottom: 4 },
+  subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 16 },
+  recommendCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: COLORS.accent + '44' },
+  recommendHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  recommendLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  recommendIconBox2: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.accent + '22', justifyContent: 'center', alignItems: 'center' },
+  recommendTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
+  recommendSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  recommendDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 14 },
+  recommendList: {},
+  recommendItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  recommendItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
+  recommendIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  recommendCatName: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  recommendAvg: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+  recommendItemRight: { alignItems: 'flex-end', gap: 6 },
+  recommendAmount: { fontSize: 14, fontWeight: '800', color: COLORS.accent },
+  applyBtn: { backgroundColor: COLORS.accent + '22', borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: COLORS.accent + '44' },
+  applyBtnText: { fontSize: 12, color: COLORS.accent, fontWeight: '700' },
+  applyAllBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.accent, borderRadius: 12, padding: 14, marginTop: 8 },
+  applyAllBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  card: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, marginBottom: 8 },
+  cardOver: { borderLeftWidth: 3, borderLeftColor: COLORS.accentRed },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  cardInfo: { flex: 1 },
+  catName: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2 },
+  spentText: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
+  limitText: { color: COLORS.textMuted },
+  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
+  editBtnActive: { borderColor: COLORS.accentRed + '44', backgroundColor: COLORS.accentRed + '11' },
+  editBtnText: { fontSize: 12, fontWeight: '600', color: COLORS.accent },
+  progressBg: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, marginBottom: 6, overflow: 'hidden' },
+  progressFill: { height: 6, borderRadius: 3 },
+  warningRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  warningText: { fontSize: 11, color: COLORS.accentYellow, fontWeight: '600' },
+  overBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.accentRed + '11', borderRadius: 8, padding: 8, marginTop: 6, borderWidth: 1, borderColor: COLORS.accentRed + '33' },
+  overText: { fontSize: 12, color: COLORS.accentRed, fontWeight: '600', flex: 1 },
+  inlineRecCard: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.accentYellow + '11', borderRadius: 10, padding: 10, marginTop: 8, borderWidth: 1, borderColor: COLORS.accentYellow + '33' },
+  inlineRecText: { flex: 1, fontSize: 12, color: COLORS.textMuted },
+  inlineRecApply: { fontSize: 11, color: COLORS.accentYellow, fontWeight: '700' },
+  recHint: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.accentYellow + '11', borderRadius: 8, padding: 8, marginTop: 10, borderWidth: 1, borderColor: COLORS.accentYellow + '33' },
+  recHintText: { fontSize: 12, color: COLORS.textMuted, flex: 1 },
+  editRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8 },
+  editInput: { flex: 1, backgroundColor: COLORS.cardAlt, borderRadius: 10, padding: 10, color: COLORS.text, fontSize: 14, borderWidth: 1, borderColor: COLORS.border },
+  saveBtn: { backgroundColor: COLORS.accent, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 },
+  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+  deleteBtn: { backgroundColor: COLORS.cardAlt, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
+  deleteBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 13 },
+  }), [COLORS])
 
   if (loading) return <BudgetsSkeleton />
 
@@ -399,58 +456,3 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
     </KeyboardAvoidingView>
   )
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
-  scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal, backgroundColor: COLORS.bg },
-  heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8, marginBottom: 4 },
-  subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 16 },
-  recommendCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: COLORS.accent + '44' },
-  recommendHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  recommendLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  recommendIconBox2: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.accent + '22', justifyContent: 'center', alignItems: 'center' },
-  recommendTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text },
-  recommendSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  recommendDivider: { height: 1, backgroundColor: COLORS.border, marginVertical: 14 },
-  recommendList: {},
-  recommendItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  recommendItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  recommendIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  recommendCatName: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  recommendAvg: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
-  recommendItemRight: { alignItems: 'flex-end', gap: 6 },
-  recommendAmount: { fontSize: 14, fontWeight: '800', color: COLORS.accent },
-  applyBtn: { backgroundColor: COLORS.accent + '22', borderRadius: 8, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: COLORS.accent + '44' },
-  applyBtnText: { fontSize: 12, color: COLORS.accent, fontWeight: '700' },
-  applyAllBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.accent, borderRadius: 12, padding: 14, marginTop: 8 },
-  applyAllBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
-  card: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, marginBottom: 8 },
-  cardOver: { borderLeftWidth: 3, borderLeftColor: COLORS.accentRed },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  iconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  cardInfo: { flex: 1 },
-  catName: { fontSize: 15, fontWeight: '600', color: COLORS.text, letterSpacing: -0.2 },
-  spentText: { fontSize: 13, color: COLORS.textMuted, marginTop: 2 },
-  limitText: { color: COLORS.textMuted },
-  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
-  editBtnActive: { borderColor: COLORS.accentRed + '44', backgroundColor: COLORS.accentRed + '11' },
-  editBtnText: { fontSize: 12, fontWeight: '600', color: COLORS.accent },
-  progressBg: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, marginBottom: 6, overflow: 'hidden' },
-  progressFill: { height: 6, borderRadius: 3 },
-  warningRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  warningText: { fontSize: 11, color: COLORS.accentYellow, fontWeight: '600' },
-  overBanner: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.accentRed + '11', borderRadius: 8, padding: 8, marginTop: 6, borderWidth: 1, borderColor: COLORS.accentRed + '33' },
-  overText: { fontSize: 12, color: COLORS.accentRed, fontWeight: '600', flex: 1 },
-  inlineRecCard: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.accentYellow + '11', borderRadius: 10, padding: 10, marginTop: 8, borderWidth: 1, borderColor: COLORS.accentYellow + '33' },
-  inlineRecText: { flex: 1, fontSize: 12, color: COLORS.textMuted },
-  inlineRecApply: { fontSize: 11, color: COLORS.accentYellow, fontWeight: '700' },
-  recHint: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.accentYellow + '11', borderRadius: 8, padding: 8, marginTop: 10, borderWidth: 1, borderColor: COLORS.accentYellow + '33' },
-  recHintText: { fontSize: 12, color: COLORS.textMuted, flex: 1 },
-  editRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8 },
-  editInput: { flex: 1, backgroundColor: COLORS.cardAlt, borderRadius: 10, padding: 10, color: COLORS.text, fontSize: 14, borderWidth: 1, borderColor: COLORS.border },
-  saveBtn: { backgroundColor: COLORS.accent, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14 },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
-  deleteBtn: { backgroundColor: COLORS.cardAlt, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
-  deleteBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 13 },
-})
