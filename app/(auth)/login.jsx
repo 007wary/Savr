@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   View, Text, TouchableOpacity,
   StyleSheet, ActivityIndicator
@@ -6,7 +6,8 @@ import {
 import * as SecureStore from 'expo-secure-store'
 import { cacheGoogleAccessToken } from '../../src/lib/googleAccessToken'
 import { supabase } from '../../src/lib/supabase'
-import { COLORS, SCREEN } from '../../src/constants/theme'
+import { SCREEN } from '../../src/constants/theme'
+import { useTheme } from '../../src/lib/themeContext'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { Ionicons } from '@expo/vector-icons'
@@ -19,6 +20,7 @@ import { setSigningIn } from '../../src/lib/authState'
 WebBrowser.maybeCompleteAuthSession()
 
 export default function Login() {
+  const { COLORS } = useTheme()
   const [googleLoading, setGoogleLoading] = useState(false)
   const [accepted, setAccepted] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
@@ -99,6 +101,61 @@ export default function Login() {
     router.push({ pathname: '/webview', params: { type: 'terms', title: 'Terms of Service' } })
   }
 
+  const styles = useMemo(() => StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.bg },
+  gradientBg: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: '50%',
+  },
+  inner: {
+    flex: 1, paddingHorizontal: SCREEN.paddingHorizontal,
+    justifyContent: 'center', paddingBottom: 40, paddingTop: SCREEN.paddingTop,
+  },
+  logoSection: { alignItems: 'center', marginBottom: 24, marginTop: -20 },
+  logoText: {
+    fontSize: 42, fontWeight: '900', color: COLORS.text,
+    letterSpacing: -2, marginBottom: 6,
+  },
+  tagline: { fontSize: 15, color: COLORS.textMuted, letterSpacing: 0.3 },
+  featureList: { gap: 10, marginBottom: 28 },
+  featureItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    backgroundColor: COLORS.card, borderRadius: 14,
+    padding: 13, borderWidth: 1, borderColor: COLORS.border,
+  },
+  featureText: { fontSize: 14, color: COLORS.text, fontWeight: '500' },
+  acceptRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: COLORS.card, borderRadius: 14,
+    padding: 14, marginBottom: 16,
+    borderWidth: 1, borderColor: COLORS.border,
+  },
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6,
+    borderWidth: 2, borderColor: COLORS.border,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: COLORS.accent, borderColor: COLORS.accent,
+  },
+  acceptText: { flex: 1, fontSize: 13, color: COLORS.textMuted, lineHeight: 20 },
+  acceptLink: { color: COLORS.accent, fontWeight: '600' },
+  googleBtn: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: 12,
+    backgroundColor: COLORS.card, borderRadius: 16,
+    padding: 18, marginBottom: 16,
+    borderWidth: 1, borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15, shadowRadius: 8, elevation: 4,
+  },
+  googleBtnDisabled: { opacity: 0.5 },
+  googleBtnText: {
+    color: COLORS.text, fontWeight: '700',
+    fontSize: 16, letterSpacing: -0.3,
+  },
+  }), [COLORS])
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -170,58 +227,3 @@ export default function Login() {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  gradientBg: {
-    position: 'absolute', top: 0, left: 0, right: 0, height: '50%',
-  },
-  inner: {
-    flex: 1, paddingHorizontal: SCREEN.paddingHorizontal,
-    justifyContent: 'center', paddingBottom: 40, paddingTop: SCREEN.paddingTop,
-  },
-  logoSection: { alignItems: 'center', marginBottom: 24, marginTop: -20 },
-  logoText: {
-    fontSize: 42, fontWeight: '900', color: COLORS.text,
-    letterSpacing: -2, marginBottom: 6,
-  },
-  tagline: { fontSize: 15, color: COLORS.textMuted, letterSpacing: 0.3 },
-  featureList: { gap: 10, marginBottom: 28 },
-  featureItem: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: COLORS.card, borderRadius: 14,
-    padding: 13, borderWidth: 1, borderColor: COLORS.border,
-  },
-  featureText: { fontSize: 14, color: COLORS.text, fontWeight: '500' },
-  acceptRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: COLORS.card, borderRadius: 14,
-    padding: 14, marginBottom: 16,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
-  checkbox: {
-    width: 22, height: 22, borderRadius: 6,
-    borderWidth: 2, borderColor: COLORS.border,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: COLORS.accent, borderColor: COLORS.accent,
-  },
-  acceptText: { flex: 1, fontSize: 13, color: COLORS.textMuted, lineHeight: 20 },
-  acceptLink: { color: COLORS.accent, fontWeight: '600' },
-  googleBtn: {
-    flexDirection: 'row', alignItems: 'center',
-    justifyContent: 'center', gap: 12,
-    backgroundColor: COLORS.card, borderRadius: 16,
-    padding: 18, marginBottom: 16,
-    borderWidth: 1, borderColor: COLORS.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15, shadowRadius: 8, elevation: 4,
-  },
-  googleBtnDisabled: { opacity: 0.5 },
-  googleBtnText: {
-    color: COLORS.text, fontWeight: '700',
-    fontSize: 16, letterSpacing: -0.3,
-  },
-})

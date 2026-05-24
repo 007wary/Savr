@@ -26,7 +26,7 @@ const APP_VERSION = Constants.expoConfig?.version || '1.0'
 const CACHE_KEY = 'savr_cache_settings'
 
 export default function Settings() {
-  const { COLORS } = useTheme()
+  const { COLORS, theme, setTheme } = useTheme()
   const [user, setUser] = useState(null)
   const [displayName, setDisplayName] = useState('')
   const [phone, setPhone] = useState('')
@@ -399,6 +399,57 @@ if (avatar) {
           </View>
           <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
         </TouchableOpacity>
+
+        <View style={styles.divider} />
+
+        <View style={styles.row}>
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: '#9C27B022' }]}>
+              <Ionicons name="contrast-outline" size={18} color="#9C27B0" />
+            </View>
+            <View>
+              <Text style={styles.rowTitle}>Appearance</Text>
+              <Text style={styles.rowSubtitle}>
+                {theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System default'}
+              </Text>
+            </View>
+          </View>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {[
+              { key: 'light', icon: 'sunny-outline', label: 'Light' },
+              { key: 'system', icon: 'phone-portrait-outline', label: 'Auto' },
+              { key: 'dark', icon: 'moon-outline', label: 'Dark' },
+            ].map(opt => (
+              <TouchableOpacity
+                key={opt.key}
+                onPress={() => setTheme(opt.key)}
+                style={{
+                  alignItems: 'center',
+                  paddingVertical: 6,
+                  paddingHorizontal: 10,
+                  borderRadius: 10,
+                  borderWidth: 1.5,
+                  borderColor: theme === opt.key ? COLORS.accent : COLORS.border,
+                  backgroundColor: theme === opt.key ? COLORS.accent + '18' : COLORS.cardAlt,
+                }}
+              >
+                <Ionicons
+                  name={opt.icon}
+                  size={16}
+                  color={theme === opt.key ? COLORS.accent : COLORS.textMuted}
+                />
+                <Text style={{
+                  fontSize: 10,
+                  marginTop: 2,
+                  fontWeight: theme === opt.key ? '700' : '500',
+                  color: theme === opt.key ? COLORS.accent : COLORS.textMuted,
+                }}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
       </View>
 
       <Text style={[styles.sectionLabel, { marginTop: 8 }]}>ABOUT</Text>

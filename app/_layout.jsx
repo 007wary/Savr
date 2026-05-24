@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../src/lib/supabase'
 import { View, AppState } from 'react-native'
+import { StatusBar } from 'expo-status-bar'
 import { ThemeProvider, useTheme } from '../src/lib/themeContext'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
@@ -350,7 +351,9 @@ try {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false, animation: 'none', contentStyle: { backgroundColor: COLORS.bg } }}>
+    <>
+      <StatusBar style={COLORS.text === '#FFFFFF' ? 'light' : 'dark'} />
+      <Stack screenOptions={{ headerShown: false, animation: 'none', contentStyle: { backgroundColor: COLORS.bg } }}>
       <Stack.Screen name="(auth)" options={{ animation: 'fade' }} />
       <Stack.Screen name="(tabs)" options={{ animation: 'fade' }} />
       <Stack.Screen name="webview" options={{ animation: 'default' }} />
@@ -361,6 +364,7 @@ try {
       <Stack.Screen name="manage-data" options={{ animation: 'default' }} />
       <Stack.Screen name="settings" options={{ animation: 'default' }} />
     </Stack>
+    </>
   )
 }
 
