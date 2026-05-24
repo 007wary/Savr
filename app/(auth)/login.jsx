@@ -11,7 +11,6 @@ import { useTheme } from '../../src/lib/themeContext'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { Ionicons } from '@expo/vector-icons'
-import { LinearGradient } from 'expo-linear-gradient'
 import * as WebBrowser from 'expo-web-browser'
 import * as AuthSession from 'expo-auth-session'
 import { useRouter } from 'expo-router'
@@ -103,9 +102,6 @@ export default function Login() {
 
   const styles = useMemo(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  gradientBg: {
-    position: 'absolute', top: 0, left: 0, right: 0, height: '50%',
-  },
   inner: {
     flex: 1, paddingHorizontal: SCREEN.paddingHorizontal,
     justifyContent: 'center', paddingBottom: 40, paddingTop: SCREEN.paddingTop,
@@ -158,13 +154,6 @@ export default function Login() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#1A1033', '#0F0F0F']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={styles.gradientBg}
-      />
-
       <View style={styles.inner}>
         <View style={styles.logoSection}>
           <Text style={styles.logoText}>Savr</Text>
