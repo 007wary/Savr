@@ -1,4 +1,4 @@
-import { supabase, SUPABASE_PROJECT_URL } from './supabase'
+import { supabase } from './supabase'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 let cachedUser = null
