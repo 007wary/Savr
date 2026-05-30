@@ -64,28 +64,32 @@ export default function Login() {
         return
       }
 
+      // PKCE flow: extract code from query params (not tokens from hash)
       const url = result.url
-      const hashParams = new URLSearchParams(url.split('#')[1] || '')
       const queryParams = new URLSearchParams(url.split('?')[1] || '')
+      const code = queryParams.get('code')
 
-      const access_token = hashParams.get('access_token') || queryParams.get('access_token')
-      const refresh_token = hashParams.get('refresh_token') || queryParams.get('refresh_token')
-      const provider_token = hashParams.get('provider_token') || queryParams.get('provider_token')
-      const provider_refresh_token = hashParams.get('provider_refresh_token') || queryParams.get('provider_refresh_token')
-
-      if (!access_token) {
+      if (!code) {
+        showAlert('Sign In Failed', 'Something went wrong. Please try again.')
         return
       }
 
-      await supabase.auth.setSession({ access_token, refresh_token })
+      // Exchange code for session — tokens never touch the URL
+      const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code)
+      if (sessionError) throw sessionError
+
       setSigningIn(false)
 
+      // Cache provider tokens from session response
       try {
-        if (provider_token) await cacheGoogleAccessToken(provider_token)
-        if (provider_refresh_token) await SecureStore.setItemAsync('savr_google_refresh_token', provider_refresh_token)
+        const providerToken = sessionData?.session?.provider_token
+        const providerRefreshToken = sessionData?.session?.provider_refresh_token
+        if (providerToken) await cacheGoogleAccessToken(providerToken)
+        if (providerRefreshToken) await SecureStore.setItemAsync('savr_google_refresh_token', providerRefreshToken)
       } catch {}
+
     } catch (error) {
-      showAlert('Error', error.message)
+      showAlert('Sign In Failed', 'Something went wrong. Please try again.')
     } finally {
       setGoogleLoading(false)
       setSigningIn(false)

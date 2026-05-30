@@ -1,27 +1,8 @@
-import { supabase } from './supabase'
+import { supabase, SUPABASE_PROJECT_URL } from './supabase'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 let cachedUser = null
 const CACHED_USER_KEY = 'savr_cached_user'
-const SUPABASE_SESSION_KEY = 'sb-fsrbsqhlgfdqugixqtxc-auth-token'
-
-async function getUserFromStorage() {
-  try {
-    let raw = await AsyncStorage.getItem(SUPABASE_SESSION_KEY)
-    if (!raw) {
-      try {
-        const SecureStore = await import('expo-secure-store')
-        raw = await SecureStore.getItemAsync(SUPABASE_SESSION_KEY)
-      } catch {}
-    }
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    const session = parsed?.currentSession || parsed
-    return session?.user ?? null
-  } catch {
-    return null
-  }
-}
 
 export function setCachedUser(user) {
   cachedUser = user
@@ -45,10 +26,7 @@ export async function loadCachedUser() {
       return cachedUser
     }
   } catch {}
-  // Fallback to Supabase session storage
-  const user = await getUserFromStorage()
-  if (user) cachedUser = user
-  return cachedUser
+  return null
 }
 
 export async function getUser(forceRefresh = false) {
@@ -59,9 +37,7 @@ export async function getUser(forceRefresh = false) {
     cachedUser = user
     return user
   } catch {
-    const user = await getUserFromStorage()
-    if (user) cachedUser = user
-    return cachedUser
+    return null
   }
 }
 
