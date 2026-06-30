@@ -6,7 +6,7 @@ import {
 import { useFocusEffect } from 'expo-router'
 import { CATEGORIES, SCREEN } from '../../src/constants/theme'
 import { useTheme } from '../../src/lib/themeContext'
-import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
+import { getCurrencySymbol, loadCurrency, formatAmount, roundMoney } from '../../src/lib/currency'
 import { BudgetsSkeleton } from '../../src/components/SkeletonLoader'
 import { Ionicons } from '@expo/vector-icons'
 import { saveCache, loadCache } from '../../src/lib/cache'
@@ -194,7 +194,7 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
   }
 
   function getSpent(category) {
-    return expenses.filter(e => e.category === category).reduce((sum, e) => sum + parseFloat(e.amount), 0)
+    return roundMoney(expenses.filter(e => e.category === category).reduce((sum, e) => sum + parseFloat(e.amount), 0))
   }
 
   function getBudgetLimit(category) {

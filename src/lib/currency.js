@@ -71,6 +71,16 @@ const CURRENCY_LOCALE_MAP = {
 
 const NO_DECIMAL_CURRENCIES = ['JPY', 'KRW', 'IDR']
 
+// Rounds to 2 decimal places, correcting the binary floating-point drift that
+// accumulates when summing many amounts with reduce() (e.g. 0.1 + 0.2 !== 0.3).
+// Apply this at every running-total site, not just at final display, since
+// unrounded intermediate totals can also feed into budget/threshold comparisons.
+export function roundMoney(amount) {
+  const num = Number(amount)
+  if (!Number.isFinite(num)) return 0
+  return Math.round((num + Number.EPSILON) * 100) / 100
+}
+
 export function formatAmount(amount, symbol = '$', currencyCode = null) {
   try {
     const num = parseFloat(amount)

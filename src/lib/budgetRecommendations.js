@@ -1,3 +1,5 @@
+import { roundMoney } from './currency'
+
 // Analyze last 3 months and recommend budgets per category
 export function generateBudgetRecommendations(allExpenses, categories) {
   const now = new Date()
@@ -18,7 +20,7 @@ export function generateBudgetRecommendations(allExpenses, categories) {
       const monthExpenses = allExpenses.filter(
         e => e.category === cat.label && e.date.startsWith(month)
       )
-      return monthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+      return roundMoney(monthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0))
     })
 
     // Only include months where there was spending

@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
-import { getCurrencySymbol } from './currency'
+import { getCurrencySymbol, roundMoney } from './currency'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
 const WEEKLY_NOTIF_KEY = 'savr_last_weekly_notif'
@@ -70,9 +70,9 @@ export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
     let updated = false
 
     for (const budget of budgets) {
-      const spent = expenses
+      const spent = roundMoney(expenses
         .filter(e => e.category === budget.category && e.date.startsWith(currentMonth))
-        .reduce((sum, e) => sum + parseFloat(e.amount), 0)
+        .reduce((sum, e) => sum + parseFloat(e.amount), 0))
 
       const limit = parseFloat(budget.limit_amount)
       if (!limit || limit <= 0) continue
@@ -170,7 +170,7 @@ export async function checkWeeklySummary(expenses) {
 
     if (weekExpenses.length === 0) return
 
-    const weekTotal = weekExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+    const weekTotal = roundMoney(weekExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0))
     const symbol = await getCurrencySymbol()
 
     const catTotals = {}

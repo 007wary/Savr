@@ -12,7 +12,9 @@ entrypoint = "./functions/google-token-refresh/index.ts"
 
 [functions.send-backup-reminder]
 enabled = true
-verify_jwt = true
+# Auth is enforced inside the function via a shared x-cron-secret header (BACKUP_REMINDER_CRON_SECRET),
+# not a user JWT — this function is only ever invoked by the scheduled cron job, never the app.
+verify_jwt = false
 import_map = "./functions/send-backup-reminder/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx

@@ -102,6 +102,10 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // PKCE binds the OAuth callback to a code_verifier held only by this client, so a
+    // forged/intercepted redirect can't be exchanged for a session without it — unlike
+    // the implicit flow, where tokens ride in the redirect URL with no such binding.
+    flowType: 'pkce',
   },
 })
 

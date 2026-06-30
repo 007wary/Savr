@@ -8,7 +8,7 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { CATEGORIES, SCREEN } from '../src/constants/theme'
 import { useTheme } from '../src/lib/themeContext'
-import { getCurrencySymbol, loadCurrency, formatAmount } from '../src/lib/currency'
+import { getCurrencySymbol, loadCurrency, formatAmount, roundMoney } from '../src/lib/currency'
 import { getUser, getCachedUser } from '../src/lib/auth'
 import CustomAlert from '../src/components/CustomAlert'
 import useAlert from '../src/hooks/useAlert'
@@ -176,7 +176,7 @@ export default function RecurringScreen() {
         const user = getCachedUser() || await getUser()
         if (!user) return
         const fresh = await getRecurring(user.id)
-        const recTotal = fresh.reduce((sum, r) => sum + parseFloat(r.amount), 0)
+        const recTotal = roundMoney(fresh.reduce((sum, r) => sum + parseFloat(r.amount), 0))
         await saveCache(dashCacheKey, { ...dashCached, recurringTotal: recTotal, recurringCount: fresh.length })
       }
     } catch {}

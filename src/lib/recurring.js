@@ -1,6 +1,7 @@
-import { getRecurring, addExpense, updateRecurringAfterLog, updateAccountBalance } from '../services/sqliteService'
+import { getRecurring, processRecurringExpenseItemAtomic } from '../services/sqliteService'
 
 let isProcessing = false
+let isProcessingIncome = false
 
 export async function processDueRecurring(userId) {
   if (isProcessing) return 0
@@ -17,35 +18,8 @@ export async function processDueRecurring(userId) {
 
     for (const item of recurring) {
       if (item.next_due > todayStr) continue
-
       try {
-        let currentDue = item.next_due
-        let lastLogged = item.last_logged
-
-        // Log all missed entries up to today
-        while (currentDue <= todayStr) {
-          if (lastLogged === currentDue) {
-            currentDue = calculateNextDue(currentDue, item.frequency)
-            continue
-          }
-
-          await addExpense(userId, {
-            amount: item.amount,
-            category: item.category,
-            note: item.note || `Auto: ${item.category}`,
-            date: currentDue,
-            is_recurring: 1,
-            recurring_id: item.id,
-            account_id: item.account_id || null,
-          })
-          if (item.account_id) await updateAccountBalance(item.account_id, -item.amount)
-
-          lastLogged = currentDue
-          currentDue = calculateNextDue(currentDue, item.frequency)
-          logged++
-        }
-
-        await updateRecurringAfterLog(item.id, currentDue, lastLogged)
+        logged += await processRecurringExpenseItemAtomic(userId, item, todayStr, calculateNextDue)
       } catch {}
     }
 
@@ -66,8 +40,11 @@ function calculateNextDue(currentDue, frequency) {
 }
 
 export async function processRecurringIncome(userId) {
+  if (isProcessingIncome) return 0
+  isProcessingIncome = true
+
   try {
-    const { getRecurringIncome, updateRecurringIncomeAfterLog, addIncome } = await import('../services/sqliteService')
+    const { getRecurringIncome, processRecurringIncomeItemAtomic } = await import('../services/sqliteService')
     const items = await getRecurringIncome(userId)
     if (!items || items.length === 0) return 0
 
@@ -78,37 +55,15 @@ export async function processRecurringIncome(userId) {
 
     for (const item of items) {
       if (item.next_due > todayStr) continue
-
       try {
-        let currentDue = item.next_due
-        let lastLogged = item.last_logged
-
-        while (currentDue <= todayStr) {
-          if (lastLogged === currentDue) {
-            currentDue = calculateNextDue(currentDue, item.frequency)
-            continue
-          }
-
-          await addIncome(userId, {
-            amount: item.amount,
-            category: item.category,
-            note: item.note || `Auto: ${item.category}`,
-            date: currentDue,
-            account_id: item.account_id || null,
-          })
-          if (item.account_id) await updateAccountBalance(item.account_id, item.amount)
-
-          lastLogged = currentDue
-          currentDue = calculateNextDue(currentDue, item.frequency)
-          logged++
-        }
-
-        await updateRecurringIncomeAfterLog(item.id, currentDue, lastLogged)
+        logged += await processRecurringIncomeItemAtomic(userId, item, todayStr, calculateNextDue)
       } catch {}
     }
 
     return logged
   } catch {
     return 0
+  } finally {
+    isProcessingIncome = false
   }
 }

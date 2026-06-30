@@ -8,7 +8,7 @@ import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { CATEGORIES, SCREEN } from '../../src/constants/theme'
 import { useTheme } from '../../src/lib/themeContext'
-import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
+import { getCurrencySymbol, loadCurrency, formatAmount, roundMoney } from '../../src/lib/currency'
 import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
@@ -146,11 +146,11 @@ export default function Reports() {
   const isCurrentMonth = monthOffset === 0
 
   const total = useMemo(() =>
-    expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0),
+    roundMoney(expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)),
   [expenses])
 
   const lastTotal = useMemo(() =>
-    lastMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0),
+    roundMoney(lastMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)),
   [lastMonthExpenses])
 
   const daysElapsed = isCurrentMonth ? now.getDate() : daysInSelectedMonth
@@ -159,7 +159,7 @@ export default function Reports() {
 
   const categoryTotals = useMemo(() => CATEGORIES.map(cat => {
     const catExpenses = expenses.filter(e => e.category === cat.label)
-    const catTotal = catExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+    const catTotal = roundMoney(catExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0))
     return { ...cat, total: catTotal, percentage: total > 0 ? (catTotal / total) * 100 : 0, expenses: catExpenses }
   }).filter(c => c.total > 0).sort((a, b) => b.total - a.total), [expenses, total])
 
@@ -187,7 +187,7 @@ export default function Reports() {
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      const monthTotal = allExpenses.filter(e => e.date.startsWith(key)).reduce((sum, e) => sum + parseFloat(e.amount), 0)
+      const monthTotal = roundMoney(allExpenses.filter(e => e.date.startsWith(key)).reduce((sum, e) => sum + parseFloat(e.amount), 0))
       const incomeForMonth = last6MonthsIncome.find(m => m.key === key)?.amount || 0
       result.push({ key, label: d.toLocaleString('default', { month: 'short' }), amount: monthTotal, income: incomeForMonth })
     }
@@ -211,8 +211,8 @@ export default function Reports() {
     const weekendExp = expenses.filter(e => { const day = new Date(e.date + 'T00:00:00').getDay(); return day === 0 || day === 6 })
     const weekdayExp = expenses.filter(e => { const day = new Date(e.date + 'T00:00:00').getDay(); return day !== 0 && day !== 6 })
     return {
-      weekendTotal: weekendExp.reduce((sum, e) => sum + parseFloat(e.amount), 0),
-      weekdayTotal: weekdayExp.reduce((sum, e) => sum + parseFloat(e.amount), 0),
+      weekendTotal: roundMoney(weekendExp.reduce((sum, e) => sum + parseFloat(e.amount), 0)),
+      weekdayTotal: roundMoney(weekdayExp.reduce((sum, e) => sum + parseFloat(e.amount), 0)),
     }
   }, [expenses])
 

@@ -119,13 +119,16 @@ if (user) {
     const d = new Date()
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
     const lastCheck = await AsyncStorage.getItem(LAST_RECURRING_CHECK_KEY)
-    if (lastCheck !== today) {
+    if (lastCheck !== today && !recurringProcessedRef.current) {
+      recurringProcessedRef.current = true
+      await Promise.all([
+        processDueRecurring(cachedUser.id).catch(() => {}),
+        processRecurringIncome(cachedUser.id).catch(() => {}),
+      ])
+      // Only mark today as checked once processing has actually run to completion,
+      // so a crash/kill mid-run lets the app retry on next open instead of skipping
+      // the rest of the day silently.
       await AsyncStorage.setItem(LAST_RECURRING_CHECK_KEY, today)
-      if (!recurringProcessedRef.current) {
-        recurringProcessedRef.current = true
-        processDueRecurring(cachedUser.id).catch(() => {})
-        processRecurringIncome(cachedUser.id).catch(() => {})
-      }
     }
   } catch {}
 }, 3500)

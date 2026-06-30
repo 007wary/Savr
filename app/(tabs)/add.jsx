@@ -17,7 +17,7 @@ import { getCurrencySymbol, loadCurrency, formatAmount, getQuickAmounts } from '
 import { detectCategory } from '../../src/lib/categoryDetector'
 import { detectAnomaly } from '../../src/lib/anomalyDetector'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
-import { addExpense, addRecurring, addIncome, addRecurringIncome, addTransfer, getExpenses, getBudgets, getAccounts, updateAccountBalance } from '../../src/services/sqliteService'
+import { addExpenseAtomic, addRecurring, addIncomeAtomic, addRecurringIncome, addTransferAtomic, getExpenses, getBudgets, getAccounts } from '../../src/services/sqliteService'
 import { Analytics } from '../../src/lib/analytics'
 import { scheduleBackup } from '../../src/services/backgroundBackup'
 import { checkAndRequestReview } from '../../src/lib/reviewService'
@@ -54,6 +54,11 @@ export default function AddExpense() {
   const [isRecurringIncome, setIsRecurringIncome] = useState(false)
   const [incomeFrequency, setIncomeFrequency] = useState('monthly')
   const [submitting, setSubmitting] = useState(false)
+  // Tracks the whole add-flow including the anomaly-confirm alert, where `submitting`
+  // is intentionally reset to false so the alert's buttons stay tappable. Prevents a
+  // second tap on the (briefly re-enabled) Add button from firing a duplicate insert
+  // while the anomaly alert is still open.
+  const addInFlightRef = useRef(false)
   const [currencySymbol, setCurrencySymbol] = useState('$')
   const [currencyCode, setCurrencyCode] = useState('USD')
   const [quickAmounts, setQuickAmounts] = useState(['50', '100', '200', '500', '1000', '2000'])
@@ -206,8 +211,7 @@ export default function AddExpense() {
         const { processDueRecurring } = await import('../../src/lib/recurring')
         await processDueRecurring(user.id)
       } else {
-        await addExpense(user.id, { ...expenseData, account_id: selectedAccountId })
-        if (selectedAccountId) await updateAccountBalance(selectedAccountId, -expenseData.amount)
+        await addExpenseAtomic(user.id, { ...expenseData, account_id: selectedAccountId })
       }
 
       if (isRecurring) {
@@ -286,8 +290,7 @@ export default function AddExpense() {
         const { processRecurringIncome } = await import('../../src/lib/recurring')
         await processRecurringIncome(user.id)
       } else {
-        await addIncome(user.id, { ...incomeData, account_id: selectedAccountId })
-        if (selectedAccountId) await updateAccountBalance(selectedAccountId, incomeData.amount)
+        await addIncomeAtomic(user.id, { ...incomeData, account_id: selectedAccountId })
       }
 
       if (isRecurringIncome) {
@@ -336,15 +339,13 @@ export default function AddExpense() {
       if (!user) { showAlert('Error', 'Could not save transfer.'); setSubmitting(false); return }
       const transferAmount = parseFloat(amount)
       const dateStr = `${transferDate.getFullYear()}-${String(transferDate.getMonth() + 1).padStart(2, '0')}-${String(transferDate.getDate()).padStart(2, '0')}`
-      await addTransfer(user.id, {
+      await addTransferAtomic(user.id, {
         from_account_id: transferFromId,
         to_account_id: transferToId,
         amount: transferAmount,
         note: transferNote.trim(),
         date: dateStr,
       })
-      await updateAccountBalance(transferFromId, -transferAmount)
-      await updateAccountBalance(transferToId, transferAmount)
       setAmount('')
       setTransferNote('')
       setTransferFromId(null)
@@ -360,13 +361,16 @@ export default function AddExpense() {
   }
 
   async function handleAdd() {
-    if (submitting) return
-    if (activeTab === 'transfer') { await saveTransfer(); return }
+    if (submitting || addInFlightRef.current) return
+    addInFlightRef.current = true
+    if (activeTab === 'transfer') { await saveTransfer(); addInFlightRef.current = false; return }
 
     if (!amount || !selectedCategory) {
+      addInFlightRef.current = false
       return showAlert('Missing info', 'Please enter an amount and select a category')
     }
     if (isNaN(parseFloat(amount))) {
+      addInFlightRef.current = false
       return showAlert('Invalid amount', 'Please enter a valid number')
     }
 
@@ -385,6 +389,7 @@ export default function AddExpense() {
       }
       resetForm()
       await saveIncome(incomeData, entryMonth, currentMonth)
+      addInFlightRef.current = false
       return
     }
 
@@ -406,7 +411,7 @@ export default function AddExpense() {
             '⚠️ Unusual Expense Detected',
             `This ${selectedCategory} expense of ${formatAmount(expenseData.amount, currencySymbol, currencyCode)} is ${anomaly.multiplier}x your usual spending.\n\nYour average ${selectedCategory} expense is ${formatAmount(anomaly.avg, currencySymbol, currencyCode)} based on ${anomaly.count} past transactions.\n\nWas this intentional?`,
             [
-              { text: 'Cancel', style: 'cancel' },
+              { text: 'Cancel', style: 'cancel', onPress: () => { addInFlightRef.current = false } },
               {
                 text: 'Yes, Add It',
                 onPress: async () => {
@@ -417,6 +422,8 @@ export default function AddExpense() {
                   } catch {
                     setSubmitting(false)
                     showAlert('Error', 'Could not save expense. Please try again.')
+                  } finally {
+                    addInFlightRef.current = false
                   }
                 }
               }
@@ -429,6 +436,7 @@ export default function AddExpense() {
 
     resetForm()
     await saveExpense(expenseData, entryMonth, currentMonth)
+    addInFlightRef.current = false
   }
 
   const selectedCat = CATEGORIES.find(c => c.label === selectedCategory)

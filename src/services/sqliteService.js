@@ -194,6 +194,26 @@ export async function addExpense(userId, { amount, category, note, date, is_recu
   return newId
 }
 
+export async function addExpenseAtomic(userId, { amount, category, note, date, is_recurring = 0, recurring_id = null, account_id = null }) {
+  const database = await getDB()
+  const newId = id()
+  const ts = now()
+  await database.withTransactionAsync(async () => {
+    await runWithRetry(database,
+      `INSERT INTO expenses (id, user_id, amount, category, note, date, is_recurring, recurring_id, account_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newId, userId, amount, category, note || null, date, is_recurring ? 1 : 0, recurring_id, account_id, ts, ts]
+    )
+    if (account_id) {
+      await runWithRetry(database,
+        `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+        [-amount, now(), account_id]
+      )
+    }
+  })
+  return newId
+}
+
 export async function getExpenses(userId, { month } = {}) {
   const database = await getDB()
   if (month) {
@@ -305,6 +325,49 @@ export async function updateRecurringAfterLog(id, nextDue, lastLogged) {
     `UPDATE recurring_expenses SET next_due = ?, last_logged = ?, updated_at = ? WHERE id = ?`,
     [nextDue, lastLogged, now(), id]
   )
+}
+
+// Logs all due occurrences for one recurring expense and updates its next_due/last_logged
+// atomically in a single DB transaction, so a crash mid-run can't leave balances
+// updated without the rule advancing (or vice versa).
+export async function processRecurringExpenseItemAtomic(userId, item, todayStr, calculateNextDue) {
+  const database = await getDB()
+  let logged = 0
+  await database.withTransactionAsync(async () => {
+    let currentDue = item.next_due
+    let lastLogged = item.last_logged
+
+    while (currentDue <= todayStr) {
+      if (lastLogged === currentDue) {
+        currentDue = calculateNextDue(currentDue, item.frequency)
+        continue
+      }
+
+      const newId = id()
+      const ts = now()
+      await runWithRetry(database,
+        `INSERT INTO expenses (id, user_id, amount, category, note, date, is_recurring, recurring_id, account_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+        [newId, userId, item.amount, item.category, item.note || `Auto: ${item.category}`, currentDue, item.id, item.account_id || null, ts, ts]
+      )
+      if (item.account_id) {
+        await runWithRetry(database,
+          `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+          [-item.amount, now(), item.account_id]
+        )
+      }
+
+      lastLogged = currentDue
+      currentDue = calculateNextDue(currentDue, item.frequency)
+      logged++
+    }
+
+    await runWithRetry(database,
+      `UPDATE recurring_expenses SET next_due = ?, last_logged = ?, updated_at = ? WHERE id = ?`,
+      [currentDue, lastLogged, now(), item.id]
+    )
+  })
+  return logged
 }
 
 export async function deleteRecurring(id) {
@@ -442,6 +505,26 @@ export async function addIncome(userId, { amount, category, note, date, account_
   return newId
 }
 
+export async function addIncomeAtomic(userId, { amount, category, note, date, account_id = null }) {
+  const database = await getDB()
+  const newId = id()
+  const ts = now()
+  await database.withTransactionAsync(async () => {
+    await runWithRetry(database,
+      `INSERT INTO income (id, user_id, amount, category, note, date, account_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newId, userId, amount, category, note || null, date, account_id, ts, ts]
+    )
+    if (account_id) {
+      await runWithRetry(database,
+        `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+        [amount, now(), account_id]
+      )
+    }
+  })
+  return newId
+}
+
 export async function getIncome(userId) {
   const database = await getDB()
   return await database.getAllAsync(
@@ -502,6 +585,28 @@ export async function addTransfer(userId, { from_account_id, to_account_id, amou
   return newId
 }
 
+export async function addTransferAtomic(userId, { from_account_id, to_account_id, amount, note, date }) {
+  const database = await getDB()
+  const newId = id()
+  const ts = now()
+  await database.withTransactionAsync(async () => {
+    await runWithRetry(database,
+      `INSERT INTO transfers (id, user_id, from_account_id, to_account_id, amount, note, date, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newId, userId, from_account_id, to_account_id, amount, note || null, date, ts, ts]
+    )
+    await runWithRetry(database,
+      `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+      [-amount, now(), from_account_id]
+    )
+    await runWithRetry(database,
+      `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+      [amount, now(), to_account_id]
+    )
+  })
+  return newId
+}
+
 export async function getTransfers(userId) {
   const database = await getDB()
   return await database.getAllAsync(
@@ -550,6 +655,47 @@ export async function updateRecurringIncomeAfterLog(id, nextDue, lastLogged) {
     `UPDATE recurring_income SET next_due = ?, last_logged = ?, updated_at = ? WHERE id = ?`,
     [nextDue, lastLogged, now(), id]
   )
+}
+
+// See processRecurringExpenseItemAtomic — same atomicity guarantee for recurring income.
+export async function processRecurringIncomeItemAtomic(userId, item, todayStr, calculateNextDue) {
+  const database = await getDB()
+  let logged = 0
+  await database.withTransactionAsync(async () => {
+    let currentDue = item.next_due
+    let lastLogged = item.last_logged
+
+    while (currentDue <= todayStr) {
+      if (lastLogged === currentDue) {
+        currentDue = calculateNextDue(currentDue, item.frequency)
+        continue
+      }
+
+      const newId = id()
+      const ts = now()
+      await runWithRetry(database,
+        `INSERT INTO income (id, user_id, amount, category, note, date, account_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [newId, userId, item.amount, item.category, item.note || `Auto: ${item.category}`, currentDue, item.account_id || null, ts, ts]
+      )
+      if (item.account_id) {
+        await runWithRetry(database,
+          `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+          [item.amount, now(), item.account_id]
+        )
+      }
+
+      lastLogged = currentDue
+      currentDue = calculateNextDue(currentDue, item.frequency)
+      logged++
+    }
+
+    await runWithRetry(database,
+      `UPDATE recurring_income SET next_due = ?, last_logged = ?, updated_at = ? WHERE id = ?`,
+      [currentDue, lastLogged, now(), item.id]
+    )
+  })
+  return logged
 }
 
 export async function deleteRecurringIncome(id) {

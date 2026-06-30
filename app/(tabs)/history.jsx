@@ -10,7 +10,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { CATEGORIES, SCREEN } from '../../src/constants/theme'
 import { useTheme } from '../../src/lib/themeContext'
 import { HistorySkeleton } from '../../src/components/SkeletonLoader'
-import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
+import { getCurrencySymbol, loadCurrency, formatAmount, roundMoney } from '../../src/lib/currency'
 import BottomSheet from '../../src/components/BottomSheet'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
@@ -142,7 +142,7 @@ export default function History() {
       .map(date => ({
         title: date,
         data: groups[date],
-        total: groups[date].filter(e => e.type !== 'income').reduce((sum, e) => sum + parseFloat(e.amount), 0)
+        total: roundMoney(groups[date].filter(e => e.type !== 'income').reduce((sum, e) => sum + parseFloat(e.amount), 0))
       }))
   }
 
@@ -167,7 +167,7 @@ export default function History() {
         const user = getCachedUser() || userRef.current || await getUser()
         if (user) {
           const recurringItems = await getRecurring(user.id)
-          const recTotal = recurringItems.reduce((sum, r) => sum + parseFloat(r.amount), 0)
+          const recTotal = roundMoney(recurringItems.reduce((sum, r) => sum + parseFloat(r.amount), 0))
           const recCount = recurringItems.length
           await saveCache(dashCacheKey, {
             ...dashCached,
@@ -217,13 +217,17 @@ export default function History() {
               if (deletedItem?.recurring_id) {
                 await deleteRecurring(deletedItem.recurring_id).catch(() => {})
               } else if (deletedItem?.is_recurring) {
+                // Legacy rows logged before recurring_id was always stored. Only safe to
+                // guess when exactly one active rule matches amount+category — if there's
+                // more than one candidate we can't tell which rule produced this expense,
+                // so leave both rules alone rather than risk deactivating the wrong one.
                 const user = getCachedUser() || userRef.current || await getUser()
                 if (user) {
                   const recurringItems = await getRecurring(user.id)
-                  const match = recurringItems.find(r =>
+                  const matches = recurringItems.filter(r =>
                     r.amount === deletedItem.amount && r.category === deletedItem.category
                   )
-                  if (match) await deleteRecurring(match.id).catch(() => {})
+                  if (matches.length === 1) await deleteRecurring(matches[0].id).catch(() => {})
                 }
               }
             }

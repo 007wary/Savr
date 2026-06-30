@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { CATEGORIES, SCREEN } from '../../src/constants/theme'
 import { useTheme } from '../../src/lib/themeContext'
 import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
-import { getCurrencySymbol, loadCurrency, formatAmount } from '../../src/lib/currency'
+import { getCurrencySymbol, loadCurrency, formatAmount, roundMoney } from '../../src/lib/currency'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import { checkWeeklySummary, checkBudgetAlerts } from '../../src/lib/notifications'
@@ -201,7 +201,7 @@ const isCurrentMonth = true
         daysElapsed = totalDays
       }
 
-      const recTotal = recurringItems.reduce((sum, r) => sum + parseFloat(r.amount), 0)
+      const recTotal = roundMoney(recurringItems.reduce((sum, r) => sum + parseFloat(r.amount), 0))
       const recCount = recurringItems.length
 
       saveCache(cacheKey, {
@@ -370,14 +370,14 @@ const isCurrentMonth = true
   const now = new Date()
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   const todayExpenses = expenses.filter(e => e.date === todayStr)
-  const todayTotal = todayExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
-  const total = expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+  const todayTotal = roundMoney(todayExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0))
+  const total = roundMoney(expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0))
   return { total, todayExpenses, todayTotal }
 }, [expenses])
 
   const byCategory = useMemo(() => CATEGORIES.map(cat => {
     const catExpenses = expenses.filter(e => e.category === cat.label)
-    const catTotal = catExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+    const catTotal = roundMoney(catExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0))
     return { ...cat, total: catTotal }
   }).filter(c => c.total > 0).sort((a, b) => b.total - a.total), [expenses])
 
