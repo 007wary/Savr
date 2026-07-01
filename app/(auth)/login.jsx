@@ -74,7 +74,11 @@ export default function Login() {
 
       const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
       if (exchangeError) throw exchangeError
-      setSigningIn(false)
+      // Leave signingIn=true here — clearing it is _layout.jsx's job, once its
+      // onAuthStateChange listener has actually observed the new session. If we
+      // clear it here first, there's a window where signingIn=false but the
+      // layout's session state hasn't updated yet, and the redirect effect just
+      // leaves the user stranded on the login screen.
 
       try {
         const provider_token = sessionData?.session?.provider_token
@@ -84,9 +88,9 @@ export default function Login() {
       } catch {}
     } catch (error) {
       showAlert('Sign In Failed', 'Something went wrong. Please try again.')
+      setSigningIn(false)
     } finally {
       setGoogleLoading(false)
-      setSigningIn(false)
     }
   }
 

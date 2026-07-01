@@ -15,7 +15,7 @@ import { cacheGoogleAccessToken, clearGoogleAccessToken } from '../src/lib/googl
 import { Analytics, setUserId } from '../src/lib/analytics'
 import crashlytics from '@react-native-firebase/crashlytics'
 import { setCachedUser, getCachedUser, loadCachedUser } from '../src/lib/auth'
-import { isSigningIn, subscribeSigningIn } from '../src/lib/authState'
+import { isSigningIn, subscribeSigningIn, setSigningIn } from '../src/lib/authState'
 import * as NavigationBar from 'expo-navigation-bar'
 
 SplashScreen.preventAutoHideAsync()
@@ -179,12 +179,19 @@ setTimeout(() => {
     init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!initialSessionLoadedRef.current) return
+      // A genuine SIGNED_IN must never be dropped even if the initial
+      // session/cache check hasn't resolved yet — otherwise a sign-in that
+      // races the app's cold-start init leaves the user stuck on login.
+      if (!initialSessionLoadedRef.current && event !== 'SIGNED_IN') return
 
       setSession(session ?? null)
 
       if (event === 'SIGNED_IN') {
+        initialSessionLoadedRef.current = true
         setTransitioning(true)
+        // Clear here, in the same update that sets session, so the redirect
+        // effect below always sees session and signingIn flip together.
+        setSigningIn(false)
         if (session?.user) setCachedUser(session.user)
         if (session?.user?.id) {
           setUserId(session.user.id).catch(() => {})
