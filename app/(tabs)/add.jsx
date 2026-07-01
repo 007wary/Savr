@@ -920,7 +920,7 @@ export default function AddExpense() {
 </View>
             <Text style={styles.celebrationTitle}>First expense logged!</Text>
             <Text style={styles.celebrationMessage}>
-              Great start! You're on your way to taking control of your money.{'\n\n'}Come back tomorrow to build your streak.
+              Great start! You&apos;re on your way to taking control of your money.{'\n\n'}Come back tomorrow to build your streak.
             </Text>
             <TouchableOpacity
               style={styles.celebrationBtn}
@@ -928,7 +928,7 @@ export default function AddExpense() {
               activeOpacity={0.85}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-  <Text style={styles.celebrationBtnText}>Let's go!</Text>
+  <Text style={styles.celebrationBtnText}>Let&apos;s go!</Text>
   <Ionicons name="arrow-forward-circle" size={20} color="#fff" />
 </View>
             </TouchableOpacity>

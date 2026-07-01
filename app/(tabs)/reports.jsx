@@ -492,7 +492,7 @@ export default function Reports() {
               {formatAmount(forecast, currencySymbol, currencyCode)}
             </Text>
             <Text style={styles.forecastSub}>
-              At {formatAmount(dailyAvg, currencySymbol, currencyCode)}/day, you'll spend this much by end of {now.toLocaleString('default', { month: 'long' })}
+              At {formatAmount(dailyAvg, currencySymbol, currencyCode)}/day, you&apos;ll spend this much by end of {now.toLocaleString('default', { month: 'long' })}
             </Text>
             <View style={styles.forecastBar}>
               <View style={[styles.forecastFill, { width: `${Math.min((total / Math.max(forecast, 1)) * 100, 100)}%`, backgroundColor: total > forecast * 0.8 ? COLORS.accentRed : COLORS.accent }]} />

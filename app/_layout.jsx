@@ -17,6 +17,7 @@ import crashlytics from '@react-native-firebase/crashlytics'
 import { setCachedUser, getCachedUser, loadCachedUser } from '../src/lib/auth'
 import { isSigningIn, subscribeSigningIn, setSigningIn } from '../src/lib/authState'
 import * as NavigationBar from 'expo-navigation-bar'
+import { ErrorBoundary } from '../src/components/ErrorBoundary'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -386,8 +387,10 @@ try {
 
 export default function RootLayout() {
   return (
-    <ThemeProvider>
-      <RootLayoutInner />
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <RootLayoutInner />
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }

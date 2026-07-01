@@ -31,7 +31,7 @@ export async function processDueRecurring(userId) {
   }
 }
 
-function calculateNextDue(currentDue, frequency) {
+export function calculateNextDue(currentDue, frequency) {
   const next = new Date(currentDue + 'T00:00:00')
   if (frequency === 'daily') next.setDate(next.getDate() + 1)
   else if (frequency === 'weekly') next.setDate(next.getDate() + 7)
