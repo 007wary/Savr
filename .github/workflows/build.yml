@@ -43,9 +43,20 @@ jobs:
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       - name: Bundle JS
         run: |
+          echo "SUPABASE_URL length: ${#EXPO_PUBLIC_SUPABASE_URL}"
+          echo "SUPABASE_ANON_KEY length: ${#EXPO_PUBLIC_SUPABASE_ANON_KEY}"
           mkdir -p android/app/src/main/assets
           npx expo export --platform android --output-dir dist
-          cp dist/_expo/static/js/android/*.hbc android/app/src/main/assets/index.android.bundle 2>/dev/null || cp dist/_expo/static/js/android/*.js android/app/src/main/assets/index.android.bundle
+          BUNDLE_FILE=$(find dist/_expo/static/js/android -type f \( -name "*.hbc" -o -name "*.js" \) | head -n1)
+          if [ -z "$BUNDLE_FILE" ]; then
+            echo "No bundle output found from expo export" >&2
+            exit 1
+          fi
+          cp "$BUNDLE_FILE" android/app/src/main/assets/index.android.bundle
+          if ! grep -aq "supabase.co" android/app/src/main/assets/index.android.bundle; then
+            echo "Bundled JS does not contain a Supabase URL — EXPO_PUBLIC_SUPABASE_URL was likely empty at export time" >&2
+            exit 1
+          fi
           cp assets/adi-registration.properties android/app/src/main/assets/adi-registration.properties
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
