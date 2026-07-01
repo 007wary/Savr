@@ -230,10 +230,22 @@ export async function getExpenses(userId, { month } = {}) {
 
 export async function updateExpense(id, { amount, category, note, date }) {
   const database = await getDB()
-  await runWithRetry(database,
-    `UPDATE expenses SET amount = ?, category = ?, note = ?, date = ?, updated_at = ? WHERE id = ?`,
-    [amount, category, note || null, date, now(), id]
-  )
+  await database.withTransactionAsync(async () => {
+    const existing = await database.getFirstAsync(`SELECT amount, account_id FROM expenses WHERE id = ?`, [id])
+    await runWithRetry(database,
+      `UPDATE expenses SET amount = ?, category = ?, note = ?, date = ?, updated_at = ? WHERE id = ?`,
+      [amount, category, note || null, date, now(), id]
+    )
+    if (existing?.account_id) {
+      const delta = existing.amount - amount
+      if (delta !== 0) {
+        await runWithRetry(database,
+          `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+          [delta, now(), existing.account_id]
+        )
+      }
+    }
+  })
 }
 
 export async function deleteExpense(id) {
@@ -487,9 +499,19 @@ export async function updateAccountBalance(id, delta) {
   )
 }
 
+// Deleting an account would otherwise leave expenses/income pointing at a
+// nonexistent account_id and transfers with no valid endpoint, so unlink/remove
+// those references in the same transaction as the account deletion.
 export async function deleteAccount(id) {
   const database = await getDB()
-  await runWithRetry(database,`DELETE FROM accounts WHERE id = ?`, [id])
+  await database.withTransactionAsync(async () => {
+    await runWithRetry(database, `UPDATE expenses SET account_id = NULL WHERE account_id = ?`, [id])
+    await runWithRetry(database, `UPDATE income SET account_id = NULL WHERE account_id = ?`, [id])
+    await runWithRetry(database, `UPDATE recurring_expenses SET account_id = NULL WHERE account_id = ?`, [id])
+    await runWithRetry(database, `UPDATE recurring_income SET account_id = NULL WHERE account_id = ?`, [id])
+    await runWithRetry(database, `DELETE FROM transfers WHERE from_account_id = ? OR to_account_id = ?`, [id, id])
+    await runWithRetry(database, `DELETE FROM accounts WHERE id = ?`, [id])
+  })
 }
 
 // ─── INCOME ─────────────────────────────────────────────────
@@ -561,10 +583,42 @@ export async function getTodayIncomeTotal(userId, date) {
 
 export async function updateIncome(id, { amount, category, note, date, account_id }) {
   const database = await getDB()
-  await runWithRetry(database,
-    `UPDATE income SET amount = ?, category = ?, note = ?, date = ?, account_id = ?, updated_at = ? WHERE id = ?`,
-    [amount, category, note || null, date, account_id || null, now(), id]
-  )
+  const newAccountId = account_id || null
+  await database.withTransactionAsync(async () => {
+    const existing = await database.getFirstAsync(`SELECT amount, account_id FROM income WHERE id = ?`, [id])
+    await runWithRetry(database,
+      `UPDATE income SET amount = ?, category = ?, note = ?, date = ?, account_id = ?, updated_at = ? WHERE id = ?`,
+      [amount, category, note || null, date, newAccountId, now(), id]
+    )
+    if (existing) {
+      if (existing.account_id && existing.account_id !== newAccountId) {
+        // Account changed — reverse the old account's credit entirely
+        await runWithRetry(database,
+          `UPDATE accounts SET balance = balance - ?, updated_at = ? WHERE id = ?`,
+          [existing.amount, now(), existing.account_id]
+        )
+        if (newAccountId) {
+          await runWithRetry(database,
+            `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+            [amount, now(), newAccountId]
+          )
+        }
+      } else if (existing.account_id && existing.account_id === newAccountId) {
+        const delta = amount - existing.amount
+        if (delta !== 0) {
+          await runWithRetry(database,
+            `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+            [delta, now(), newAccountId]
+          )
+        }
+      } else if (!existing.account_id && newAccountId) {
+        await runWithRetry(database,
+          `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+          [amount, now(), newAccountId]
+        )
+      }
+    }
+  })
 }
 
 export async function deleteIncome(id) {

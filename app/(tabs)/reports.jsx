@@ -109,9 +109,13 @@ export default function Reports() {
       const lastMonthDate = new Date(selectedYear, selectedMonthNum - 2, 1)
       const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
       const sixMonthsAgo = new Date(selectedYear, selectedMonthNum - 7, 1)
+      const endOfSelectedMonth = new Date(selectedYear, selectedMonthNum, 1)
       const currentData = allData.filter(e => e.date.startsWith(selectedMonth))
       const lastMonthData = allData.filter(e => e.date.startsWith(lastMonthKey))
-      const sixMonthData = allData.filter(e => new Date(e.date) >= sixMonthsAgo)
+      const sixMonthData = allData.filter(e => {
+        const d = new Date(e.date)
+        return d >= sixMonthsAgo && d < endOfSelectedMonth
+      })
 
       const incomeTotal = await getMonthlyIncomeTotal(user.id, selectedMonth)
 
@@ -169,30 +173,38 @@ export default function Reports() {
     return map
   }, [allExpenses])
 
+  // Anchor on the last day of the viewed month (or today, if viewing the current month)
+  // so paging to a past month shows that month's trailing 7 days instead of today's.
+  const anchorDate = useMemo(() => {
+    if (isCurrentMonth) return getNow()
+    return new Date(currentMonth + `-${String(daysInSelectedMonth).padStart(2, '0')}` + 'T00:00:00')
+  }, [isCurrentMonth, currentMonth, daysInSelectedMonth])
+
   const last7 = useMemo(() => {
     const result = []
     for (let i = 6; i >= 0; i--) {
-      const d = getNow()
+      const d = new Date(anchorDate)
       d.setDate(d.getDate() - i)
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       result.push({ date: dateStr, label: d.toLocaleString('default', { weekday: 'short' }), amount: dailyMap[dateStr] || 0 })
     }
     return result
-  }, [dailyMap])
+  }, [dailyMap, anchorDate])
 
   const max7 = useMemo(() => Math.max(...last7.map(d => d.amount), 1), [last7])
 
   const last6Months = useMemo(() => {
     const result = []
+    const selectedDate = new Date(currentMonth + '-01')
     for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const d = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - i, 1)
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
       const monthTotal = roundMoney(allExpenses.filter(e => e.date.startsWith(key)).reduce((sum, e) => sum + parseFloat(e.amount), 0))
       const incomeForMonth = last6MonthsIncome.find(m => m.key === key)?.amount || 0
       result.push({ key, label: d.toLocaleString('default', { month: 'short' }), amount: monthTotal, income: incomeForMonth })
     }
     return result
-  }, [allExpenses, last6MonthsIncome])
+  }, [allExpenses, last6MonthsIncome, currentMonth])
 
   const max6 = useMemo(() => Math.max(...last6Months.map(m => Math.max(m.amount, m.income)), 1), [last6Months])
 

@@ -15,7 +15,7 @@ import { cacheGoogleAccessToken, clearGoogleAccessToken } from '../src/lib/googl
 import { Analytics, setUserId } from '../src/lib/analytics'
 import crashlytics from '@react-native-firebase/crashlytics'
 import { setCachedUser, getCachedUser, loadCachedUser } from '../src/lib/auth'
-import { isSigningIn } from '../src/lib/authState'
+import { isSigningIn, subscribeSigningIn } from '../src/lib/authState'
 import * as NavigationBar from 'expo-navigation-bar'
 
 SplashScreen.preventAutoHideAsync()
@@ -27,10 +27,16 @@ function RootLayoutInner() {
   const [session, setSession] = useState(undefined)
   const [onboardingDone, setOnboardingDone] = useState(undefined)
   const [transitioning, setTransitioning] = useState(false)
+  const [signingIn, setSigningInState] = useState(isSigningIn())
   const recurringProcessedRef = useRef(false)
   const initialSessionLoadedRef = useRef(false)
   const router = useRouter()
   const segments = useSegments()
+
+  // isSigningIn() is a plain module variable — subscribe so the redirect effect
+  // below re-runs when it flips, instead of silently missing the SIGNED_IN
+  // navigation because the flag changed without a re-render.
+  useEffect(() => subscribeSigningIn(setSigningInState), [])
 
   useEffect(() => {
     NavigationBar.setBackgroundColorAsync(COLORS.bg).catch(() => {})
@@ -337,17 +343,17 @@ try {
     if (onboardingDone) {
       if (session && inTabs) return
       if (!session && inAuth) return
-      if (!session && !inAuth && !inOnboarding && !isSigningIn()) {
+      if (!session && !inAuth && !inOnboarding && !signingIn) {
         router.replace('/(auth)/login')
         return
       }
-      if (session && inAuth && !isSigningIn()) {
+      if (session && inAuth && !signingIn) {
   setTransitioning(false)
   router.replace('/(tabs)/dashboard')
   return
 }
     }
-  }, [session, segments, onboardingDone])
+  }, [session, segments, onboardingDone, signingIn])
 
   if (session === undefined || onboardingDone === undefined || transitioning) {
     return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />

@@ -129,6 +129,7 @@ export default function Accounts() {
           await deleteAccount(account.id)
           setAccounts(prev => prev.filter(a => a.id !== account.id))
           await clearCache(`savr_cache_dashboard_${new Date().toISOString().slice(0, 7)}`)
+          await clearCache('savr_cache_history')
         }
       }
     ])
