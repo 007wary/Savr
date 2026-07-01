@@ -159,7 +159,13 @@ setTimeout(() => {
           const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
           const { data: { session: cachedSession } } = await Promise.race([sessionPromise, timeoutPromise]).catch(() => ({ data: { session: null } }))
 
-          if (cachedSession) {
+          // A SIGNED_IN event may have already landed while this race was in
+          // flight (e.g. user completes Google sign-in within the timeout
+          // window) — don't clobber that real session with a stale/null
+          // result from a getSession() call that started before it.
+          if (initialSessionLoadedRef.current) {
+            SplashScreen.hideAsync().catch(() => {})
+          } else if (cachedSession) {
             initialSessionLoadedRef.current = true
             setCachedUser(cachedSession.user)
             setSession(cachedSession)
