@@ -404,7 +404,7 @@ export default function Reports() {
 
           {(monthlyIncome > 0 || total > 0) && (
             <View style={styles.incomeExpenseCard}>
-              <Text style={styles.incomeExpenseTitle}>Income vs Expenses — {now.toLocaleString('default', { month: 'long' })}</Text>
+              <Text style={styles.incomeExpenseTitle}>Income vs Expenses — {monthName}</Text>
               <View style={styles.incomeExpenseRow}>
                 <View style={styles.incomeExpenseItem}>
                   <View style={[styles.incomeExpenseIcon, { backgroundColor: '#4CAF5022' }]}>

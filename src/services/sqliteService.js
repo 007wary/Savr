@@ -228,20 +228,40 @@ export async function getExpenses(userId, { month } = {}) {
   )
 }
 
-export async function updateExpense(id, { amount, category, note, date }) {
+export async function updateExpense(id, { amount, category, note, date, account_id }) {
   const database = await getDB()
   await database.withTransactionAsync(async () => {
     const existing = await database.getFirstAsync(`SELECT amount, account_id FROM expenses WHERE id = ?`, [id])
+    const newAccountId = account_id === undefined ? existing?.account_id ?? null : (account_id || null)
     await runWithRetry(database,
-      `UPDATE expenses SET amount = ?, category = ?, note = ?, date = ?, updated_at = ? WHERE id = ?`,
-      [amount, category, note || null, date, now(), id]
+      `UPDATE expenses SET amount = ?, category = ?, note = ?, date = ?, account_id = ?, updated_at = ? WHERE id = ?`,
+      [amount, category, note || null, date, newAccountId, now(), id]
     )
-    if (existing?.account_id) {
-      const delta = existing.amount - amount
-      if (delta !== 0) {
+    if (existing) {
+      if (existing.account_id && existing.account_id !== newAccountId) {
+        // Account changed — restore the old account's debit entirely
         await runWithRetry(database,
           `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
-          [delta, now(), existing.account_id]
+          [existing.amount, now(), existing.account_id]
+        )
+        if (newAccountId) {
+          await runWithRetry(database,
+            `UPDATE accounts SET balance = balance - ?, updated_at = ? WHERE id = ?`,
+            [amount, now(), newAccountId]
+          )
+        }
+      } else if (existing.account_id && existing.account_id === newAccountId) {
+        const delta = existing.amount - amount
+        if (delta !== 0) {
+          await runWithRetry(database,
+            `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+            [delta, now(), newAccountId]
+          )
+        }
+      } else if (!existing.account_id && newAccountId) {
+        await runWithRetry(database,
+          `UPDATE accounts SET balance = balance - ?, updated_at = ? WHERE id = ?`,
+          [amount, now(), newAccountId]
         )
       }
     }

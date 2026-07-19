@@ -35,7 +35,13 @@ export function calculateNextDue(currentDue, frequency) {
   const next = new Date(currentDue + 'T00:00:00')
   if (frequency === 'daily') next.setDate(next.getDate() + 1)
   else if (frequency === 'weekly') next.setDate(next.getDate() + 7)
-  else if (frequency === 'monthly') next.setMonth(next.getMonth() + 1)
+  else if (frequency === 'monthly') {
+    const day = next.getDate()
+    next.setDate(1)
+    next.setMonth(next.getMonth() + 1)
+    const daysInTargetMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
+    next.setDate(Math.min(day, daysInTargetMonth))
+  }
   return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`
 }
 

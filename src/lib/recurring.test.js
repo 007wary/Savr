@@ -25,9 +25,13 @@ describe('calculateNextDue', () => {
     expect(calculateNextDue('2026-12-31', 'daily')).toBe('2027-01-01')
   })
 
-  it('handles monthly rollover for month-end dates (JS Date overflow)', () => {
-    // Jan 31 + 1 month overflows to Mar 3 in JS Date semantics — documenting actual behavior
-    expect(calculateNextDue('2026-01-31', 'monthly')).toBe('2026-03-03')
+  it('clamps monthly rollover for month-end dates to the last day of the target month', () => {
+    expect(calculateNextDue('2026-01-31', 'monthly')).toBe('2026-02-28')
+    expect(calculateNextDue('2026-03-31', 'monthly')).toBe('2026-04-30')
+  })
+
+  it('keeps a clamped date clamped on subsequent months', () => {
+    expect(calculateNextDue('2026-02-28', 'monthly')).toBe('2026-03-28')
   })
 
   it('handles leap year February', () => {
