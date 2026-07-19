@@ -186,6 +186,7 @@ setTimeout(() => {
     init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[LOGIN_TRACE] onAuthStateChange fired, event=', event, 'hasSession=', !!session, 'initialSessionLoaded=', initialSessionLoadedRef.current)
       // A genuine SIGNED_IN must never be dropped even if the initial
       // session/cache check hasn't resolved yet — otherwise a sign-in that
       // races the app's cold-start init leaves the user stuck on login.
@@ -199,6 +200,7 @@ setTimeout(() => {
         // Clear here, in the same update that sets session, so the redirect
         // effect below always sees session and signingIn flip together.
         setSigningIn(false)
+        console.log('[LOGIN_TRACE] SIGNED_IN handled: setSession + setTransitioning(true) + setSigningIn(false) called')
         if (session?.user) setCachedUser(session.user)
         if (session?.user?.id) {
           setUserId(session.user.id).catch(() => {})
@@ -336,6 +338,7 @@ try {
   }, [router])
 
   useEffect(() => {
+    console.log('[LOGIN_TRACE] redirect effect ran: session=', !!session, 'onboardingDone=', onboardingDone, 'segments=', JSON.stringify(segments), 'signingIn=', signingIn)
     if (session === undefined || onboardingDone === undefined) return
 
     const inOnboarding = segments[0] === 'onboarding'
@@ -343,7 +346,9 @@ try {
     const inTabs = segments[0] === '(tabs)'
 
     if (!onboardingDone && !inOnboarding && session) {
+      console.log('[LOGIN_TRACE] taking onboarding-check branch (onboardingDone is falsy)')
       AsyncStorage.getItem('savr_onboarding_done').then(done => {
+        console.log('[LOGIN_TRACE] AsyncStorage savr_onboarding_done=', done)
         if (done === 'true') {
           setOnboardingDone(true)
         } else {
@@ -362,10 +367,12 @@ try {
         return
       }
       if (session && inAuth && !signingIn) {
+  console.log('[LOGIN_TRACE] redirecting to dashboard now')
   setTransitioning(false)
   router.replace('/(tabs)/dashboard')
   return
 }
+      console.log('[LOGIN_TRACE] fell through all branches with no redirect taken')
     }
   }, [session, segments, onboardingDone, signingIn, router])
 

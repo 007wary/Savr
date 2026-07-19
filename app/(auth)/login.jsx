@@ -58,21 +58,27 @@ export default function Login() {
       if (error) throw error
 
       setSigningIn(true)
+      console.log('[LOGIN_TRACE] opening auth session, redirectUrl=', redirectUrl)
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
+      console.log('[LOGIN_TRACE] auth session result.type=', result.type, 'url=', result.url)
 
       if (result.type !== 'success') {
+        console.log('[LOGIN_TRACE] result.type was not success, returning early. signingIn stays true.')
         return
       }
 
       const url = result.url
       const queryParams = new URLSearchParams(url.split('?')[1]?.split('#')[0] || '')
       const code = queryParams.get('code')
+      console.log('[LOGIN_TRACE] parsed code present=', !!code)
 
       if (!code) {
+        console.log('[LOGIN_TRACE] no code found in redirect URL, returning early. signingIn stays true.')
         return
       }
 
       const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+      console.log('[LOGIN_TRACE] exchangeCodeForSession done, error=', exchangeError, 'hasSession=', !!sessionData?.session)
       if (exchangeError) throw exchangeError
       // Leave signingIn=true here — clearing it is _layout.jsx's job, once its
       // onAuthStateChange listener has actually observed the new session. If we
@@ -86,7 +92,8 @@ export default function Login() {
         if (provider_token) await cacheGoogleAccessToken(provider_token)
         if (provider_refresh_token) await SecureStore.setItemAsync('savr_google_refresh_token', provider_refresh_token)
       } catch {}
-    } catch {
+    } catch (loginError) {
+      console.log('[LOGIN_TRACE] caught error in handleGoogleLogin:', loginError?.message || loginError)
       showAlert('Sign In Failed', 'Something went wrong. Please try again.')
       setSigningIn(false)
     } finally {
