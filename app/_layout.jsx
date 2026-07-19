@@ -186,7 +186,6 @@ setTimeout(() => {
     init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[LOGIN_TRACE] onAuthStateChange fired, event=', event, 'hasSession=', !!session)
       // A genuine SIGNED_IN must never be dropped even if the initial
       // session/cache check hasn't resolved yet — otherwise a sign-in that
       // races the app's cold-start init leaves the user stuck on login.
@@ -197,7 +196,6 @@ setTimeout(() => {
       if (event === 'SIGNED_IN') {
         initialSessionLoadedRef.current = true
         setTransitioning(true)
-        console.log('[LOGIN_TRACE] SIGNED_IN: setSession+setTransitioning(true)+setSigningIn(false)')
         // Clear here, in the same update that sets session, so the redirect
         // effect below always sees session and signingIn flip together.
         setSigningIn(false)
@@ -296,7 +294,6 @@ try {
     }, 10 * 60 * 1000)
 
     const handleDeepLink = async (url) => {
-      console.log('[LOGIN_TRACE] handleDeepLink fired, url=', url)
       if (!url) return
       if (url.includes('access_token') || url.includes('confirmation')) {
         const { data } = await supabase.auth.getSessionFromUrl({ url })
@@ -314,7 +311,6 @@ try {
       if (code) {
         try {
           const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-          console.log('[LOGIN_TRACE] handleDeepLink exchangeCodeForSession done, error=', error, 'hasSession=', !!data?.session)
           if (!error && data?.session) {
             const providerToken = data.session.provider_token
             const providerRefreshToken = data.session.provider_refresh_token
@@ -363,7 +359,6 @@ try {
   }, [router])
 
   useEffect(() => {
-    console.log('[LOGIN_TRACE] redirect effect: session=', !!session, 'onboardingDone=', onboardingDone, 'signingIn=', signingIn, 'segments=', JSON.stringify(segments))
     if (session === undefined || onboardingDone === undefined) return
 
     const inOnboarding = segments[0] === 'onboarding'
@@ -372,43 +367,39 @@ try {
 
     if (!onboardingDone && !inOnboarding && session) {
       AsyncStorage.getItem('savr_onboarding_done').then(done => {
-        console.log('[LOGIN_TRACE] onboarding AsyncStorage check resolved, done=', done)
         if (done === 'true') {
-          console.log('[LOGIN_TRACE] setOnboardingDone(true) — transitioning NOT touched here, still whatever it currently is')
           setOnboardingDone(true)
         } else {
-            console.log('[LOGIN_TRACE] setTransitioning(false) from onboarding-not-done branch, routing to /onboarding')
-            setTransitioning(false)
             router.replace('/onboarding')
           }
-        }).catch(() => { console.log('[LOGIN_TRACE] setTransitioning(false) from AsyncStorage catch, routing to /onboarding'); setTransitioning(false); router.replace('/onboarding') })
+        }).catch(() => { router.replace('/onboarding') })
       return
     }
 
     if (onboardingDone) {
-      if (session && inTabs) return
+      if (session && inTabs) {
+        setTransitioning(false)
+        return
+      }
+      if (inOnboarding) {
+        setTransitioning(false)
+        return
+      }
       if (!session && inAuth) return
       if (!session && !inAuth && !inOnboarding && !signingIn) {
         router.replace('/(auth)/login')
         return
       }
       if (session && inAuth && !signingIn) {
-  console.log('[LOGIN_TRACE] setTransitioning(false) from session+inAuth+!signingIn branch, routing to dashboard')
-  setTransitioning(false)
-  router.replace('/(tabs)/dashboard')
-  return
-}
+        router.replace('/(tabs)/dashboard')
+        return
+      }
     }
   }, [session, segments, onboardingDone, signingIn, router])
 
-  console.log('[LOGIN_TRACE] RootLayoutInner render: session=', !!session, 'onboardingDone=', onboardingDone, 'transitioning=', transitioning, 'signingIn=', signingIn, 'segments=', JSON.stringify(segments))
-
   if (session === undefined || onboardingDone === undefined || transitioning) {
-    console.log('[LOGIN_TRACE] rendering blank gate view')
     return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />
   }
-
-  console.log('[LOGIN_TRACE] rendering Stack (will show whichever segment matches current route)')
 
   return (
     <>
