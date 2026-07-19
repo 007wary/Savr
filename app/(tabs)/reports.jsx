@@ -33,7 +33,7 @@ function AnimatedBar({ percentage, color, delay = 0 }) {
       delay,
       useNativeDriver: false,
     }).start()
-  }, [percentage])
+  }, [percentage, delay, anim])
   return (
     <Animated.View style={{
       height: anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
@@ -62,46 +62,12 @@ export default function Reports() {
   // getNow() called fresh each time to avoid stale date if app open past midnight
   const getNow = () => new Date()
 
-  const getCurrentMonth = () => {
-    const n = getNow()
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`
-  }
-
-  useFocusEffect(useCallback(() => {
-    fetchData()
-  }, [monthOffset]))
-
-  async function fetchData(forceRefresh = false) {
-    const { month: selectedMonth } = getMonthInfo(monthOffset)
-    const CACHE_KEY = `savr_cache_reports_${selectedMonth}`
-    const symbol = await getCurrencySymbol()
-    const code = await loadCurrency()
-    setCurrencySymbol(symbol)
-    setCurrencyCode(code)
-    setMonthLoading(true)
-    if (!forceRefresh) {
-      const cached = await loadCache(CACHE_KEY)
-      if (cached) {
-        setExpenses(cached.expenses || [])
-        setLastMonthExpenses(cached.lastMonthExpenses || [])
-        setAllExpenses(cached.allExpenses || [])
-        setMonthlyIncome(cached.monthlyIncome || 0)
-        setLast6MonthsIncome(cached.last6MonthsIncome || [])
-        setLoading(false)
-        setMonthLoading(false)
-        setTimeout(() => loadFromSQLite(), 100)
-        return
-      }
-    }
-    await loadFromSQLite()
-  }
-
-  async function loadFromSQLite() {
+  const loadFromSQLite = useCallback(async () => {
     try {
       const user = getCachedUser() || userRef.current || await getUser()
       if (!user) { setLoading(false); setRefreshing(false); setMonthLoading(false); return }
       if (!userRef.current) userRef.current = user
-      const { month: selectedMonth, totalDays } = getMonthInfo(monthOffset)
+      const { month: selectedMonth } = getMonthInfo(monthOffset)
       const allData = await getExpenses(user.id)
       const selectedDate = new Date(selectedMonth + '-01')
       const selectedYear = selectedDate.getFullYear()
@@ -143,7 +109,36 @@ export default function Reports() {
       setRefreshing(false)
       setMonthLoading(false)
     }
-  }
+  }, [monthOffset])
+
+  const fetchData = useCallback(async (forceRefresh = false) => {
+    const { month: selectedMonth } = getMonthInfo(monthOffset)
+    const CACHE_KEY = `savr_cache_reports_${selectedMonth}`
+    const symbol = await getCurrencySymbol()
+    const code = await loadCurrency()
+    setCurrencySymbol(symbol)
+    setCurrencyCode(code)
+    setMonthLoading(true)
+    if (!forceRefresh) {
+      const cached = await loadCache(CACHE_KEY)
+      if (cached) {
+        setExpenses(cached.expenses || [])
+        setLastMonthExpenses(cached.lastMonthExpenses || [])
+        setAllExpenses(cached.allExpenses || [])
+        setMonthlyIncome(cached.monthlyIncome || 0)
+        setLast6MonthsIncome(cached.last6MonthsIncome || [])
+        setLoading(false)
+        setMonthLoading(false)
+        setTimeout(() => loadFromSQLite(), 100)
+        return
+      }
+    }
+    await loadFromSQLite()
+  }, [monthOffset, loadFromSQLite])
+
+  useFocusEffect(useCallback(() => {
+    fetchData()
+  }, [fetchData]))
 
   const now = getNow()
   const { month: currentMonth, name: monthName, totalDays: daysInSelectedMonth } = getMonthInfo(monthOffset)

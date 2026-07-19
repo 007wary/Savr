@@ -52,23 +52,7 @@ export default function History() {
     })
   }
 
-  async function fetchExpenses(forceRefresh = false) {
-    const symbol = await getCurrencySymbol()
-    const code = await loadCurrency()
-    setCurrencySymbol(symbol)
-    setCurrencyCode(code)
-    if (!forceRefresh) {
-      const cached = await loadCache(CACHE_KEY)
-      if (cached) {
-        setExpenses(sortExpenses(cached))
-        loadFromSQLite()
-        return
-      }
-    }
-    await loadFromSQLite()
-  }
-
-  async function loadFromSQLite() {
+  const loadFromSQLite = useCallback(async () => {
     try {
       const user = getCachedUser() || userRef.current || await getUser()
       if (!user) { setRefreshing(false); return }
@@ -93,13 +77,29 @@ export default function History() {
       const sorted = sortExpenses(merged)
       setExpenses(sorted)
       await saveCache(CACHE_KEY, sorted)
-    } catch (e) {
+    } catch {
     } finally {
       setRefreshing(false)
     }
-  }
+  }, [])
 
-  useFocusEffect(useCallback(() => { fetchExpenses() }, []))
+  const fetchExpenses = useCallback(async (forceRefresh = false) => {
+    const symbol = await getCurrencySymbol()
+    const code = await loadCurrency()
+    setCurrencySymbol(symbol)
+    setCurrencyCode(code)
+    if (!forceRefresh) {
+      const cached = await loadCache(CACHE_KEY)
+      if (cached) {
+        setExpenses(sortExpenses(cached))
+        loadFromSQLite()
+        return
+      }
+    }
+    await loadFromSQLite()
+  }, [loadFromSQLite])
+
+  useFocusEffect(useCallback(() => { fetchExpenses() }, [fetchExpenses]))
 
   function getMonths() {
     if (!expenses) return []
@@ -233,7 +233,7 @@ export default function History() {
             }
             await AsyncStorage.removeItem('savr_last_backup_count')
             scheduleBackup()
-          } catch (e) {
+          } catch {
             setExpenses(expenses)
             await saveCache(CACHE_KEY, expenses)
           }
@@ -283,7 +283,7 @@ export default function History() {
       })
       await AsyncStorage.removeItem('savr_last_backup_count')
       scheduleBackup()
-    } catch (e) {}
+    } catch {}
     setSaving(false)
   }
 

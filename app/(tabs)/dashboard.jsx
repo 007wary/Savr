@@ -96,6 +96,7 @@ export default function Dashboard() {
   const [avatarUrl, setAvatarUrl] = useState(null)
   const [userInitials, setUserInitials] = useState('??')
   const [goalBanner, setGoalBanner] = useState(null)
+  const [streak, setStreak] = useState(0)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
   const userRef = useRef(null)
@@ -118,35 +119,7 @@ const isCurrentMonth = true
     loadAvatarFromStorage()
   }, [])
 
-  async function fetchData(forceRefresh = false) {
-    fetchDataRef.current = fetchData
-    const { month: offsetMonth } = getMonthInfo(0)
-    const cacheKey = `savr_cache_dashboard_${offsetMonth}`
-    if (!forceRefresh) {
-      const cached = await loadCache(cacheKey)
-      if (cached) {
-        setExpenses(sortExpenses(cached.expenses))
-        setUserName(cached.userName)
-        setLastMonthTotal(cached.lastMonthTotal)
-        setDaysInMonth(cached.daysInMonth)
-        setCurrencySymbol(cached.currencySymbol)
-        setCurrencyCode(cached.currencyCode || 'USD')
-        setRecurringTotal(cached.recurringTotal || 0)
-        setRecurringCount(cached.recurringCount || 0)
-        setMonthlyIncome(cached.monthlyIncome || 0)
-        setAccountsTotal(cached.accountsTotal || { total: 0, count: 0 })
-        setTodayIncome(cached.todayIncome || 0)
-        if (cached.avatarUrl) setAvatarUrl(cached.avatarUrl)
-        if (cached.userInitials) setUserInitials(cached.userInitials)
-        setLoading(false)
-        setTimeout(() => syncFromSQLite(cacheKey, 0), 100)
-        return
-      }
-    }
-    await syncFromSQLite(cacheKey, 0)
-  }
-
-  async function syncFromSQLite(cacheKey, offsetSnapshot) {
+  const syncFromSQLite = useCallback(async (cacheKey, offsetSnapshot) => {
     const token = ++syncTokenRef.current
     try {
       const user = getCachedUser() || userRef.current || await getUser()
@@ -262,7 +235,38 @@ const isCurrentMonth = true
       setLoading(false)
       setRefreshing(false)
     }
-  }
+  }, [])
+
+  const fetchData = useCallback(async (forceRefresh = false) => {
+    const { month: offsetMonth } = getMonthInfo(0)
+    const cacheKey = `savr_cache_dashboard_${offsetMonth}`
+    if (!forceRefresh) {
+      const cached = await loadCache(cacheKey)
+      if (cached) {
+        setExpenses(sortExpenses(cached.expenses))
+        setUserName(cached.userName)
+        setLastMonthTotal(cached.lastMonthTotal)
+        setDaysInMonth(cached.daysInMonth)
+        setCurrencySymbol(cached.currencySymbol)
+        setCurrencyCode(cached.currencyCode || 'USD')
+        setRecurringTotal(cached.recurringTotal || 0)
+        setRecurringCount(cached.recurringCount || 0)
+        setMonthlyIncome(cached.monthlyIncome || 0)
+        setAccountsTotal(cached.accountsTotal || { total: 0, count: 0 })
+        setTodayIncome(cached.todayIncome || 0)
+        if (cached.avatarUrl) setAvatarUrl(cached.avatarUrl)
+        if (cached.userInitials) setUserInitials(cached.userInitials)
+        setLoading(false)
+        setTimeout(() => syncFromSQLite(cacheKey, 0), 100)
+        return
+      }
+    }
+    await syncFromSQLite(cacheKey, 0)
+  }, [syncFromSQLite])
+
+  useEffect(() => {
+    fetchDataRef.current = fetchData
+  }, [fetchData])
 
   useFocusEffect(useCallback(() => {
     isFocusedRef.current = true
@@ -337,7 +341,7 @@ const isCurrentMonth = true
       if (backupTimerRef.current) clearTimeout(backupTimerRef.current)
       hideAlert()
     }
-  }, []))
+  }, [fetchData, showAlert, hideAlert]))
 
   async function handleSaveGoal() {
   const amount = parseFloat(goalInput)
@@ -379,8 +383,6 @@ const isCurrentMonth = true
 
   const recent = useMemo(() => expenses.slice(0, 5), [expenses])
 
-  const [streak, setStreak] = useState(0)
-
   useEffect(() => {
     if (!isCurrentMonth || streak === 0) return
     const milestones = { 7: 'Week Streak!', 30: 'Month Streak!', 100: '100 Day Streak!' }
@@ -395,7 +397,7 @@ const isCurrentMonth = true
         [{ text: 'Keep going!', style: 'default' }]
       )
     }).catch(() => {})
-  }, [streak, isCurrentMonth])
+  }, [streak, isCurrentMonth, showAlert])
 
   const goalPercentage = spendingGoal ? Math.min((total / spendingGoal) * 100, 100) : 0
   const goalExceeded = spendingGoal && total > spendingGoal
