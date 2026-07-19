@@ -36,6 +36,21 @@ jobs:
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > google-services.json
           mkdir -p android/app
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
+      - name: Check Supabase secrets are present
+        run: |
+          if [ -z "${EXPO_PUBLIC_SUPABASE_URL// /}" ]; then
+            echo "SUPABASE_URL secret is empty or unset — aborting before build" >&2
+            exit 1
+          fi
+          if [ -z "${EXPO_PUBLIC_SUPABASE_ANON_KEY// /}" ]; then
+            echo "SUPABASE_ANON_KEY secret is empty or unset — aborting before build" >&2
+            exit 1
+          fi
+          echo "SUPABASE_URL length: ${#EXPO_PUBLIC_SUPABASE_URL}"
+          echo "SUPABASE_ANON_KEY length: ${#EXPO_PUBLIC_SUPABASE_ANON_KEY}"
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       - name: Prebuild
         run: npx expo prebuild --platform android
         env:
@@ -43,8 +58,6 @@ jobs:
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       - name: Bundle JS
         run: |
-          echo "SUPABASE_URL length: ${#EXPO_PUBLIC_SUPABASE_URL}"
-          echo "SUPABASE_ANON_KEY length: ${#EXPO_PUBLIC_SUPABASE_ANON_KEY}"
           mkdir -p android/app/src/main/assets
           npx expo export --platform android --output-dir dist
           BUNDLE_FILE=$(find dist/_expo/static/js/android -type f \( -name "*.hbc" -o -name "*.js" \) | head -n1)
@@ -55,6 +68,10 @@ jobs:
           cp "$BUNDLE_FILE" android/app/src/main/assets/index.android.bundle
           if ! grep -aq "supabase.co" android/app/src/main/assets/index.android.bundle; then
             echo "Bundled JS does not contain a Supabase URL — EXPO_PUBLIC_SUPABASE_URL was likely empty at export time" >&2
+            exit 1
+          fi
+          if ! grep -aq "${EXPO_PUBLIC_SUPABASE_ANON_KEY:0:20}" android/app/src/main/assets/index.android.bundle; then
+            echo "Bundled JS does not contain the Supabase anon key — EXPO_PUBLIC_SUPABASE_ANON_KEY was likely empty or wrong at export time" >&2
             exit 1
           fi
           cp assets/adi-registration.properties android/app/src/main/assets/adi-registration.properties
