@@ -372,13 +372,16 @@ try {
 
     if (!onboardingDone && !inOnboarding && session) {
       AsyncStorage.getItem('savr_onboarding_done').then(done => {
+        console.log('[LOGIN_TRACE] onboarding AsyncStorage check resolved, done=', done)
         if (done === 'true') {
+          console.log('[LOGIN_TRACE] setOnboardingDone(true) — transitioning NOT touched here, still whatever it currently is')
           setOnboardingDone(true)
         } else {
+            console.log('[LOGIN_TRACE] setTransitioning(false) from onboarding-not-done branch, routing to /onboarding')
             setTransitioning(false)
             router.replace('/onboarding')
           }
-        }).catch(() => { setTransitioning(false); router.replace('/onboarding') })
+        }).catch(() => { console.log('[LOGIN_TRACE] setTransitioning(false) from AsyncStorage catch, routing to /onboarding'); setTransitioning(false); router.replace('/onboarding') })
       return
     }
 
@@ -390,6 +393,7 @@ try {
         return
       }
       if (session && inAuth && !signingIn) {
+  console.log('[LOGIN_TRACE] setTransitioning(false) from session+inAuth+!signingIn branch, routing to dashboard')
   setTransitioning(false)
   router.replace('/(tabs)/dashboard')
   return
