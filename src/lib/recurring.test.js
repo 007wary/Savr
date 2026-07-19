@@ -1,11 +1,11 @@
+import { calculateNextDue } from './recurring'
+
 jest.mock('../services/sqliteService', () => ({
   getRecurring: jest.fn(),
   processRecurringExpenseItemAtomic: jest.fn(),
   getRecurringIncome: jest.fn(),
   processRecurringIncomeItemAtomic: jest.fn(),
 }))
-
-import { calculateNextDue } from './recurring'
 
 describe('calculateNextDue', () => {
   it('advances daily frequency by 1 day', () => {

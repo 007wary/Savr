@@ -1,5 +1,3 @@
-import { Platform } from 'react-native';
-
 let analytics = null;
 
 const getAnalytics = async () => {

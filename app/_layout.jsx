@@ -333,7 +333,7 @@ try {
       clearInterval(refreshInterval)
       appStateSub.remove()
     }
-  }, [])
+  }, [router])
 
   useEffect(() => {
     if (session === undefined || onboardingDone === undefined) return
@@ -367,7 +367,7 @@ try {
   return
 }
     }
-  }, [session, segments, onboardingDone, signingIn])
+  }, [session, segments, onboardingDone, signingIn, router])
 
   if (session === undefined || onboardingDone === undefined || transitioning) {
     return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />

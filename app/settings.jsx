@@ -45,7 +45,7 @@ export default function Settings() {
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
 
-  async function loadNotificationPrefs() {
+  const loadNotificationPrefs = useCallback(async () => {
     try {
       const granted = await isNotificationGranted()
       setNotificationsEnabled(granted)
@@ -56,27 +56,9 @@ export default function Settings() {
         setBudgetAlerts(false)
       }
     } catch {}
-  }
+  }, [])
 
-  async function fetchUser() {
-  {
-    const cached = await loadCache(CACHE_KEY)
-    if (cached) {
-      setUser(cached.user)
-      setDisplayName(cached.displayName)
-      setPhone(cached.phone)
-      setCurrency(cached.currency)
-      const cachedAvatar = cached.user?.user_metadata?.picture || cached.user?.user_metadata?.avatar_url || null
-      if (cachedAvatar) setAvatarUrl(cachedAvatar)
-      setLoading(false)
-      syncFromAuth()
-      return
-    }
-  }
-  await syncFromAuth()
-}
-
-  async function syncFromAuth() {
+  const syncFromAuth = useCallback(async () => {
     try {
       const u = await getUser(true) || getCachedUser()
       if (!u) { setLoading(false); return }
@@ -109,7 +91,23 @@ if (avatar) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  const fetchUser = useCallback(async () => {
+    const cached = await loadCache(CACHE_KEY)
+    if (cached) {
+      setUser(cached.user)
+      setDisplayName(cached.displayName)
+      setPhone(cached.phone)
+      setCurrency(cached.currency)
+      const cachedAvatar = cached.user?.user_metadata?.picture || cached.user?.user_metadata?.avatar_url || null
+      if (cachedAvatar) setAvatarUrl(cachedAvatar)
+      setLoading(false)
+      syncFromAuth()
+      return
+    }
+    await syncFromAuth()
+  }, [syncFromAuth])
 
   useEffect(() => {
     AsyncStorage.getItem('savr_avatar_url')
@@ -118,9 +116,9 @@ if (avatar) {
   }, [])
 
   useFocusEffect(useCallback(() => {
-  fetchUser()
-  loadNotificationPrefs()
-}, []))
+    fetchUser()
+    loadNotificationPrefs()
+  }, [fetchUser, loadNotificationPrefs]))
 
   function openProfileModal() {
     setEditName(displayName)

@@ -48,7 +48,7 @@ export default function BackupScreen() {
     }
   }
 
-  async function loadBackupStatus() {
+  const loadBackupStatus = useCallback(async () => {
     try {
       const online = await checkOnlineStatus()
       setIsOnline(online)
@@ -70,9 +70,9 @@ export default function BackupScreen() {
     finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  useFocusEffect(useCallback(() => { loadBackupStatus() }, []))
+  useFocusEffect(useCallback(() => { loadBackupStatus() }, [loadBackupStatus]))
 
   async function handleBackupNow() {
     const online = await checkOnlineStatus()

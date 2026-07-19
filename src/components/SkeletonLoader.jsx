@@ -13,7 +13,7 @@ function SkeletonBox({ width, height, borderRadius = 8, style, colors }) {
         Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
       ])
     ).start()
-  }, [])
+  }, [opacity])
 
   return (
     <Animated.View

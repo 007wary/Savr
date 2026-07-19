@@ -1,4 +1,4 @@
-import { Platform, StatusBar, Dimensions } from 'react-native'
+import { Dimensions } from 'react-native'
 import Constants from 'expo-constants'
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')

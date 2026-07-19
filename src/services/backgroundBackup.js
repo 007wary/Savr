@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getCachedUser } from '../lib/auth'
 import { hasDataChanged, backupToDrive } from './driveBackupService'
 

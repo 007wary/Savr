@@ -89,6 +89,9 @@ jobs:
             -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       - name: Build signed AAB
         run: |
           cd android && ./gradlew bundleRelease \
@@ -96,6 +99,37 @@ jobs:
             -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+        env:
+          EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      - name: Verify signed APK actually embeds the Supabase config
+        run: |
+          APK_FILE=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n1)
+          if [ -z "$APK_FILE" ]; then
+            echo "No APK found to verify" >&2
+            exit 1
+          fi
+          mkdir -p /tmp/apk_check
+          unzip -p "$APK_FILE" assets/index.android.bundle > /tmp/apk_check/bundle 2>/dev/null
+          if [ ! -s /tmp/apk_check/bundle ]; then
+            echo "Could not extract assets/index.android.bundle from the signed APK" >&2
+            exit 1
+          fi
+          # Gradle's own bundleCommand=export:embed step re-runs expo export during
+          # assembleRelease/bundleRelease, overwriting whatever the earlier "Bundle JS"
+          # step verified — so the only trustworthy check is against the final signed
+          # artifact itself, not an intermediate file.
+          if ! grep -aq "supabase.co" /tmp/apk_check/bundle; then
+            echo "Signed APK's embedded bundle does not contain a Supabase URL" >&2
+            exit 1
+          fi
+          if ! grep -aq "${EXPO_PUBLIC_SUPABASE_ANON_KEY:0:20}" /tmp/apk_check/bundle; then
+            echo "Signed APK's embedded bundle does not contain the Supabase anon key" >&2
+            exit 1
+          fi
+          echo "Verified: signed APK embeds Supabase URL and anon key"
+        env:
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
