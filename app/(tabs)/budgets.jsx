@@ -56,31 +56,7 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const userRef = useRef(null)
 
-  async function fetchData(forceRefresh = false) {
-    const currentMonth = getCurrentMonth()
-    const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
-    const symbol = await getCurrencySymbol()
-    const code = await loadCurrency()
-    setCurrencySymbol(symbol)
-    setCurrencyCode(code)
-    if (!forceRefresh) {
-      const cached = await loadCache(CACHE_KEY)
-      if (cached) {
-        setBudgets(cached.budgets)
-        setExpenses(cached.expenses)
-        if (cached.allExpenses) {
-          setAllExpenses(cached.allExpenses)
-          setRecommendations(generateBudgetRecommendations(cached.allExpenses, CATEGORIES))
-        }
-        setLoading(false)
-        loadFromSQLite()
-        return
-      }
-    }
-    await loadFromSQLite()
-  }
-
-  async function loadFromSQLite() {
+  const loadFromSQLite = useCallback(async () => {
     try {
       const user = getCachedUser() || userRef.current || await getUser()
       if (!user) { setLoading(false); setRefreshing(false); return }
@@ -108,14 +84,38 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
         expenses: currentExpenses,
         allExpenses: last3Expenses,
       })
-    } catch (e) {
+    } catch {
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }
+  }, [currentMonth, CACHE_KEY])
 
-  useFocusEffect(useCallback(() => { fetchData() }, []))
+  const fetchData = useCallback(async (forceRefresh = false) => {
+    const currentMonth = getCurrentMonth()
+    const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
+    const symbol = await getCurrencySymbol()
+    const code = await loadCurrency()
+    setCurrencySymbol(symbol)
+    setCurrencyCode(code)
+    if (!forceRefresh) {
+      const cached = await loadCache(CACHE_KEY)
+      if (cached) {
+        setBudgets(cached.budgets)
+        setExpenses(cached.expenses)
+        if (cached.allExpenses) {
+          setAllExpenses(cached.allExpenses)
+          setRecommendations(generateBudgetRecommendations(cached.allExpenses, CATEGORIES))
+        }
+        setLoading(false)
+        loadFromSQLite()
+        return
+      }
+    }
+    await loadFromSQLite()
+  }, [loadFromSQLite])
+
+  useFocusEffect(useCallback(() => { fetchData() }, [fetchData]))
 
   async function handleSaveBudget(category, customLimit = null) {
     const limitValue = (customLimit !== null && customLimit > 0) ? String(customLimit) : inputValue
@@ -137,7 +137,7 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
       const user = getCachedUser() || userRef.current || await getUser()
       if (!userRef.current) userRef.current = user
       await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth })
-    } catch (e) {}
+    } catch {}
   }
 
   async function handleDeleteBudget(category) {
@@ -148,7 +148,7 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
     await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses, allExpenses })
     setEditing(null)
     setInputValue('')
-    try { await deleteBudget(existing.id) } catch (e) {}
+    try { await deleteBudget(existing.id) } catch {}
   }
 
   async function applyAllRecommendations() {

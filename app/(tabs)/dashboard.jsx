@@ -81,7 +81,6 @@ export default function Dashboard() {
   const [userName, setUserName] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [monthLoading, setMonthLoading] = useState(false)
   const [lastMonthTotal, setLastMonthTotal] = useState(0)
   const [daysInMonth, setDaysInMonth] = useState(1)
   const [currencySymbol, setCurrencySymbol] = useState('$')
@@ -106,7 +105,7 @@ export default function Dashboard() {
 const syncTokenRef = useRef(0)
 const fetchDataRef = useRef(null)
 
-  const { month: currentMonth, name: monthName } = getMonthInfo(0)
+  const { name: monthName } = getMonthInfo(0)
 const isCurrentMonth = true
 
   useEffect(() => {
@@ -123,7 +122,6 @@ const isCurrentMonth = true
     fetchDataRef.current = fetchData
     const { month: offsetMonth } = getMonthInfo(0)
     const cacheKey = `savr_cache_dashboard_${offsetMonth}`
-    setMonthLoading(true)
     if (!forceRefresh) {
       const cached = await loadCache(cacheKey)
       if (cached) {
@@ -141,7 +139,6 @@ const isCurrentMonth = true
         if (cached.avatarUrl) setAvatarUrl(cached.avatarUrl)
         if (cached.userInitials) setUserInitials(cached.userInitials)
         setLoading(false)
-        setMonthLoading(false)
         setTimeout(() => syncFromSQLite(cacheKey, 0), 100)
         return
       }
@@ -153,8 +150,8 @@ const isCurrentMonth = true
     const token = ++syncTokenRef.current
     try {
       const user = getCachedUser() || userRef.current || await getUser()
-      if (!user) { setLoading(false); setRefreshing(false); setMonthLoading(false); return }
-      if (!isFocusedRef.current) { setLoading(false); setRefreshing(false); setMonthLoading(false); return }
+      if (!user) { setLoading(false); setRefreshing(false); return }
+      if (!isFocusedRef.current) { setLoading(false); setRefreshing(false); return }
       if (!userRef.current) userRef.current = user
       const meta = user.user_metadata?.display_name || user.user_metadata?.full_name
       const emailName = user.email.split('@')[0]
@@ -260,11 +257,10 @@ const isCurrentMonth = true
         }
       } catch {}
 
-    } catch (e) {}
+    } catch {}
     finally {
       setLoading(false)
       setRefreshing(false)
-      setMonthLoading(false)
     }
   }
 

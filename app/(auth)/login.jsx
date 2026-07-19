@@ -86,7 +86,7 @@ export default function Login() {
         if (provider_token) await cacheGoogleAccessToken(provider_token)
         if (provider_refresh_token) await SecureStore.setItemAsync('savr_google_refresh_token', provider_refresh_token)
       } catch {}
-    } catch (error) {
+    } catch {
       showAlert('Sign In Failed', 'Something went wrong. Please try again.')
       setSigningIn(false)
     } finally {

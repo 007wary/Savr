@@ -261,7 +261,7 @@ export default function AddExpense() {
       scheduleBackup()
       router.replace('/(tabs)/dashboard')
       }
-    } catch (e) {
+    } catch {
     showAlert('Error', 'Could not save expense. Please try again.')
   } finally {
       setSubmitting(false)
@@ -316,7 +316,7 @@ export default function AddExpense() {
       if (!isRecurringIncome) await checkAndRequestReview()
       scheduleBackup()
       router.replace('/(tabs)/dashboard')
-    } catch (e) {
+    } catch {
       showAlert('Error', 'Could not save income. Please try again.')
     } finally {
       setSubmitting(false)

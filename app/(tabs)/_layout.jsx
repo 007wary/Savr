@@ -24,7 +24,7 @@ export default function TabsLayout() {
   const insets = useSafeAreaInsets()
 useEffect(() => {
   NavigationBar.setBackgroundColorAsync(COLORS.bg)
-}, [])
+}, [COLORS.bg])
 
   return (
     <Tabs
