@@ -58,28 +58,32 @@ export default function Login() {
       if (error) throw error
 
       setSigningIn(true)
-      console.log('[LOGIN_TRACE] opening auth session, redirectUrl=', redirectUrl)
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
-      console.log('[LOGIN_TRACE] auth session result.type=', result.type, 'url=', result.url)
 
+      // On some devices (seen on Samsung + Chrome Custom Tabs) this resolves as
+      // 'dismiss' even though the redirect actually reached the app — in that
+      // case _layout.jsx's Linking listener performs the code exchange instead.
       if (result.type !== 'success') {
-        console.log('[LOGIN_TRACE] result.type was not success, returning early. signingIn stays true.')
         return
       }
 
       const url = result.url
       const queryParams = new URLSearchParams(url.split('?')[1]?.split('#')[0] || '')
       const code = queryParams.get('code')
-      console.log('[LOGIN_TRACE] parsed code present=', !!code)
 
       if (!code) {
-        console.log('[LOGIN_TRACE] no code found in redirect URL, returning early. signingIn stays true.')
         return
       }
 
       const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-      console.log('[LOGIN_TRACE] exchangeCodeForSession done, error=', exchangeError, 'hasSession=', !!sessionData?.session)
-      if (exchangeError) throw exchangeError
+      if (exchangeError) {
+        // _layout.jsx's Linking listener races this same exchange from the deep
+        // link event and may have already consumed the (single-use) code —
+        // if a session exists now, that path won and this failure is stale.
+        const { data: currentSession } = await supabase.auth.getSession()
+        if (currentSession?.session) return
+        throw exchangeError
+      }
       // Leave signingIn=true here — clearing it is _layout.jsx's job, once its
       // onAuthStateChange listener has actually observed the new session. If we
       // clear it here first, there's a window where signingIn=false but the
@@ -92,8 +96,7 @@ export default function Login() {
         if (provider_token) await cacheGoogleAccessToken(provider_token)
         if (provider_refresh_token) await SecureStore.setItemAsync('savr_google_refresh_token', provider_refresh_token)
       } catch {}
-    } catch (loginError) {
-      console.log('[LOGIN_TRACE] caught error in handleGoogleLogin:', loginError?.message || loginError)
+    } catch {
       showAlert('Sign In Failed', 'Something went wrong. Please try again.')
       setSigningIn(false)
     } finally {

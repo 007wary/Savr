@@ -186,7 +186,6 @@ setTimeout(() => {
     init()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[LOGIN_TRACE] onAuthStateChange fired, event=', event, 'hasSession=', !!session, 'initialSessionLoaded=', initialSessionLoadedRef.current)
       // A genuine SIGNED_IN must never be dropped even if the initial
       // session/cache check hasn't resolved yet — otherwise a sign-in that
       // races the app's cold-start init leaves the user stuck on login.
@@ -200,7 +199,6 @@ setTimeout(() => {
         // Clear here, in the same update that sets session, so the redirect
         // effect below always sees session and signingIn flip together.
         setSigningIn(false)
-        console.log('[LOGIN_TRACE] SIGNED_IN handled: setSession + setTransitioning(true) + setSigningIn(false) called')
         if (session?.user) setCachedUser(session.user)
         if (session?.user?.id) {
           setUserId(session.user.id).catch(() => {})
@@ -300,6 +298,29 @@ try {
       if (url.includes('access_token') || url.includes('confirmation')) {
         const { data } = await supabase.auth.getSessionFromUrl({ url })
         if (data?.session) setSession(data.session)
+        return
+      }
+      // PKCE flow: WebBrowser.openAuthSessionAsync's promise can resolve as
+      // 'dismiss' instead of 'success' on some devices/browsers even when the
+      // redirect actually reaches the app (seen on Samsung + Chrome Custom
+      // Tabs), leaving login.jsx's own code-exchange path never reached. This
+      // listener is a second, independent path to the same exchange so the
+      // sign-in still completes regardless of what that promise reports.
+      const queryParams = new URLSearchParams(url.split('?')[1]?.split('#')[0] || '')
+      const code = queryParams.get('code')
+      if (code) {
+        try {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+          if (!error && data?.session) {
+            const providerToken = data.session.provider_token
+            const providerRefreshToken = data.session.provider_refresh_token
+            if (providerToken) await cacheGoogleAccessToken(providerToken).catch(() => {})
+            if (providerRefreshToken) {
+              const SecureStore = await import('expo-secure-store')
+              await SecureStore.setItemAsync('savr_google_refresh_token', providerRefreshToken).catch(() => {})
+            }
+          }
+        } catch {}
       }
     }
 
@@ -338,7 +359,6 @@ try {
   }, [router])
 
   useEffect(() => {
-    console.log('[LOGIN_TRACE] redirect effect ran: session=', !!session, 'onboardingDone=', onboardingDone, 'segments=', JSON.stringify(segments), 'signingIn=', signingIn)
     if (session === undefined || onboardingDone === undefined) return
 
     const inOnboarding = segments[0] === 'onboarding'
@@ -346,9 +366,7 @@ try {
     const inTabs = segments[0] === '(tabs)'
 
     if (!onboardingDone && !inOnboarding && session) {
-      console.log('[LOGIN_TRACE] taking onboarding-check branch (onboardingDone is falsy)')
       AsyncStorage.getItem('savr_onboarding_done').then(done => {
-        console.log('[LOGIN_TRACE] AsyncStorage savr_onboarding_done=', done)
         if (done === 'true') {
           setOnboardingDone(true)
         } else {
@@ -367,12 +385,10 @@ try {
         return
       }
       if (session && inAuth && !signingIn) {
-  console.log('[LOGIN_TRACE] redirecting to dashboard now')
   setTransitioning(false)
   router.replace('/(tabs)/dashboard')
   return
 }
-      console.log('[LOGIN_TRACE] fell through all branches with no redirect taken')
     }
   }, [session, segments, onboardingDone, signingIn, router])
 
