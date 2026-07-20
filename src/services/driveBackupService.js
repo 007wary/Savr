@@ -7,6 +7,7 @@ import {
   setGoogleAccessToken,
   setGoogleAccessTokenCachedAtNow,
 } from '../lib/googleAccessToken'
+import { logError } from '../lib/errorLog'
 
 const BACKUP_FILE_NAME = 'savr_backup.json'
 const FOLDER_NAME = 'Savr'
@@ -121,84 +122,139 @@ async function getAllDataFromSQLite(userId) {
   return { expenses, budgets, recurring, goals, accounts, income, transfers, recurringIncome }
 }
 
+const REQUIRED_FIELDS = {
+  expenses: ['id', 'amount', 'category', 'date'],
+  budgets: ['id', 'category', 'limit_amount', 'month'],
+  recurring: ['id', 'amount', 'category', 'frequency', 'next_due'],
+  goals: ['id', 'title', 'target_amount'],
+  accounts: ['id', 'name', 'type'],
+  income: ['id', 'amount', 'category', 'date'],
+  transfers: ['id', 'from_account_id', 'to_account_id', 'amount', 'date'],
+  recurringIncome: ['id', 'amount', 'category', 'frequency', 'next_due'],
+}
+
+function validateBackupData(data) {
+  for (const [key, requiredFields] of Object.entries(REQUIRED_FIELDS)) {
+    const rows = data[key]
+    if (rows === undefined) continue
+    if (!Array.isArray(rows)) {
+      throw new Error(`Invalid backup data: "${key}" is not an array`)
+    }
+    for (const row of rows) {
+      if (!row || typeof row !== 'object') {
+        throw new Error(`Invalid backup data: "${key}" contains a non-object row`)
+      }
+      for (const field of requiredFields) {
+        if (row[field] === undefined || row[field] === null) {
+          throw new Error(`Invalid backup data: "${key}" row is missing required field "${field}"`)
+        }
+      }
+    }
+  }
+}
+
+async function writeAllDataToSQLite(db, userId, data, now) {
+  await db.runAsync('DELETE FROM expenses WHERE user_id = ?', [userId])
+  await db.runAsync('DELETE FROM budgets WHERE user_id = ?', [userId])
+  await db.runAsync('DELETE FROM recurring_expenses WHERE user_id = ?', [userId])
+  await db.runAsync('DELETE FROM spending_goals WHERE user_id = ?', [userId])
+  await db.runAsync('DELETE FROM accounts WHERE user_id = ?', [userId])
+  await db.runAsync('DELETE FROM income WHERE user_id = ?', [userId])
+  await db.runAsync('DELETE FROM transfers WHERE user_id = ?', [userId])
+  await db.runAsync('DELETE FROM recurring_income WHERE user_id = ?', [userId])
+
+  for (const e of (data.expenses || [])) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO expenses (id, user_id, amount, category, note, date, is_recurring, recurring_id, account_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [e.id, userId, e.amount, e.category, e.note, e.date, e.is_recurring || 0, e.recurring_id, e.account_id || null, e.created_at || now, e.updated_at || now]
+    )
+  }
+
+  for (const b of (data.budgets || [])) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO budgets (id, user_id, category, limit_amount, month, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [b.id, userId, b.category, b.limit_amount, b.month, b.created_at || now, b.updated_at || now]
+    )
+  }
+
+  for (const r of (data.recurring || [])) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO recurring_expenses (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [r.id, userId, r.amount, r.category, r.note, r.frequency, r.next_due, r.last_logged, r.is_active ?? 1, r.account_id || null, r.created_at || now, r.updated_at || now]
+    )
+  }
+
+  for (const g of (data.goals || [])) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO spending_goals (id, user_id, title, target_amount, current_amount, deadline, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [g.id, userId, g.title, g.target_amount, g.current_amount || 0, g.deadline, g.created_at || now, g.updated_at || now]
+    )
+  }
+
+  for (const a of (data.accounts || [])) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO accounts (id, user_id, name, type, balance, currency, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [a.id, userId, a.name, a.type, a.balance || 0, a.currency || 'USD', a.created_at || now, a.updated_at || now]
+    )
+  }
+
+  for (const i of (data.income || [])) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO income (id, user_id, amount, category, note, date, account_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [i.id, userId, i.amount, i.category, i.note, i.date, i.account_id || null, i.created_at || now, i.updated_at || now]
+    )
+  }
+
+  for (const t of (data.transfers || [])) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO transfers (id, user_id, from_account_id, to_account_id, amount, note, date, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [t.id, userId, t.from_account_id, t.to_account_id, t.amount, t.note || null, t.date, t.created_at || now, t.updated_at || now]
+    )
+  }
+
+  for (const ri of (data.recurringIncome || [])) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO recurring_income (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [ri.id, userId, ri.amount, ri.category, ri.note, ri.frequency, ri.next_due, ri.last_logged, ri.is_active ?? 1, ri.account_id || null, ri.created_at || now, ri.updated_at || now]
+    )
+  }
+}
+
 async function restoreAllDataToSQLite(userId, data) {
+  validateBackupData(data)
+
   const db = await getDB()
   const now = new Date().toISOString()
+  const snapshot = await getAllDataFromSQLite(userId)
 
-  await db.withTransactionAsync(async () => {
-    await db.runAsync('DELETE FROM expenses WHERE user_id = ?', [userId])
-    await db.runAsync('DELETE FROM budgets WHERE user_id = ?', [userId])
-    await db.runAsync('DELETE FROM recurring_expenses WHERE user_id = ?', [userId])
-    await db.runAsync('DELETE FROM spending_goals WHERE user_id = ?', [userId])
-    await db.runAsync('DELETE FROM accounts WHERE user_id = ?', [userId])
-    await db.runAsync('DELETE FROM income WHERE user_id = ?', [userId])
-    await db.runAsync('DELETE FROM transfers WHERE user_id = ?', [userId])
-    await db.runAsync('DELETE FROM recurring_income WHERE user_id = ?', [userId])
-
-    for (const e of (data.expenses || [])) {
-      await db.runAsync(
-        `INSERT OR REPLACE INTO expenses (id, user_id, amount, category, note, date, is_recurring, recurring_id, account_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [e.id, userId, e.amount, e.category, e.note, e.date, e.is_recurring || 0, e.recurring_id, e.account_id || null, e.created_at || now, e.updated_at || now]
-      )
+  try {
+    await db.withTransactionAsync(async () => {
+      await writeAllDataToSQLite(db, userId, data, now)
+    })
+  } catch (restoreError) {
+    // The failed restore transaction already rolled itself back at the SQL
+    // level, but local rows for this user may now be empty/partial if the
+    // failure happened mid-loop before this catch. Re-apply the pre-restore
+    // snapshot so a corrupted/truncated Drive backup can't leave the user
+    // with less data than they started with.
+    try {
+      await db.withTransactionAsync(async () => {
+        await writeAllDataToSQLite(db, userId, snapshot, now)
+      })
+    } catch {
+      // Snapshot re-apply also failed — surface the original error; there is
+      // nothing more we can safely do locally.
     }
-
-    for (const b of (data.budgets || [])) {
-      await db.runAsync(
-        `INSERT OR REPLACE INTO budgets (id, user_id, category, limit_amount, month, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [b.id, userId, b.category, b.limit_amount, b.month, b.created_at || now, b.updated_at || now]
-      )
-    }
-
-    for (const r of (data.recurring || [])) {
-      await db.runAsync(
-        `INSERT OR REPLACE INTO recurring_expenses (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [r.id, userId, r.amount, r.category, r.note, r.frequency, r.next_due, r.last_logged, r.is_active ?? 1, r.account_id || null, r.created_at || now, r.updated_at || now]
-      )
-    }
-
-    for (const g of (data.goals || [])) {
-      await db.runAsync(
-        `INSERT OR REPLACE INTO spending_goals (id, user_id, title, target_amount, current_amount, deadline, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [g.id, userId, g.title, g.target_amount, g.current_amount || 0, g.deadline, g.created_at || now, g.updated_at || now]
-      )
-    }
-
-    for (const a of (data.accounts || [])) {
-      await db.runAsync(
-        `INSERT OR REPLACE INTO accounts (id, user_id, name, type, balance, currency, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [a.id, userId, a.name, a.type, a.balance || 0, a.currency || 'USD', a.created_at || now, a.updated_at || now]
-      )
-    }
-
-    for (const i of (data.income || [])) {
-      await db.runAsync(
-        `INSERT OR REPLACE INTO income (id, user_id, amount, category, note, date, account_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [i.id, userId, i.amount, i.category, i.note, i.date, i.account_id || null, i.created_at || now, i.updated_at || now]
-      )
-    }
-
-    for (const t of (data.transfers || [])) {
-      await db.runAsync(
-        `INSERT OR REPLACE INTO transfers (id, user_id, from_account_id, to_account_id, amount, note, date, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [t.id, userId, t.from_account_id, t.to_account_id, t.amount, t.note || null, t.date, t.created_at || now, t.updated_at || now]
-      )
-    }
-
-    for (const ri of (data.recurringIncome || [])) {
-      await db.runAsync(
-        `INSERT OR REPLACE INTO recurring_income (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [ri.id, userId, ri.amount, ri.category, ri.note, ri.frequency, ri.next_due, ri.last_logged, ri.is_active ?? 1, ri.account_id || null, ri.created_at || now, ri.updated_at || now]
-      )
-    }
-  })
+    throw restoreError
+  }
 }
 
 export async function generateDataHash(userId) {
@@ -323,6 +379,7 @@ export async function backupToDrive() {
       backedUpAt: backupPayload.backedUpAt,
     }
   } catch (e) {
+    logError('backupToDrive', e)
     return { success: false, error: e.message }
   }
 }
@@ -365,6 +422,7 @@ export async function restoreFromDrive() {
       expenseCount: backupPayload.data.expenses?.length || 0,
     }
   } catch (e) {
+    logError('restoreFromDrive', e)
     return { success: false, error: e.message }
   }
 }

@@ -1,21 +1,24 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 }
 
-async function verifySupabaseJwt(jwt: string): Promise<boolean> {
+async function verifySupabaseJwt(jwt: string): Promise<string | null> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")
-  if (!supabaseUrl || !anonKey) return false
+  if (!supabaseUrl || !anonKey) return null
   const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: {
       Authorization: `Bearer ${jwt}`,
       apikey: anonKey,
     },
   })
-  return res.ok
+  if (!res.ok) return null
+  const data = await res.json()
+  return data?.id || null
 }
 
 serve(async (req) => {
@@ -33,11 +36,37 @@ serve(async (req) => {
       )
     }
 
-    const ok = await verifySupabaseJwt(jwt)
-    if (!ok) {
+    const userId = await verifySupabaseJwt(jwt)
+    if (!userId) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      )
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    if (!supabaseUrl || !serviceRoleKey) {
+      return new Response(
+        JSON.stringify({ error: "Server misconfigured" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      )
+    }
+    const supabase = createClient(supabaseUrl, serviceRoleKey)
+    const { data: allowed, error: rateLimitError } = await supabase.rpc(
+      "check_token_refresh_rate_limit",
+      { p_user_id: userId },
+    )
+    if (rateLimitError) {
+      return new Response(
+        JSON.stringify({ error: "Server error" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      )
+    }
+    if (!allowed) {
+      return new Response(
+        JSON.stringify({ error: "Too many refresh attempts, try again later" }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       )
     }
 

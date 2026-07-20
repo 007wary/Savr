@@ -9,9 +9,7 @@
 
 alter policy "Users can manage own budgets" on public.budgets
   with check (auth.uid() = user_id);
-
 alter policy "Users can manage own expenses" on public.expenses
   with check (auth.uid() = user_id);
-
 alter policy "Users can manage own recurring expenses" on public.recurring_expenses
   with check (auth.uid() = user_id);

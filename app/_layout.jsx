@@ -18,6 +18,7 @@ import { setCachedUser, getCachedUser, loadCachedUser } from '../src/lib/auth'
 import { isSigningIn, subscribeSigningIn, setSigningIn } from '../src/lib/authState'
 import * as NavigationBar from 'expo-navigation-bar'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
+import { logError } from '../src/lib/errorLog'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -71,7 +72,9 @@ function RootLayoutInner() {
       setOnboardingDone(onboardingDoneRaw === 'true')
 
       // Initialize database in parallel — don't block startup
-      const dbReady = initializeDatabase().catch(() => initializeDatabase().catch(() => {}))
+      const dbReady = initializeDatabase().catch((e) =>
+        initializeDatabase().catch((e2) => logError('initializeDatabase', e2 || e))
+      )
 
       try {
         if (cachedUser) {
@@ -139,15 +142,15 @@ if (user) {
     if (lastCheck !== today && !recurringProcessedRef.current) {
       recurringProcessedRef.current = true
       await Promise.all([
-        processDueRecurring(cachedUser.id).catch(() => {}),
-        processRecurringIncome(cachedUser.id).catch(() => {}),
+        processDueRecurring(cachedUser.id).catch((e) => logError('processDueRecurring', e)),
+        processRecurringIncome(cachedUser.id).catch((e) => logError('processRecurringIncome', e)),
       ])
       // Only mark today as checked once processing has actually run to completion,
       // so a crash/kill mid-run lets the app retry on next open instead of skipping
       // the rest of the day silently.
       await AsyncStorage.setItem(LAST_RECURRING_CHECK_KEY, today)
     }
-  } catch {}
+  } catch (e) { logError('recurringCheck', e) }
 }, 3500)
 
           setTimeout(() => {
@@ -160,7 +163,7 @@ setTimeout(() => {
   }).catch(() => {})
 }, 6000)
 
-          backupOnAppOpen().catch(() => {})
+          backupOnAppOpen().catch((e) => logError('backupOnAppOpen', e))
 
         } else {
           // No cached user — wait for Supabase with timeout
@@ -186,7 +189,8 @@ setTimeout(() => {
             SplashScreen.hideAsync().catch(() => {})
           }
         }
-      } catch {
+      } catch (e) {
+        logError('rootLayoutInit', e)
         initialSessionLoadedRef.current = true
         setSession(null)
         SplashScreen.hideAsync().catch(() => {})
@@ -322,7 +326,7 @@ try {
   } catch {}
 
   if (nextAppState !== 'active') return
-  backupOnAppOpen().catch(() => {})
+  backupOnAppOpen().catch((e) => logError('backupOnAppOpen', e))
 }
     const appStateSub = AppState.addEventListener('change', handleAppStateChange)
 

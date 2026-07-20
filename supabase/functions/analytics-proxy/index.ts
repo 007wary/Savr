@@ -2,21 +2,40 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { encode as base64url } from 'https://deno.land/std@0.182.0/encoding/base64url.ts'
 
 const SUPABASE_URL = 'https://fsrbsqhlgfdqugixqtxc.supabase.co'
-const SUPABASE_SERVICE_KEY = Deno.env.get('SB_SERVICE_KEY')!
-const DASHBOARD_SECRET = Deno.env.get('DASHBOARD_SECRET')!
-const SERVICE_ACCOUNT = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON')!)
 const FCM_PROJECT_ID = 'savr-b6c11'
+
+// Resolved lazily inside the request handler (not at module load) so a
+// missing/invalid secret returns a clean 500 response instead of crashing
+// the whole function on boot for every request.
+let serviceAccount = null
+function getServiceAccount() {
+  if (serviceAccount) return serviceAccount
+  const raw = Deno.env.get('FIREBASE_SERVICE_ACCOUNT_JSON')
+  if (!raw) throw new Error('FIREBASE_SERVICE_ACCOUNT_JSON is not set')
+  serviceAccount = JSON.parse(raw)
+  return serviceAccount
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'content-type, x-dashboard-secret',
 }
 
+function timingSafeEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false
+  let mismatch = 0
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return mismatch === 0
+}
+
 async function getAccessToken() {
+  const account = getServiceAccount()
   const now = Math.floor(Date.now() / 1000)
   const header = { alg: 'RS256', typ: 'JWT' }
   const payload = {
-    iss: SERVICE_ACCOUNT.client_email,
+    iss: account.client_email,
     scope: 'https://www.googleapis.com/auth/firebase.messaging',
     aud: 'https://oauth2.googleapis.com/token',
     exp: now + 3600,
@@ -28,7 +47,7 @@ async function getAccessToken() {
   const payloadB64 = base64url(enc.encode(JSON.stringify(payload)))
   const signingInput = `${headerB64}.${payloadB64}`
 
-  const pemKey = SERVICE_ACCOUNT.private_key
+  const pemKey = account.private_key
     .replace('-----BEGIN PRIVATE KEY-----', '')
     .replace('-----END PRIVATE KEY-----', '')
     .replace(/\n/g, '')
@@ -62,8 +81,18 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  const serviceKey = Deno.env.get('SB_SERVICE_KEY')
+  const dashboardSecret = Deno.env.get('DASHBOARD_SECRET')
+  if (!serviceKey || !dashboardSecret) {
+    console.error('analytics-proxy misconfigured: missing required secret(s)')
+    return new Response(JSON.stringify({ error: 'Server misconfigured' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+
   const secret = req.headers.get('x-dashboard-secret')
-  if (secret !== DASHBOARD_SECRET) {
+  if (!timingSafeEqual(secret, dashboardSecret)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
       status: 401,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -72,12 +101,16 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url)
   const action = url.searchParams.get('action')
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+  const supabase = createClient(SUPABASE_URL, serviceKey)
 
   if (!action || action === 'users') {
+    // Deliberate allow-list — never select('*') here. This dashboard
+    // endpoint is gated only by a shared header secret, not per-user auth,
+    // so it must not be able to leak columns (e.g. tokens, PII) added to
+    // user_profiles later without an explicit decision to expose them here.
     const { data } = await supabase
       .from('user_profiles')
-      .select('*')
+      .select('id, created_at, last_active, is_online, online_at')
       .order('created_at', { ascending: false })
     return new Response(JSON.stringify(data || []), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -93,7 +126,16 @@ Deno.serve(async (req) => {
       })
     }
 
-    const accessToken = await getAccessToken()
+    let accessToken
+    try {
+      accessToken = await getAccessToken()
+    } catch (e) {
+      console.error('analytics-proxy: failed to get FCM access token', e)
+      return new Response(JSON.stringify({ error: 'Server misconfigured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
     let sent = 0
     let failed = 0
 
