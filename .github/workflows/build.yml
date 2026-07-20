@@ -46,16 +46,23 @@ jobs:
             echo "SUPABASE_ANON_KEY secret is empty or unset — aborting before build" >&2
             exit 1
           fi
+          if [ -z "${EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID// /}" ]; then
+            echo "GOOGLE_WEB_CLIENT_ID secret is empty or unset — aborting before build" >&2
+            exit 1
+          fi
           echo "SUPABASE_URL length: ${#EXPO_PUBLIC_SUPABASE_URL}"
           echo "SUPABASE_ANON_KEY length: ${#EXPO_PUBLIC_SUPABASE_ANON_KEY}"
+          echo "GOOGLE_WEB_CLIENT_ID length: ${#EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID}"
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
       - name: Prebuild
         run: npx expo prebuild --platform android
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
       - name: Bundle JS
         run: |
           mkdir -p android/app/src/main/assets
@@ -78,6 +85,7 @@ jobs:
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
       - name: Setup keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/savr.keystore
@@ -92,6 +100,7 @@ jobs:
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
       - name: Build signed AAB
         run: |
           cd android && ./gradlew bundleRelease \
@@ -102,6 +111,7 @@ jobs:
         env:
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
       - name: Verify signed APK actually embeds the Supabase config
         run: |
           APK_FILE=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n1)

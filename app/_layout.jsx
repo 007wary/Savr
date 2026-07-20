@@ -21,11 +21,15 @@ import { ErrorBoundary } from '../src/components/ErrorBoundary'
 
 SplashScreen.preventAutoHideAsync()
 
-GoogleSignin.configure({
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-  offlineAccess: true,
-  scopes: ['https://www.googleapis.com/auth/drive.file'],
-})
+try {
+  GoogleSignin.configure({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    offlineAccess: true,
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
+  })
+} catch (err) {
+  console.error('GoogleSignin.configure failed', err)
+}
 
 const LAST_RECURRING_CHECK_KEY = 'savr_last_recurring_check'
 
