@@ -89,6 +89,11 @@ jobs:
       - name: Setup keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/savr.keystore
+      - name: Print keystore SHA-1 (temporary — for Google Cloud Console OAuth client registration)
+        run: |
+          keytool -list -v -keystore android/app/savr.keystore \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            -alias "${{ secrets.KEY_ALIAS }}" | grep -A1 "SHA1:"
       - name: Build signed APK
         run: |
           chmod +x android/gradlew
