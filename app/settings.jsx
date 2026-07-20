@@ -8,6 +8,7 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import { supabase } from '../src/lib/supabase'
 import { CURRENCIES, SCREEN } from '../src/constants/theme'
 import { useTheme } from '../src/lib/themeContext'
@@ -162,7 +163,10 @@ if (avatar) {
       {
         text: 'Sign Out',
         style: 'destructive',
-        onPress: () => supabase.auth.signOut(),
+        onPress: () => {
+          GoogleSignin.signOut().catch(() => {})
+          supabase.auth.signOut()
+        },
       }
     ])
   }

@@ -5,7 +5,7 @@ import { StatusBar } from 'expo-status-bar'
 import { ThemeProvider, useTheme } from '../src/lib/themeContext'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import * as SplashScreen from 'expo-splash-screen'
-import * as Linking from 'expo-linking'
+import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import { processDueRecurring, processRecurringIncome } from '../src/lib/recurring'
 import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -20,6 +20,12 @@ import * as NavigationBar from 'expo-navigation-bar'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
 
 SplashScreen.preventAutoHideAsync()
+
+GoogleSignin.configure({
+  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+  offlineAccess: true,
+  scopes: ['https://www.googleapis.com/auth/drive.file'],
+})
 
 const LAST_RECURRING_CHECK_KEY = 'savr_last_recurring_check'
 
@@ -293,40 +299,6 @@ try {
       } catch {}
     }, 10 * 60 * 1000)
 
-    const handleDeepLink = async (url) => {
-      if (!url) return
-      if (url.includes('access_token') || url.includes('confirmation')) {
-        const { data } = await supabase.auth.getSessionFromUrl({ url })
-        if (data?.session) setSession(data.session)
-        return
-      }
-      // PKCE flow: WebBrowser.openAuthSessionAsync's promise can resolve as
-      // 'dismiss' instead of 'success' on some devices/browsers even when the
-      // redirect actually reaches the app (seen on Samsung + Chrome Custom
-      // Tabs), leaving login.jsx's own code-exchange path never reached. This
-      // listener is a second, independent path to the same exchange so the
-      // sign-in still completes regardless of what that promise reports.
-      const queryParams = new URLSearchParams(url.split('?')[1]?.split('#')[0] || '')
-      const code = queryParams.get('code')
-      if (code) {
-        try {
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-          if (!error && data?.session) {
-            const providerToken = data.session.provider_token
-            const providerRefreshToken = data.session.provider_refresh_token
-            if (providerToken) await cacheGoogleAccessToken(providerToken).catch(() => {})
-            if (providerRefreshToken) {
-              const SecureStore = await import('expo-secure-store')
-              await SecureStore.setItemAsync('savr_google_refresh_token', providerRefreshToken).catch(() => {})
-            }
-          }
-        } catch {}
-      }
-    }
-
-    Linking.getInitialURL().then(url => { if (url) handleDeepLink(url) })
-    const linkSub = Linking.addEventListener('url', ({ url }) => { handleDeepLink(url) })
-
     const handleAppStateChange = async (nextAppState) => {
   try {
     const user = getCachedUser()
@@ -352,7 +324,6 @@ try {
 
     return () => {
       subscription.unsubscribe()
-      linkSub.remove()
       clearInterval(refreshInterval)
       appStateSub.remove()
     }

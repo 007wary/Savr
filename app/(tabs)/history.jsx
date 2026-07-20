@@ -190,13 +190,6 @@ export default function History() {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
           const updated = (expenses || []).filter(e => e.id !== id)
-          setExpenses(updated)
-          await saveCache(CACHE_KEY, updated)
-          await updateDashboardCache(updated)
-          const now = new Date()
-          const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-          await clearCache(`savr_cache_budgets_${currentMonth}`)
-          await clearCache(`savr_cache_reports_${currentMonth}`)
           try {
             const deletedItem = (expenses || []).find(e => e.id === id)
             if (type === 'income') {
@@ -231,6 +224,14 @@ export default function History() {
                 }
               }
             }
+            setExpenses(updated)
+            await saveCache(CACHE_KEY, updated)
+            await updateDashboardCache(updated)
+            const now = new Date()
+            const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+            await clearCache(`savr_cache_budgets_${currentMonth}`)
+            await clearCache(`savr_cache_reports_${currentMonth}`)
+
             await AsyncStorage.removeItem('savr_last_backup_count')
             scheduleBackup()
           } catch {

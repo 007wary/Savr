@@ -7,12 +7,14 @@ function SkeletonBox({ width, height, borderRadius = 8, style, colors }) {
   const opacity = useRef(new Animated.Value(0.3)).current
 
   useEffect(() => {
-    Animated.loop(
+    const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(opacity, { toValue: 1, duration: 800, useNativeDriver: true }),
         Animated.timing(opacity, { toValue: 0.3, duration: 800, useNativeDriver: true }),
       ])
-    ).start()
+    )
+    loop.start()
+    return () => loop.stop()
   }, [opacity])
 
   return (

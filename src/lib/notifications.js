@@ -155,7 +155,10 @@ export async function checkWeeklySummary(expenses) {
     const dayOfWeek = today.getDay()
     if (dayOfWeek !== 0) return
 
-    const todayStr = today.toISOString().split('T')[0]
+    const toLocalDateStr = (d) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+    const todayStr = toLocalDateStr(today)
     const lastSent = await AsyncStorage.getItem(WEEKLY_NOTIF_KEY)
     if (lastSent === todayStr) return
 
@@ -164,7 +167,7 @@ export async function checkWeeklySummary(expenses) {
     for (let i = 0; i < 7; i++) {
       const d = new Date()
       d.setDate(d.getDate() - i)
-      const dateStr = d.toISOString().split('T')[0]
+      const dateStr = toLocalDateStr(d)
       weekExpenses.push(...expenses.filter(e => e.date === dateStr))
     }
 

@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity,
   StyleSheet, ActivityIndicator
 } from 'react-native'
-import * as SecureStore from 'expo-secure-store'
+import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import { cacheGoogleAccessToken } from '../../src/lib/googleAccessToken'
 import { supabase } from '../../src/lib/supabase'
 import { SCREEN } from '../../src/constants/theme'
@@ -11,12 +11,8 @@ import { useTheme } from '../../src/lib/themeContext'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { Ionicons } from '@expo/vector-icons'
-import * as WebBrowser from 'expo-web-browser'
-import * as AuthSession from 'expo-auth-session'
 import { useRouter } from 'expo-router'
 import { setSigningIn } from '../../src/lib/authState'
-
-WebBrowser.maybeCompleteAuthSession()
 
 export default function Login() {
   const { COLORS } = useTheme()
@@ -35,55 +31,17 @@ export default function Login() {
     try {
       setGoogleLoading(true)
 
-      const existingRefreshToken = await SecureStore.getItemAsync('savr_google_refresh_token')
-
-      const redirectUrl = AuthSession.makeRedirectUri({ scheme: 'savr' })
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          skipBrowserRedirect: true,
-          queryParams: {
-            prompt: existingRefreshToken ? 'select_account' : 'consent',
-            access_type: 'offline',
-            scope: [
-              'openid',
-              'email',
-              'profile',
-              'https://www.googleapis.com/auth/drive.file',
-            ].join(' '),
-          },
-        },
-      })
-      if (error) throw error
+      await GoogleSignin.hasPlayServices()
+      await GoogleSignin.signIn()
+      const { idToken, accessToken } = await GoogleSignin.getTokens()
+      if (!idToken) throw new Error('No ID token returned from Google Sign-In')
 
       setSigningIn(true)
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl)
-
-      // On some devices (seen on Samsung + Chrome Custom Tabs) this resolves as
-      // 'dismiss' even though the redirect actually reached the app — in that
-      // case _layout.jsx's Linking listener performs the code exchange instead.
-      if (result.type !== 'success') {
-        return
-      }
-
-      const url = result.url
-      const queryParams = new URLSearchParams(url.split('?')[1]?.split('#')[0] || '')
-      const code = queryParams.get('code')
-
-      if (!code) {
-        return
-      }
-
-      const { data: sessionData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-      if (exchangeError) {
-        // _layout.jsx's Linking listener races this same exchange from the deep
-        // link event and may have already consumed the (single-use) code —
-        // if a session exists now, that path won and this failure is stale.
-        const { data: currentSession } = await supabase.auth.getSession()
-        if (currentSession?.session) return
-        throw exchangeError
-      }
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'google',
+        token: idToken,
+      })
+      if (error) throw error
       // Leave signingIn=true here — clearing it is _layout.jsx's job, once its
       // onAuthStateChange listener has actually observed the new session. If we
       // clear it here first, there's a window where signingIn=false but the
@@ -91,12 +49,10 @@ export default function Login() {
       // leaves the user stranded on the login screen.
 
       try {
-        const provider_token = sessionData?.session?.provider_token
-        const provider_refresh_token = sessionData?.session?.provider_refresh_token
-        if (provider_token) await cacheGoogleAccessToken(provider_token)
-        if (provider_refresh_token) await SecureStore.setItemAsync('savr_google_refresh_token', provider_refresh_token)
+        if (accessToken) await cacheGoogleAccessToken(accessToken)
       } catch {}
-    } catch {
+    } catch (err) {
+      console.error('Google sign-in failed', err)
       showAlert('Sign In Failed', 'Something went wrong. Please try again.')
       setSigningIn(false)
     } finally {

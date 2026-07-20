@@ -1,8 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import * as SecureStore from 'expo-secure-store'
+import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import { getDB } from './sqliteService'
 import { getUser, getCachedUser } from '../lib/auth'
-import { supabase, SUPABASE_PROJECT_URL, SUPABASE_ANON_KEY } from '../lib/supabase'
 import {
   getGoogleAccessToken,
   setGoogleAccessToken,
@@ -30,46 +29,15 @@ async function getAccessToken() {
       if (age < 55 * 60 * 1000) return storedToken
     }
 
-    const { data: refreshed } = await supabase.auth.refreshSession()
-    if (refreshed?.session?.provider_token) {
-      await setGoogleAccessToken(refreshed.session.provider_token)
-      await setGoogleAccessTokenCachedAtNow()
-      return refreshed.session.provider_token
-    }
-
-    let refreshToken = await SecureStore.getItemAsync('savr_google_refresh_token')
-    if (!refreshToken) {
-      const oldToken = await AsyncStorage.getItem('savr_google_refresh_token')
-      if (oldToken) {
-        await SecureStore.setItemAsync('savr_google_refresh_token', oldToken)
-        await AsyncStorage.removeItem('savr_google_refresh_token')
-        refreshToken = oldToken
+    try {
+      await GoogleSignin.signInSilently()
+      const { accessToken } = await GoogleSignin.getTokens()
+      if (accessToken) {
+        await setGoogleAccessToken(accessToken)
+        await setGoogleAccessTokenCachedAtNow()
+        return accessToken
       }
-    }
-
-    if (refreshToken) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        const jwt = session?.access_token
-        if (SUPABASE_PROJECT_URL && SUPABASE_ANON_KEY && jwt) {
-          const response = await fetch(`${SUPABASE_PROJECT_URL}/functions/v1/google-token-refresh`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: SUPABASE_ANON_KEY,
-              Authorization: `Bearer ${jwt}`,
-            },
-            body: JSON.stringify({ refresh_token: refreshToken }),
-          })
-          const data = await response.json()
-          if (data.access_token) {
-            await setGoogleAccessToken(data.access_token)
-            await setGoogleAccessTokenCachedAtNow()
-            return data.access_token
-          }
-        }
-      } catch {}
-    }
+    } catch {}
 
     if (storedToken) return storedToken
     return null
