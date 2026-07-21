@@ -25,7 +25,13 @@ entrypoint = "./functions/send-backup-reminder/index.ts"
 
 [functions.welcome-email]
 enabled = true
-verify_jwt = true
+# verify_jwt = false: the platform JWT gate accepts any valid JWT, including
+# the anon key shipped in the app — useless as auth here. This function is a
+# trigger-invoked webhook authenticated by its own constant-time shared-secret
+# check (WELCOME_EMAIL_SERVICE_KEY vs the Vault token the trigger sends), the
+# same pattern as send-backup-reminder's x-cron-secret. Turning the gate off
+# lets that secret be a plain random string rather than a JWT-shaped token.
+verify_jwt = false
 import_map = "./functions/welcome-email/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
