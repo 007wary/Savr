@@ -1,0 +1,32 @@
+-- Documentation-only migration (no schema change).
+--
+-- The welcome-email edge function now requires a shared secret in its
+-- Authorization header, verified in-function with a constant-time compare
+-- (see supabase/functions/welcome-email/index.ts). This closes the residual
+-- abuse vector left by relying on verify_jwt alone: verify_jwt accepts any
+-- valid JWT, including the anon key shipped inside the Android app, so anyone
+-- who extracted that key could POST an arbitrary { record: { email } } and
+-- send a welcome email / Mailchimp subscription to any address on our Brevo
+-- and Mailchimp quota.
+--
+-- The on_new_user_profile trigger (notify_welcome_email) already sends
+--   Authorization: Bearer <welcome_email_service_key>
+-- where welcome_email_service_key is a Vault secret. For the function's check
+-- to pass, the function's WELCOME_EMAIL_SERVICE_KEY env secret MUST be set to
+-- the SAME value as the Vault secret. Operationally:
+--
+--   1. Read the current Vault value (psql against the project):
+--        select decrypted_secret from vault.decrypted_secrets
+--        where name = 'welcome_email_service_key';
+--   2. Set it as a function secret:
+--        supabase secrets set WELCOME_EMAIL_SERVICE_KEY='<that value>'
+--   3. Redeploy the function:
+--        supabase functions deploy welcome-email
+--
+-- If the two values ever diverge, the trigger's calls will 401 and no welcome
+-- emails will send — rotate both together.
+--
+-- No SQL statements: this file exists to version the security decision and the
+-- operational contract in-repo alongside the other welcome-email hardening
+-- migrations.
+select 1;

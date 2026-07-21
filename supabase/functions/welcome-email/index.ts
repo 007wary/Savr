@@ -5,8 +5,38 @@ const MAILCHIMP_SERVER = Deno.env.get('MAILCHIMP_SERVER')!
 const MAILCHIMP_AUDIENCE_ID = Deno.env.get('MAILCHIMP_AUDIENCE_ID')!
 const BREVO_API_KEY = Deno.env.get('BREVO_API_KEY')!
 
+// Constant-time string comparison so a caller can't discover the secret one
+// character at a time from response-timing differences.
+function timingSafeEqual(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false
+  let mismatch = 0
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return mismatch === 0
+}
+
 serve(async (req) => {
   try {
+    // The on_new_user_profile trigger calls this with
+    // `Authorization: Bearer <welcome_email_service_key>` (from Vault). The
+    // platform's verify_jwt only proves the caller holds *some* valid JWT —
+    // including the anon key baked into the shipped app — so without this
+    // check anyone could POST an arbitrary { record: { email } } and send a
+    // welcome email / Mailchimp subscription to any address on our quota.
+    // Require the shared trigger secret to prove the request is really the
+    // trigger.
+    const expectedSecret = Deno.env.get('WELCOME_EMAIL_SERVICE_KEY')
+    if (!expectedSecret) {
+      console.error('welcome-email misconfigured: WELCOME_EMAIL_SERVICE_KEY not set')
+      return new Response('Server misconfigured', { status: 500 })
+    }
+    const authHeader = req.headers.get('Authorization') || ''
+    const providedSecret = authHeader.replace(/^Bearer\s+/i, '').trim()
+    if (!timingSafeEqual(providedSecret, expectedSecret)) {
+      return new Response('Unauthorized', { status: 401 })
+    }
+
     const payload = await req.json()
     const record = payload.record
     const email = record?.email
