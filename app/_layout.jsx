@@ -218,7 +218,7 @@ setTimeout(() => {
   }).catch(() => {})
 }, 6000)
 
-          backupOnAppOpen().catch((e) => logError('backupOnAppOpen', e))
+          backupOnAppOpen()
 
         } else {
           // No cached user — wait for Supabase with timeout.
@@ -382,7 +382,7 @@ try {
   } catch {}
 
   if (nextAppState !== 'active') return
-  backupOnAppOpen().catch((e) => logError('backupOnAppOpen', e))
+  backupOnAppOpen()
 }
     const appStateSub = AppState.addEventListener('change', handleAppStateChange)
 
@@ -449,7 +449,7 @@ try {
       setTransitioning(false)
       setWatchdogTripped(true)
       logError('startupWatchdog', new Error('launch gate did not resolve in time'))
-    }, 2500)
+    }, 4000)
     return () => clearTimeout(t)
   }, [session, onboardingDone, transitioning])
 

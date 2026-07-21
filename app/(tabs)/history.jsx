@@ -261,8 +261,8 @@ export default function History() {
   }
 
   async function handleSaveEdit() {
-    if (!editAmount || isNaN(parseFloat(editAmount))) {
-      return showAlert('Invalid', 'Please enter a valid amount')
+    if (!editAmount || isNaN(parseFloat(editAmount)) || parseFloat(editAmount) <= 0) {
+      return showAlert('Invalid', 'Please enter an amount greater than zero')
     }
     setSaving(true)
     const editedExpense = editingExpense

@@ -400,9 +400,9 @@ export default function AddExpense() {
       addInFlightRef.current = false
       return showAlert('Missing info', 'Please enter an amount and select a category')
     }
-    if (isNaN(parseFloat(amount))) {
+    if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
       addInFlightRef.current = false
-      return showAlert('Invalid amount', 'Please enter a valid number')
+      return showAlert('Invalid amount', 'Please enter an amount greater than zero')
     }
 
     setSubmitting(true)

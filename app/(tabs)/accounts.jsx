@@ -15,6 +15,7 @@ import { getUser, getCachedUser } from '../../src/lib/auth'
 import { formatAmount, getCurrencySymbol, loadCurrency } from '../../src/lib/currency'
 import { getAccounts, addAccount, updateAccount, deleteAccount } from '../../src/services/sqliteService'
 import { clearCache } from '../../src/lib/cache'
+import { monthKey } from '../../src/lib/dateUtils'
 
 const ACCOUNT_TYPES = [
   { label: 'Cash', icon: 'cash-outline', color: '#4CAF50' },
@@ -100,7 +101,7 @@ export default function Accounts() {
           ...(balanceChanged ? { balance: editedBalance } : {}),
           currency: preservedCurrency,
         })
-        await clearCache(`savr_cache_dashboard_${new Date().toISOString().slice(0, 7)}`)
+        await clearCache(`savr_cache_dashboard_${monthKey()}`)
         setAccounts(prev => prev.map(a =>
           a.id === editingAccount.id
             ? {
@@ -144,7 +145,7 @@ export default function Accounts() {
         onPress: async () => {
           await deleteAccount(account.id)
           setAccounts(prev => prev.filter(a => a.id !== account.id))
-          await clearCache(`savr_cache_dashboard_${new Date().toISOString().slice(0, 7)}`)
+          await clearCache(`savr_cache_dashboard_${monthKey()}`)
           await clearCache('savr_cache_history')
         }
       }
