@@ -98,27 +98,44 @@ serve(async (req) => {
     let successCount = 0;
     let failCount = 0;
 
-    for (const user of users) {
-      if (!user.fcm_token) continue;
-      const res = await fetch(
-        `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            message: {
-              token: user.fcm_token,
-              data: { type: "silent_backup" },
-              android: { priority: "normal" },
+    const sendOne = async (fcmToken: string) => {
+      try {
+        const res = await fetch(
+          `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
             },
-          }),
-        }
-      );
-      if (res.ok) successCount++;
-      else failCount++;
+            body: JSON.stringify({
+              message: {
+                token: fcmToken,
+                data: { type: "silent_backup" },
+                android: { priority: "normal" },
+              },
+            }),
+          }
+        );
+        return res.ok;
+      } catch {
+        return false;
+      }
+    };
+
+    // Send in parallel chunks rather than one-at-a-time. A serial loop scales
+    // linearly with user count and, at a few thousand users, would approach the
+    // function timeout. Chunking bounds concurrency so we don't open thousands
+    // of sockets at once or trip FCM rate limits.
+    const CHUNK_SIZE = 100;
+    const targets = users.filter((u) => u.fcm_token).map((u) => u.fcm_token as string);
+    for (let i = 0; i < targets.length; i += CHUNK_SIZE) {
+      const chunk = targets.slice(i, i + CHUNK_SIZE);
+      const results = await Promise.all(chunk.map(sendOne));
+      for (const ok of results) {
+        if (ok) successCount++;
+        else failCount++;
+      }
     }
 
     return new Response(

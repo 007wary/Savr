@@ -441,3 +441,14 @@ export async function checkBackupExists() {
     return null
   }
 }
+
+// Internal round-trip primitives, exported only so the backup/restore unit
+// tests can exercise the SQLite serialize → validate → restore path without
+// dragging in Google Drive, OAuth, or network I/O. These are not part of the
+// public backup API — call backupToDrive/restoreFromDrive in app code.
+export const __test__ = {
+  getAllDataFromSQLite,
+  writeAllDataToSQLite,
+  restoreAllDataToSQLite,
+  validateBackupData,
+}

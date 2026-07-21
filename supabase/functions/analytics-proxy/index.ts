@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
     let sent = 0
     let failed = 0
 
-    for (const token of tokens) {
+    const sendOne = async (token) => {
       try {
         const res = await fetch(
           `https://fcm.googleapis.com/v1/projects/${FCM_PROJECT_ID}/messages:send`,
@@ -158,9 +158,24 @@ Deno.serve(async (req) => {
             })
           }
         )
-        if (res.ok) sent++
+        return res.ok
+      } catch {
+        return false
+      }
+    }
+
+    // Send in parallel chunks rather than serially. One-at-a-time scales
+    // linearly with token count and would approach the function timeout for
+    // large broadcasts; chunking bounds concurrency so we don't open thousands
+    // of sockets at once or trip FCM rate limits.
+    const CHUNK_SIZE = 100
+    for (let i = 0; i < tokens.length; i += CHUNK_SIZE) {
+      const chunk = tokens.slice(i, i + CHUNK_SIZE)
+      const results = await Promise.all(chunk.map(sendOne))
+      for (const ok of results) {
+        if (ok) sent++
         else failed++
-      } catch { failed++ }
+      }
     }
 
     return new Response(JSON.stringify({ sent, failed }), {
