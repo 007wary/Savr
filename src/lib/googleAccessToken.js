@@ -25,9 +25,16 @@ export async function setGoogleAccessToken(token) {
   if (!token) return
   try {
     await SecureStore.setItemAsync(SECURE_KEY, token)
+    // Clear any legacy plaintext copy now that it's safely in SecureStore.
     await AsyncStorage.removeItem(LEGACY_ASYNC_KEY)
-  } catch {
-    await AsyncStorage.setItem(LEGACY_ASYNC_KEY, token)
+  } catch (e) {
+    // Do NOT fall back to plaintext AsyncStorage — an OAuth access token there
+    // is unencrypted at rest and readable on a compromised/rooted device.
+    // Caching is best-effort: the token is re-fetched via GoogleSignin
+    // (signInSilently) on the next backup, so skipping the cache is safe.
+    // Also drop any stale legacy plaintext value that may predate this change.
+    try { await AsyncStorage.removeItem(LEGACY_ASYNC_KEY) } catch {}
+    console.error('setGoogleAccessToken: SecureStore write failed, not caching', e)
   }
 }
 

@@ -1,6 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Constant-time string comparison so a caller can't discover the cron secret
+// one character at a time from response-timing differences.
+function timingSafeEqual(a: string, b: string): boolean {
+  if (typeof a !== "string" || typeof b !== "string" || a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
 serve(async (req) => {
   try {
     const CRON_SECRET = Deno.env.get("BACKUP_REMINDER_CRON_SECRET");
@@ -16,8 +27,8 @@ serve(async (req) => {
       });
     }
 
-    const providedSecret = req.headers.get("x-cron-secret");
-    if (providedSecret !== CRON_SECRET) {
+    const providedSecret = req.headers.get("x-cron-secret") || "";
+    if (!timingSafeEqual(providedSecret, CRON_SECRET)) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },

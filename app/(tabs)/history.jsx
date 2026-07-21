@@ -112,7 +112,10 @@ export default function History() {
     return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
-  const filtered = (expenses || []).filter(e => {
+  // Filter + group + sort run over the entire merged transaction list, so they're
+  // memoized on their inputs — without this they'd recompute on every render,
+  // including every keystroke in the search box.
+  const filtered = useMemo(() => (expenses || []).filter(e => {
     const cleanSearch = search.replace(/[₹$€£¥₩฿₽,\s]/g, '').toLowerCase()
     const matchSearch = search === '' ||
       e.note?.toLowerCase().includes(search.toLowerCase()) ||
@@ -123,11 +126,11 @@ export default function History() {
     const matchMonth = selectedMonth === 'All' || e.date.startsWith(selectedMonth)
     const matchType = selectedType === 'all' || e.type === selectedType
     return matchSearch && matchCategory && matchMonth && matchType
-  })
+  }), [expenses, search, selectedCategory, selectedMonth, selectedType])
 
-  function groupByDate(data) {
+  const sections = useMemo(() => {
     const groups = {}
-    data.forEach(e => {
+    filtered.forEach(e => {
       if (!groups[e.date]) groups[e.date] = []
       groups[e.date].push(e)
     })
@@ -138,9 +141,7 @@ export default function History() {
         data: groups[date],
         total: roundMoney(groups[date].filter(e => e.type !== 'income').reduce((sum, e) => sum + parseFloat(e.amount), 0))
       }))
-  }
-
-  const sections = groupByDate(filtered)
+  }, [filtered])
   const activeFilters = (selectedCategory !== 'All' ? 1 : 0) + (selectedMonth !== 'All' ? 1 : 0)
 
   function clearFilters() {
