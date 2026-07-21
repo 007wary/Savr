@@ -79,7 +79,9 @@ export default function Reports() {
       const currentData = allData.filter(e => e.date.startsWith(selectedMonth))
       const lastMonthData = allData.filter(e => e.date.startsWith(lastMonthKey))
       const sixMonthData = allData.filter(e => {
-        const d = new Date(e.date)
+        // Parse as local midnight (like the sibling boundary dates) so an expense
+        // dated the 1st isn't pushed outside the window in timezones behind UTC.
+        const d = new Date(e.date + 'T00:00:00')
         return d >= sixMonthsAgo && d < endOfSelectedMonth
       })
 

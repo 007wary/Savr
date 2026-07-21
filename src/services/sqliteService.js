@@ -213,18 +213,6 @@ async function adjustAccountBalanceIfExists(database, accountId, delta) {
   return true
 }
 
-export async function addExpense(userId, { amount, category, note, date, is_recurring = 0, recurring_id = null, account_id = null }) {
-  const database = await getDB()
-  const newId = id()
-  const ts = now()
-  await runWithRetry(database,
-    `INSERT INTO expenses (id, user_id, amount, category, note, date, is_recurring, recurring_id, account_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [newId, userId, amount, category, note || null, date, is_recurring ? 1 : 0, recurring_id, account_id, ts, ts]
-  )
-  return newId
-}
-
 export async function addExpenseAtomic(userId, { amount, category, note, date, is_recurring = 0, recurring_id = null, account_id = null }) {
   const database = await getDB()
   const newId = id()
@@ -285,13 +273,8 @@ export async function updateExpense(id, { amount, category, note, date, account_
   })
 }
 
-export async function deleteExpense(id) {
-  const database = await getDB()
-  await runWithRetry(database,`DELETE FROM expenses WHERE id = ?`, [id])
-}
-
 // Deletes an expense and restores the debit to its account atomically, so the
-// balance can't drift if a caller forgets to reverse it (addExpense debits the
+// balance can't drift if a caller forgets to reverse it (an expense debits the
 // account, so deleting must credit it back by the same amount).
 export async function deleteExpenseAtomic(id) {
   const database = await getDB()
@@ -400,6 +383,23 @@ export async function updateRecurringAfterLog(id, nextDue, lastLogged) {
   await runWithRetry(database,
     `UPDATE recurring_expenses SET next_due = ?, last_logged = ?, updated_at = ? WHERE id = ?`,
     [nextDue, lastLogged, now(), id]
+  )
+}
+
+// User-facing edit of a recurring rule (amount/note/frequency). Unlike the raw
+// inline UPDATE it replaces, this re-derives anchor_day from the row's own
+// next_due so a monthly rule keeps re-anchoring to its intended day-of-month.
+// next_due itself is a valid calendar date under any frequency, so it is left
+// untouched — only anchor_day could silently rot on a frequency switch.
+export async function updateRecurringExpense(id, { amount, note, frequency }) {
+  const database = await getDB()
+  const existing = await database.getFirstAsync(
+    `SELECT frequency, next_due FROM recurring_expenses WHERE id = ?`, [id]
+  )
+  const anchorDay = anchorDayFromDate(existing?.next_due)
+  await runWithRetry(database,
+    `UPDATE recurring_expenses SET amount = ?, note = ?, frequency = ?, anchor_day = ?, updated_at = ? WHERE id = ?`,
+    [amount, note || null, frequency, anchorDay, now(), id]
   )
 }
 
@@ -548,12 +548,23 @@ export async function getAccountsTotal(userId) {
   return { total: result?.total || 0, count: result?.count || 0 }
 }
 
+// Editing an account's metadata must NOT clobber its running balance, which is
+// maintained by relative deltas from every linked expense/income/transfer. So
+// `balance` is only written when the caller explicitly passes it (i.e. the user
+// changed the balance field); omit it and the transaction-driven value is kept.
 export async function updateAccount(id, { name, type, balance, currency }) {
   const database = await getDB()
-  await runWithRetry(database,
-    `UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, updated_at = ? WHERE id = ?`,
-    [name, type, balance, currency, now(), id]
-  )
+  if (balance === undefined) {
+    await runWithRetry(database,
+      `UPDATE accounts SET name = ?, type = ?, currency = ?, updated_at = ? WHERE id = ?`,
+      [name, type, currency, now(), id]
+    )
+  } else {
+    await runWithRetry(database,
+      `UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, updated_at = ? WHERE id = ?`,
+      [name, type, balance, currency, now(), id]
+    )
+  }
 }
 
 export async function updateAccountBalance(id, delta) {
@@ -580,18 +591,6 @@ export async function deleteAccount(id) {
 }
 
 // ─── INCOME ─────────────────────────────────────────────────
-export async function addIncome(userId, { amount, category, note, date, account_id = null }) {
-  const database = await getDB()
-  const newId = id()
-  const ts = now()
-  await runWithRetry(database,
-    `INSERT INTO income (id, user_id, amount, category, note, date, account_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [newId, userId, amount, category, note || null, date, account_id, ts, ts]
-  )
-  return newId
-}
-
 export async function addIncomeAtomic(userId, { amount, category, note, date, account_id = null }) {
   const database = await getDB()
   const newId = id()
@@ -672,13 +671,8 @@ export async function updateIncome(id, { amount, category, note, date, account_i
   })
 }
 
-export async function deleteIncome(id) {
-  const database = await getDB()
-  await runWithRetry(database,`DELETE FROM income WHERE id = ?`, [id])
-}
-
 // Deletes an income row and reverses the credit to its account atomically
-// (addIncome credits the account, so deleting must debit it back).
+// (income credits the account, so deleting must debit it back).
 export async function deleteIncomeAtomic(id) {
   const database = await getDB()
   await database.withTransactionAsync(async () => {
@@ -696,18 +690,6 @@ export async function deleteIncomeAtomic(id) {
 }
 
 // ─── TRANSFERS ──────────────────────────────────────────────
-export async function addTransfer(userId, { from_account_id, to_account_id, amount, note, date }) {
-  const database = await getDB()
-  const newId = id()
-  const ts = now()
-  await runWithRetry(database,
-    `INSERT INTO transfers (id, user_id, from_account_id, to_account_id, amount, note, date, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [newId, userId, from_account_id, to_account_id, amount, note || null, date, ts, ts]
-  )
-  return newId
-}
-
 export async function addTransferAtomic(userId, { from_account_id, to_account_id, amount, note, date }) {
   const database = await getDB()
   const newId = id()
@@ -736,11 +718,6 @@ export async function getTransfers(userId) {
     `SELECT * FROM transfers WHERE user_id = ? ORDER BY date DESC, created_at DESC`,
     [userId]
   )
-}
-
-export async function deleteTransfer(id) {
-  const database = await getDB()
-  await runWithRetry(database, `DELETE FROM transfers WHERE id = ?`, [id])
 }
 
 // Deletes a transfer and reverses both legs atomically (a transfer debits the
@@ -802,6 +779,19 @@ export async function updateRecurringIncomeAfterLog(id, nextDue, lastLogged) {
   await runWithRetry(database,
     `UPDATE recurring_income SET next_due = ?, last_logged = ?, updated_at = ? WHERE id = ?`,
     [nextDue, lastLogged, now(), id]
+  )
+}
+
+// See updateRecurringExpense — same anchor_day maintenance for recurring income.
+export async function updateRecurringIncome(id, { amount, note, frequency }) {
+  const database = await getDB()
+  const existing = await database.getFirstAsync(
+    `SELECT next_due FROM recurring_income WHERE id = ?`, [id]
+  )
+  const anchorDay = anchorDayFromDate(existing?.next_due)
+  await runWithRetry(database,
+    `UPDATE recurring_income SET amount = ?, note = ?, frequency = ?, anchor_day = ?, updated_at = ? WHERE id = ?`,
+    [amount, note || null, frequency, anchorDay, now(), id]
   )
 }
 

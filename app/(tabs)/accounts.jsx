@@ -84,16 +84,28 @@ export default function Accounts() {
       const user = getCachedUser() || await getUser()
       if (!user) return
       if (editingAccount) {
+        // The balance field is seeded with the account's current (transaction-driven)
+        // balance. Only send a balance write when the user actually changed it, so
+        // an edit of just name/type/currency doesn't clobber deltas from linked
+        // expenses/income/transfers with a stale absolute value.
+        const editedBalance = parseFloat(balance) || 0
+        const balanceChanged = editedBalance !== editingAccount.balance
         await updateAccount(editingAccount.id, {
           name: name.trim(),
           type,
-          balance: parseFloat(balance) || 0,
+          ...(balanceChanged ? { balance: editedBalance } : {}),
           currency: currencyCode,
         })
         await clearCache(`savr_cache_dashboard_${new Date().toISOString().slice(0, 7)}`)
         setAccounts(prev => prev.map(a =>
           a.id === editingAccount.id
-            ? { ...a, name: name.trim(), type, balance: parseFloat(balance) || 0 }
+            ? {
+                ...a,
+                name: name.trim(),
+                type,
+                currency: currencyCode,
+                ...(balanceChanged ? { balance: editedBalance } : {}),
+              }
             : a
         ))
       } else {

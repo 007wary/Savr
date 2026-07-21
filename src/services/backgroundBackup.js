@@ -2,9 +2,11 @@ import { getCachedUser } from '../lib/auth'
 import { hasDataChanged, backupToDrive } from './driveBackupService'
 
 let backupTimer = null
+let appOpenTimer = null
 
 export async function backupOnAppOpen() {
-  setTimeout(async () => {
+  if (appOpenTimer) clearTimeout(appOpenTimer)
+  appOpenTimer = setTimeout(async () => {
     try {
       const user = getCachedUser()
       if (!user) return
@@ -12,6 +14,7 @@ export async function backupOnAppOpen() {
       if (!changed) return
       await backupToDrive()
     } catch {}
+    appOpenTimer = null
   }, 30 * 1000)
 }
 

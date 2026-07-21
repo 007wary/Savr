@@ -17,6 +17,7 @@ import useAlert from '../../src/hooks/useAlert'
 import * as FileSystem from 'expo-file-system/legacy'
 import * as Sharing from 'expo-sharing'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
+import { sortExpenses } from '../../src/lib/dateUtils'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getExpenses, updateExpense, deleteExpenseAtomic, deleteRecurring, getRecurring, getIncome, deleteIncomeAtomic, getTransfers, deleteTransferAtomic, getAccounts } from '../../src/services/sqliteService'
@@ -44,13 +45,6 @@ export default function History() {
   const [selectedType, setSelectedType] = useState('all')
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const userRef = useRef(null)
-
-  function sortExpenses(data) {
-    return [...data].sort((a, b) => {
-      if (b.date !== a.date) return b.date.localeCompare(a.date)
-      return new Date(b.created_at || 0) - new Date(a.created_at || 0)
-    })
-  }
 
   const loadFromSQLite = useCallback(async () => {
     try {
@@ -122,7 +116,7 @@ export default function History() {
     const cleanSearch = search.replace(/[₹$€£¥₩฿₽,\s]/g, '').toLowerCase()
     const matchSearch = search === '' ||
       e.note?.toLowerCase().includes(search.toLowerCase()) ||
-      e.category.toLowerCase().includes(search.toLowerCase()) ||
+      e.category?.toLowerCase().includes(search.toLowerCase()) ||
       String(parseFloat(e.amount).toFixed(2)).includes(cleanSearch) ||
       String(parseFloat(e.amount).toFixed(0)).includes(cleanSearch)
     const matchCategory = selectedCategory === 'All' || e.category === selectedCategory
@@ -270,15 +264,18 @@ export default function History() {
       return showAlert('Invalid', 'Please enter a valid amount')
     }
     setSaving(true)
+    const editedExpense = editingExpense
     const updatedExpense = {
-      ...editingExpense,
+      ...editedExpense,
       amount: parseFloat(editAmount),
       category: editCategory,
       note: editNote.trim(),
       date: editDate,
     }
-    const updated = sortExpenses((expenses || []).map(e =>
-      e.id === editingExpense.id ? updatedExpense : e
+    // Snapshot the pre-edit list so we can roll cache + state back if the DB write fails.
+    const previous = expenses || []
+    const updated = sortExpenses(previous.map(e =>
+      e.id === editedExpense.id ? updatedExpense : e
     ))
     setExpenses(updated)
     await saveCache(CACHE_KEY, updated)
@@ -289,7 +286,7 @@ export default function History() {
     await clearCache(`savr_cache_reports_${currentMonth}`)
     setEditingExpense(null)
     try {
-      await updateExpense(editingExpense.id, {
+      await updateExpense(editedExpense.id, {
         amount: parseFloat(editAmount),
         category: editCategory,
         note: editNote.trim(),
@@ -297,7 +294,16 @@ export default function History() {
       })
       await AsyncStorage.removeItem('savr_last_backup_count')
       scheduleBackup()
-    } catch {}
+    } catch {
+      // DB write failed — revert the optimistic UI/cache so a reload can't silently
+      // discard the user's change without warning, and tell them it didn't save.
+      setExpenses(previous)
+      await saveCache(CACHE_KEY, previous)
+      await updateDashboardCache(previous)
+      await clearCache(`savr_cache_budgets_${currentMonth}`)
+      await clearCache(`savr_cache_reports_${currentMonth}`)
+      showAlert('Error', 'Could not save changes. Please try again.')
+    }
     setSaving(false)
   }
 

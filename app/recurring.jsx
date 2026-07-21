@@ -15,6 +15,7 @@ import useAlert from '../src/hooks/useAlert'
 import {
   getRecurring, getInactiveRecurring, deleteRecurring, permanentDeleteRecurring,
   getRecurringIncome, getInactiveRecurringIncome, deleteRecurringIncome, permanentDeleteRecurringIncome,
+  updateRecurringExpense, updateRecurringIncome,
 } from '../src/services/sqliteService'
 import { loadCache, saveCache } from '../src/lib/cache'
 
@@ -194,13 +195,12 @@ export default function RecurringScreen() {
       return showAlert('Invalid', 'Please enter a valid amount')
     }
     try {
-      const { getDB } = await import('../src/services/sqliteService')
-      const db = await getDB()
-      const table = isIncome ? 'recurring_income' : 'recurring_expenses'
-      await db.runAsync(
-        `UPDATE ${table} SET amount = ?, note = ?, frequency = ?, updated_at = ? WHERE id = ?`,
-        [parseFloat(editAmount), editNote.trim() || null, editFrequency, new Date().toISOString(), item.id]
-      )
+      const fields = { amount: parseFloat(editAmount), note: editNote.trim(), frequency: editFrequency }
+      if (isIncome) {
+        await updateRecurringIncome(item.id, fields)
+      } else {
+        await updateRecurringExpense(item.id, fields)
+      }
       const updatedItem = { ...item, amount: parseFloat(editAmount), note: editNote.trim(), frequency: editFrequency }
       if (isIncome) {
         setActiveIncomeItems(prev => prev.map(i => i.id === item.id ? updatedItem : i))

@@ -8,6 +8,7 @@ import { useTheme } from '../../src/lib/themeContext'
 import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
 import { getCurrencySymbol, loadCurrency, formatAmount, roundMoney } from '../../src/lib/currency'
 import { saveCache, loadCache } from '../../src/lib/cache'
+import { sortExpenses } from '../../src/lib/dateUtils'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import { checkWeeklySummary, checkBudgetAlerts } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
@@ -54,13 +55,6 @@ function getMonthInfo(offset) {
   const name = d.toLocaleString('default', { month: 'long', year: 'numeric' })
   const totalDays = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
   return { month, name, totalDays }
-}
-
-function sortExpenses(data) {
-  return [...data].sort((a, b) => {
-    if (b.date !== a.date) return b.date.localeCompare(a.date)
-    return new Date(b.created_at || 0) - new Date(a.created_at || 0)
-  })
 }
 
 function getCategoryInfo(label) {
