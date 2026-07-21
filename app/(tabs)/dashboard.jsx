@@ -20,6 +20,8 @@ import useAlert from '../../src/hooks/useAlert'
 import { signalFirstPaint } from '../../src/lib/splashSignal'
 import { mark } from '../../src/lib/startupTiming'
 
+mark('dashboard MODULE eval')
+
 function CountUp({ value, style, symbol, currencyCode }) {
   const [display, setDisplay] = useState(0)
   const prev = useRef(0)
@@ -76,6 +78,7 @@ function formatDate(dateStr) {
 }
 
 export default function Dashboard() {
+  mark('dashboard COMPONENT body')
   const { COLORS } = useTheme()
   const [expenses, setExpenses] = useState([])
   const [userName, setUserName] = useState('')
