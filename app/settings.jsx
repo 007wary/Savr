@@ -12,7 +12,7 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import { supabase } from '../src/lib/supabase'
 import { CURRENCIES, SCREEN } from '../src/constants/theme'
 import { useTheme } from '../src/lib/themeContext'
-import { requestNotificationPermission, isNotificationGranted, BUDGET_ALERTS_KEY } from '../src/lib/notifications'
+import { requestNotificationPermission, isNotificationGranted, BUDGET_ALERTS_KEY, FORECAST_NUDGE_KEY } from '../src/lib/notifications'
 import { saveCurrency, loadCurrency } from '../src/lib/currency'
 import BottomSheet from '../src/components/BottomSheet'
 import { SettingsSkeleton } from '../src/components/SkeletonLoader'
@@ -33,6 +33,7 @@ export default function Settings() {
   const [phone, setPhone] = useState('')
   const [notificationsEnabled, setNotificationsEnabled] = useState(false)
   const [budgetAlerts, setBudgetAlerts] = useState(false)
+  const [forecastNudge, setForecastNudge] = useState(false)
   const [profileModalVisible, setProfileModalVisible] = useState(false)
   const [showCurrencyModal, setShowCurrencyModal] = useState(false)
   const [currency, setCurrency] = useState('USD')
@@ -53,8 +54,11 @@ export default function Settings() {
       if (granted) {
         const savedBudgetAlerts = await AsyncStorage.getItem(BUDGET_ALERTS_KEY)
         setBudgetAlerts(savedBudgetAlerts !== 'false')
+        const savedForecast = await AsyncStorage.getItem(FORECAST_NUDGE_KEY)
+        setForecastNudge(savedForecast === 'true')
       } else {
         setBudgetAlerts(false)
+        setForecastNudge(false)
       }
     } catch {}
   }, [])
@@ -187,6 +191,8 @@ if (avatar) {
         setNotificationsEnabled(true)
         const savedBudgetAlerts = await AsyncStorage.getItem(BUDGET_ALERTS_KEY)
         setBudgetAlerts(savedBudgetAlerts !== 'false')
+        const savedForecast = await AsyncStorage.getItem(FORECAST_NUDGE_KEY)
+        setForecastNudge(savedForecast === 'true')
       } else if (status === 'denied') {
         setNotificationsEnabled(false)
         showAlert(
@@ -201,6 +207,7 @@ if (avatar) {
     } else {
       setNotificationsEnabled(false)
       setBudgetAlerts(false)
+      setForecastNudge(false)
       await AsyncStorage.setItem(BUDGET_ALERTS_KEY, 'false')
       showAlert(
         'Disable Notifications',
@@ -216,6 +223,11 @@ if (avatar) {
   async function handleBudgetAlertsToggle(val) {
     setBudgetAlerts(val)
     await AsyncStorage.setItem(BUDGET_ALERTS_KEY, val ? 'true' : 'false')
+  }
+
+  async function handleForecastNudgeToggle(val) {
+    setForecastNudge(val)
+    await AsyncStorage.setItem(FORECAST_NUDGE_KEY, val ? 'true' : 'false')
   }
 
   function getInitials() {
@@ -363,6 +375,27 @@ if (avatar) {
           <Switch
             value={budgetAlerts}
             onValueChange={handleBudgetAlertsToggle}
+            disabled={!notificationsEnabled}
+            trackColor={{ false: COLORS.border, true: COLORS.accent }}
+            thumbColor="#fff"
+          />
+        </View>
+
+        <View style={styles.divider} />
+
+        <View style={styles.row}>
+          <View style={styles.rowLeft}>
+            <View style={[styles.rowIcon, { backgroundColor: COLORS.accent + '22' }]}>
+              <Ionicons name="trending-up-outline" size={18} color={COLORS.accent} />
+            </View>
+            <View>
+              <Text style={styles.rowTitle}>Forecast Nudge</Text>
+              <Text style={styles.rowSubtitle}>One mid-month heads-up if you&apos;re trending over goal</Text>
+            </View>
+          </View>
+          <Switch
+            value={forecastNudge}
+            onValueChange={handleForecastNudgeToggle}
             disabled={!notificationsEnabled}
             trackColor={{ false: COLORS.border, true: COLORS.accent }}
             thumbColor="#fff"

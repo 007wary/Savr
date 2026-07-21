@@ -2,10 +2,15 @@ import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
 import { getCurrencySymbol, roundMoney } from './currency'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { Analytics } from './analytics'
 
 const WEEKLY_NOTIF_KEY = 'savr_last_weekly_notif'
 const BUDGET_NOTIF_KEY = 'savr_budget_notifs_sent'
+const FORECAST_NOTIF_KEY = 'savr_forecast_nudge_sent'
 export const BUDGET_ALERTS_KEY = 'savr_budget_alerts_enabled'
+// Opt-in (default off): a single mid-month heads-up if you're on pace to blow
+// past your goal while there's still time to course-correct.
+export const FORECAST_NUDGE_KEY = 'savr_forecast_nudge_enabled'
 
 // How notifications appear when app is open
 if (Platform.OS !== 'web') {
@@ -104,6 +109,62 @@ export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
     }
   } catch {
     // Silently fail
+  }
+}
+
+// Mid-month forecast nudge. Opt-in, once per month, only when the user is
+// actually projected to overshoot their goal AND there's still time to act.
+// `forecast` is the object from forecastMonthEnd() (may be null). Silence when
+// on-track is intentional — this app doesn't nag.
+export async function checkForecastNudge(forecast, currentMonth) {
+  try {
+    if (!forecast || !forecast.goal || !forecast.willExceedGoal) return
+
+    const granted = await isNotificationGranted()
+    if (!granted) return
+
+    // Opt-in preference (defaults off — only fires if explicitly enabled).
+    const enabled = await AsyncStorage.getItem(FORECAST_NUDGE_KEY)
+    if (enabled !== 'true') return
+
+    // Only nudge in the middle stretch of the month: early is noise (pace isn't
+    // trustworthy yet), late is too little runway to matter.
+    if (forecast.dayOfMonth < 12 || forecast.dayOfMonth > 20) return
+
+    // Once per calendar month, hard cap.
+    const lastSent = await AsyncStorage.getItem(FORECAST_NOTIF_KEY)
+    if (lastSent === currentMonth) return
+
+    const symbol = await getCurrencySymbol()
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Trending over budget',
+        body: `At your current pace you'll finish around ${symbol}${forecast.projectedTotal.toLocaleString('en-US')} — ${symbol}${forecast.projectedOverGoal.toLocaleString('en-US')} over your goal. Keep it under ${symbol}${forecast.safeDailySpend.toLocaleString('en-US')}/day to stay on track.`,
+        sound: true,
+        data: { type: 'forecast_nudge' },
+      },
+      trigger: null,
+    })
+    Analytics.forecastNudgeSent()
+    await AsyncStorage.setItem(FORECAST_NOTIF_KEY, currentMonth)
+  } catch {
+    // Silently fail
+  }
+}
+
+// Given a tapped notification's response, return where the app should go and
+// which analytics event to fire, based on the notification's data.type. Keeps
+// the routing table in one place instead of scattered across the layout.
+// Returns { route, event } — either may be null.
+export function resolveNotificationTap(response) {
+  const type = response?.notification?.request?.content?.data?.type
+  switch (type) {
+    case 'forecast_nudge':
+      return { route: '/(tabs)/dashboard', event: 'forecastNudgeOpened' }
+    case 'streak_reminder':
+      return { route: '/(tabs)/add', event: null }
+    default:
+      return { route: null, event: null }
   }
 }
 

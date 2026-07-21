@@ -63,6 +63,28 @@ deleteRecurringIncome: () => logEvent('delete_recurring_income'),
   // Goals
   addGoal: () => logEvent('add_goal'),
 
+  // Algorithm signals — categorical only (no amounts), so we can measure
+  // whether the smart features actually work without logging spend data.
+  //
+  // Categorization: correction rate is our accuracy proxy; learned_hit tells
+  // us the per-user learning is kicking in. `source` = 'keyword' | 'learned'.
+  categoryAutodetected: (category, source) => logEvent('category_autodetected', { category, source }),
+  categoryCorrected: (from, to) => logEvent('category_corrected', { detected: from || 'none', chosen: to }),
+  learnedCategoryHit: (category) => logEvent('learned_category_hit', { category }),
+
+  // Anomaly: confirmed = kept it (true positive), dismissed = cancelled (likely
+  // false positive). The ratio tells us if the threshold is well-tuned.
+  anomalyShown: (category) => logEvent('anomaly_shown', { category }),
+  anomalyConfirmed: (category) => logEvent('anomaly_confirmed', { category }),
+  anomalyDismissed: (category) => logEvent('anomaly_dismissed', { category }),
+
+  // Forecast nudge funnel. `sent` fires today. `opened` is ready to wire the
+  // moment we add notification-tap routing: the nudge already carries
+  // data.type === 'forecast_nudge', so a response listener just calls this.
+  // Pair with subsequent spend pace to judge whether the nudge changes behavior.
+  forecastNudgeSent: () => logEvent('forecast_nudge_sent'),
+  forecastNudgeOpened: () => logEvent('forecast_nudge_opened'),
+
   // Backup
   backupStarted: () => logEvent('backup_started'),
   backupSuccess: () => logEvent('backup_success'),

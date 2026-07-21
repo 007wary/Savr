@@ -13,6 +13,7 @@ import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import { getExpenses, getMonthlyIncomeTotal } from '../../src/services/sqliteService'
+import { buildReportInsights } from '../../src/lib/reportInsights'
 
 function getMonthInfo(offset) {
   const d = new Date()
@@ -247,6 +248,12 @@ export default function Reports() {
     expenses.length > 0 ? [...expenses].sort((a, b) => b.amount - a.amount)[0] : null,
   [expenses])
 
+  // Plain-language interpretation of the numbers already computed above.
+  const reportInsights = useMemo(() => buildReportInsights({
+    total, expenses, categoryTotals, last6Months,
+    formatAmount, currencySymbol, currencyCode,
+  }), [total, expenses, categoryTotals, last6Months, currencySymbol, currencyCode])
+
   const styles = useMemo(() => StyleSheet.create({
   outerContainer: { flex: 1, backgroundColor: COLORS.bg },
   stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
@@ -273,6 +280,11 @@ export default function Reports() {
   compareTitle: { fontSize: 11, color: COLORS.textMuted, marginBottom: 4, letterSpacing: 1 },
   compareText: { fontSize: 15, color: COLORS.text, lineHeight: 22 },
   compareSubtext: { fontSize: 12, color: COLORS.textMuted, marginTop: 4 },
+  insightsCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: COLORS.border },
+  insightsTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  insightsTitle: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 1.5, textTransform: 'uppercase' },
+  insightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
+  insightText: { flex: 1, fontSize: 13, color: COLORS.text, lineHeight: 19 },
   section: { marginBottom: 28 },
   sectionTitle: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted, marginBottom: 16, letterSpacing: 1.5, textTransform: 'uppercase' },
   barChart: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', height: 160, backgroundColor: COLORS.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: COLORS.border },
@@ -524,6 +536,21 @@ export default function Reports() {
               </View>
             )
           })()}
+
+          {reportInsights.length > 0 && (
+            <View style={styles.insightsCard}>
+              <View style={styles.insightsTitleRow}>
+                <Ionicons name="bulb-outline" size={16} color={COLORS.accentYellow} />
+                <Text style={styles.insightsTitle}>What the numbers say</Text>
+              </View>
+              {reportInsights.map((ins) => (
+                <View key={ins.key} style={styles.insightRow}>
+                  <Ionicons name={ins.icon} size={15} color={COLORS.accent} style={{ marginTop: 1 }} />
+                  <Text style={styles.insightText}>{ins.text}</Text>
+                </View>
+              ))}
+            </View>
+          )}
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>6 Month Trend</Text>
