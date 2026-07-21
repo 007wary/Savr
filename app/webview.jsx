@@ -1,10 +1,18 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, lazy, Suspense } from 'react'
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { WebView } from 'react-native-webview'
 import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../src/lib/themeContext'
 import { PRIVACY_POLICY_HTML, TERMS_HTML } from '../src/constants/legal'
+
+// Lazy so importing react-native-webview — which triggers Android System
+// WebView / Chromium native init (measured ~3s, JS-thread-blocking, on some
+// devices) — happens only when the user actually opens privacy/terms, NOT
+// when expo-router evaluates this route module while building the navigator
+// tree at cold launch. That eager evaluation was the launch stall.
+const WebView = lazy(() =>
+  import('react-native-webview').then((m) => ({ default: m.WebView }))
+)
 
 export default function WebViewScreen() {
   const { COLORS } = useTheme()
@@ -40,12 +48,14 @@ export default function WebViewScreen() {
           <ActivityIndicator color={COLORS.accent} size="large" />
         </View>
       )}
-      <WebView
-        source={{ html }}
-        onLoadEnd={() => setLoading(false)}
-        style={{ flex: 1, backgroundColor: COLORS.bg }}
-        scrollEnabled
-      />
+      <Suspense fallback={null}>
+        <WebView
+          source={{ html }}
+          onLoadEnd={() => setLoading(false)}
+          style={{ flex: 1, backgroundColor: COLORS.bg }}
+          scrollEnabled
+        />
+      </Suspense>
     </View>
   )
 }
