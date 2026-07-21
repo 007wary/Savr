@@ -7,7 +7,6 @@ import { Ionicons } from '@expo/vector-icons'
 import { SCREEN } from '../src/constants/theme'
 import { useTheme } from '../src/lib/themeContext'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { checkBackupExists } from '../src/services/driveBackupService'
 
 export default function ManageDataScreen() {
   const { COLORS } = useTheme()
@@ -17,13 +16,7 @@ export default function ManageDataScreen() {
   async function loadBackupTime() {
     try {
       const cached = await AsyncStorage.getItem('savr_last_backup')
-      if (cached) {
-        setLastBackup(cached)
-        return
-      }
-      checkBackupExists().then(info => {
-        if (info?.modifiedTime) setLastBackup(info.modifiedTime)
-      }).catch(() => {})
+      setLastBackup(cached)
     } catch {}
   }
 
@@ -31,6 +24,7 @@ export default function ManageDataScreen() {
 
   function formatBackupDate(dateStr) {
     try {
+      if (!dateStr) return 'No backup yet'
       const d = new Date(dateStr)
       if (isNaN(d.getTime())) return 'No backup yet'
       return `Last backup: ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} at
