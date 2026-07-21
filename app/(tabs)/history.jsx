@@ -301,11 +301,26 @@ export default function History() {
     setSaving(false)
   }
 
+  // Escapes a value for safe CSV output. Two concerns:
+  //  1. Injection — a cell beginning with = + - @ (or a tab/CR before one) is
+  //     interpreted as a formula by Excel/Sheets, so prefix those with a single
+  //     quote to neutralize execution.
+  //  2. Structure — quote any cell containing " , CR or LF, doubling embedded
+  //     quotes, so notes with commas/newlines/quotes can't break the row layout.
+  function csvCell(value) {
+    let s = value === null || value === undefined ? '' : String(value)
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
+    if (/[",\r\n]/.test(s)) s = `"${s.replace(/"/g, '""')}"`
+    return s
+  }
+
   async function handleExport() {
     try {
       if (!expenses || expenses.length === 0) return showAlert('No data', 'No expenses to export')
       const headers = 'Date,Type,Category,Amount,Note\n'
-      const rows = expenses.map(e => `${e.date},${e.type || 'expense'},${e.category},${e.amount},"${e.note || ''}"`).join('\n')
+      const rows = expenses.map(e =>
+        [e.date, e.type || 'expense', e.category, e.amount, e.note || ''].map(csvCell).join(',')
+      ).join('\n')
       const fileUri = FileSystem.cacheDirectory + 'expenses.csv'
       await FileSystem.writeAsStringAsync(fileUri, headers + rows, { encoding: 'utf8' })
       const isAvailable = await Sharing.isAvailableAsync()
