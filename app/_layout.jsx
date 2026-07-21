@@ -145,8 +145,15 @@ function RootLayoutInner() {
           setCachedUser(cachedUser)
           setSession({ user: cachedUser, expires_at: 9999999999 })
           mark('session set from cache (gate can close)')
-          crashlytics().setUserId(cachedUser.id).catch(() => {})
-          crashlytics().setAttribute('email', cachedUser.email || '').catch(() => {})
+          // Crashlytics identity is best-effort telemetry. Its first native call
+          // also triggers lazy init of the Firebase SDK, which lands on the JS
+          // thread in the exact window the dashboard is racing to first-paint —
+          // measured as a multi-second splash stall on some cold launches. Defer
+          // it well past first paint so it can never compete with initial render.
+          setTimeout(() => {
+            crashlytics().setUserId(cachedUser.id).catch(() => {})
+            crashlytics().setAttribute('email', cachedUser.email || '').catch(() => {})
+          }, 4000)
 
           // Verify and update real session in background
           supabase.auth.getSession().then(({ data: { session: realSession } }) => {
@@ -283,8 +290,16 @@ setTimeout(() => {
         if (session?.user) setCachedUser(session.user)
         if (session?.user?.id) {
           setUserId(session.user.id).catch(() => {})
-          crashlytics().setUserId(session.user.id).catch(() => {})
-          crashlytics().setAttribute('email', session.user.email || '').catch(() => {})
+          // Defer Crashlytics identity off the first-paint window — its native
+          // calls lazily init the Firebase SDK on the JS thread and were
+          // measured stalling the launch. (Analytics.* / setUserId already gate
+          // themselves behind first paint in analytics.js.)
+          const uid = session.user.id
+          const email = session.user.email || ''
+          setTimeout(() => {
+            crashlytics().setUserId(uid).catch(() => {})
+            crashlytics().setAttribute('email', email).catch(() => {})
+          }, 4000)
         }
         Analytics.login()
 

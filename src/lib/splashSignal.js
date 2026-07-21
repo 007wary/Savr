@@ -10,6 +10,7 @@
 // after the splash is already gone just no-ops.
 let painted = false
 let listener = null
+const afterPaintQueue = []
 
 export function signalFirstPaint() {
   if (painted) return
@@ -17,6 +18,25 @@ export function signalFirstPaint() {
   const l = listener
   listener = null
   if (l) l()
+  // Flush anything that deferred itself until first paint (e.g. Firebase
+  // analytics init — see analytics.js). Drain on the next tick so the paint
+  // frame commits before this work lands on the JS thread.
+  if (afterPaintQueue.length) {
+    const q = afterPaintQueue.splice(0)
+    setTimeout(() => { for (const fn of q) { try { fn() } catch {} } }, 0)
+  }
+}
+
+export function hasPainted() {
+  return painted
+}
+
+// Run cb after the first real screen has painted. If paint already happened,
+// run it on the next tick. Used to keep non-critical native work (analytics
+// bridge init) out of the first-paint window without scattering timers.
+export function afterFirstPaint(cb) {
+  if (painted) { setTimeout(cb, 0); return }
+  afterPaintQueue.push(cb)
 }
 
 // Root layout subscribes once. If paint already happened before we subscribed

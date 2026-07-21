@@ -1,7 +1,20 @@
+import { afterFirstPaint } from './splashSignal';
+
 let analytics = null;
+
+// The first Firebase analytics call triggers a dynamic import + native module
+// init, which lands on the JS thread. If that happens during the launch
+// first-paint window it competes with the dashboard's initial render and was
+// measured stalling the splash for seconds on some cold launches. Hold every
+// analytics call until first paint, then let them through.
+let paintReady = false;
+afterFirstPaint(() => { paintReady = true; });
+const waitForPaint = () =>
+  paintReady ? Promise.resolve() : new Promise((resolve) => afterFirstPaint(resolve));
 
 const getAnalytics = async () => {
   if (analytics) return analytics;
+  await waitForPaint();
   try {
     const module = await import('@react-native-firebase/analytics');
     analytics = module.default();

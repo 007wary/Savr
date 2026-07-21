@@ -30,8 +30,13 @@ export async function syncUserProfile(user) {
       updated_at: new Date().toISOString(),
     }, { onConflict: 'id' })
 
-    // Save FCM token for push notifications
+    // Save FCM token for push notifications. messaging().getToken() lazily
+    // inits Firebase messaging on the JS thread; on a warm launch this runs via
+    // a 1s timeout, inside the dashboard's first-paint window, and was measured
+    // contributing to a multi-second splash stall. Hold it until first paint.
     try {
+      const { afterFirstPaint } = await import('./splashSignal')
+      await new Promise((resolve) => afterFirstPaint(resolve))
       const fcmToken = await messaging().getToken()
       if (fcmToken) {
         await supabase
