@@ -134,7 +134,6 @@ mockDB = createFakeDB()
 
 const {
   getAllDataFromSQLite,
-  writeAllDataToSQLite,
   restoreAllDataToSQLite,
   validateBackupData,
 } = require('./driveBackupService').__test__
