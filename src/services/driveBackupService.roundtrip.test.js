@@ -221,6 +221,25 @@ describe('validateBackupData — gate on malformed payloads', () => {
     expect(() => validateBackupData({ accounts: [null] }))
       .toThrow(/non-object row/)
   })
+
+  it('accepts recurring rows with a valid frequency', () => {
+    expect(() => validateBackupData({
+      recurring: [{ id: 'r1', amount: 5, category: 'Rent', frequency: 'monthly', next_due: '2026-08-31' }],
+      recurringIncome: [{ id: 'ri1', amount: 5, category: 'Salary', frequency: 'weekly', next_due: '2026-08-01' }],
+    })).not.toThrow()
+  })
+
+  it('rejects a recurring row with an out-of-range frequency (would hang the process)', () => {
+    expect(() => validateBackupData({
+      recurring: [{ id: 'r1', amount: 5, category: 'Rent', frequency: 'yearly', next_due: '2026-08-31' }],
+    })).toThrow(/invalid frequency/)
+  })
+
+  it('rejects a recurring income row with an out-of-range frequency', () => {
+    expect(() => validateBackupData({
+      recurringIncome: [{ id: 'ri1', amount: 5, category: 'Salary', frequency: 'once', next_due: '2026-08-01' }],
+    })).toThrow(/invalid frequency/)
+  })
 })
 
 describe('backup → restore round trip', () => {

@@ -63,4 +63,21 @@ describe('calculateNextDue', () => {
       expect(calculateNextDue('2026-07-01', 'weekly', 31)).toBe('2026-07-08')
     })
   })
+
+  describe('unrecognized frequency', () => {
+    // The processing loops advance `while (currentDue <= today)`, so a frequency
+    // that fails to move the date forward would spin forever. An unknown value
+    // must still strictly advance the date (falls back to monthly).
+    it('advances the date instead of returning it unchanged', () => {
+      const next = calculateNextDue('2026-07-15', 'garbage')
+      expect(next).not.toBe('2026-07-15')
+      expect(next > '2026-07-15').toBe(true)
+      expect(next).toBe('2026-08-15')
+    })
+
+    it('never returns a non-advancing date for empty/nullish frequency', () => {
+      expect(calculateNextDue('2026-07-15', '') > '2026-07-15').toBe(true)
+      expect(calculateNextDue('2026-07-15', undefined) > '2026-07-15').toBe(true)
+    })
+  })
 })

@@ -253,12 +253,14 @@ export default function AddExpense() {
       } catch {}
 
       await AsyncStorage.setItem('savr_request_notif_after_load', 'true')
+      // Schedule the backup regardless of which branch runs below — the first
+      // expense (celebration path) still needs backing up, not just subsequent ones.
+      scheduleBackup()
       const allAfter = await getExpenses(user.id)
       if (allAfter.length === 1) {
         triggerCelebration()
       } else {
         if (!isRecurring) await checkAndRequestReview()
-      scheduleBackup()
       router.replace('/(tabs)/dashboard')
       }
     } catch {

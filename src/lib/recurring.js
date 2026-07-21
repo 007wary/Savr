@@ -41,7 +41,12 @@ export function calculateNextDue(currentDue, frequency, anchorDay = null) {
   const next = new Date(currentDue + 'T00:00:00')
   if (frequency === 'daily') next.setDate(next.getDate() + 1)
   else if (frequency === 'weekly') next.setDate(next.getDate() + 7)
-  else if (frequency === 'monthly') {
+  else {
+    // 'monthly' and any unrecognized frequency both advance by a month. Falling
+    // back to a month (rather than leaving the date unchanged) is critical: the
+    // callers loop `while (currentDue <= todayStr)`, so a frequency that failed
+    // to advance the date — e.g. a corrupted value from a hand-edited backup —
+    // would spin forever inside a DB transaction and hang the app on startup.
     const day = anchorDay || next.getDate()
     next.setDate(1)
     next.setMonth(next.getMonth() + 1)

@@ -141,6 +141,8 @@ const REQUIRED_FIELDS = {
   recurringIncome: ['id', 'amount', 'category', 'frequency', 'next_due'],
 }
 
+const VALID_FREQUENCIES = ['daily', 'weekly', 'monthly']
+
 function validateBackupData(data) {
   for (const [key, requiredFields] of Object.entries(REQUIRED_FIELDS)) {
     const rows = data[key]
@@ -156,6 +158,12 @@ function validateBackupData(data) {
         if (row[field] === undefined || row[field] === null) {
           throw new Error(`Invalid backup data: "${key}" row is missing required field "${field}"`)
         }
+      }
+      // Recurring rules drive a `while (currentDue <= today)` loop keyed on
+      // frequency; an out-of-range value would fail to advance the date and
+      // hang the app, so reject it here instead of importing it.
+      if ((key === 'recurring' || key === 'recurringIncome') && !VALID_FREQUENCIES.includes(row.frequency)) {
+        throw new Error(`Invalid backup data: "${key}" row has invalid frequency "${row.frequency}"`)
       }
     }
   }

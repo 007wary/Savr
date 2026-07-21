@@ -90,11 +90,15 @@ export default function Accounts() {
         // expenses/income/transfers with a stale absolute value.
         const editedBalance = parseFloat(balance) || 0
         const balanceChanged = editedBalance !== editingAccount.balance
+        // Preserve the account's own stored currency on edit rather than
+        // overwriting it with the global app currency — editing name/type/balance
+        // shouldn't silently mutate a field the user never touched here.
+        const preservedCurrency = editingAccount.currency || currencyCode
         await updateAccount(editingAccount.id, {
           name: name.trim(),
           type,
           ...(balanceChanged ? { balance: editedBalance } : {}),
-          currency: currencyCode,
+          currency: preservedCurrency,
         })
         await clearCache(`savr_cache_dashboard_${new Date().toISOString().slice(0, 7)}`)
         setAccounts(prev => prev.map(a =>
@@ -103,7 +107,7 @@ export default function Accounts() {
                 ...a,
                 name: name.trim(),
                 type,
-                currency: currencyCode,
+                currency: preservedCurrency,
                 ...(balanceChanged ? { balance: editedBalance } : {}),
               }
             : a

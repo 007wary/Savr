@@ -163,12 +163,15 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
             const user = getCachedUser() || userRef.current || await getUser()
             if (!userRef.current) userRef.current = user
 
-            const optimisticBudgets = [...budgets]
+            // Build the optimistic list immutably — never mutate the objects
+            // held in `budgets` state, or React can miss the change / share
+            // stale references with the previous render.
+            const optimisticBudgets = budgets.map(b => {
+              const rec = recommendations[b.category]
+              return rec ? { ...b, limit_amount: rec.recommended } : b
+            })
             Object.entries(recommendations).forEach(([category, rec]) => {
-              const existing = optimisticBudgets.find(b => b.category === category)
-              if (existing) {
-                existing.limit_amount = rec.recommended
-              } else {
+              if (!optimisticBudgets.some(b => b.category === category)) {
                 optimisticBudgets.push({
                   id: `temp_${Date.now()}_${category}`,
                   category,
