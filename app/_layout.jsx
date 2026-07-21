@@ -222,10 +222,14 @@ setTimeout(() => {
           backupOnAppOpen().catch((e) => logError('backupOnAppOpen', e))
 
         } else {
-          // No cached user — wait for Supabase with timeout
-          await dbReady
+          // No cached user — wait for Supabase with timeout.
+          // Do NOT block on dbReady here: the login-vs-dashboard decision (and
+          // hiding the splash) doesn't need the database. Blocking on the full
+          // SQLite init (WAL + migrations + table/index creation) just to reach
+          // getSession() is what left fresh launches on a blank screen for
+          // seconds. Callers that actually need the DB already await dbReady.
           const sessionPromise = supabase.auth.getSession()
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000))
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2000))
           const { data: { session: cachedSession } } = await Promise.race([sessionPromise, timeoutPromise]).catch(() => ({ data: { session: null } }))
 
           // A SIGNED_IN event may have already landed while this race was in
@@ -449,7 +453,7 @@ try {
       setTransitioning(false)
       setWatchdogTripped(true)
       logError('startupWatchdog', new Error('launch gate did not resolve in time'))
-    }, 4000)
+    }, 2500)
     return () => clearTimeout(t)
   }, [session, onboardingDone, transitioning])
 
