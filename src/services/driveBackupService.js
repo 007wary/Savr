@@ -32,25 +32,62 @@ async function getAccessToken() {
       AsyncStorage.getItem('savr_google_token_time'),
       getGoogleAccessToken(),
     ])
+    // Only trust the cache well inside the ~60-min access-token lifetime. A token
+    // cached 55 min ago can be dead by the time verifyToken() runs, which then
+    // surfaces as a spurious "Sign In Required" — hence the tighter 45-min window.
     if (storedToken && tokenTime) {
       const age = Date.now() - parseInt(tokenTime, 10)
-      if (age < 55 * 60 * 1000) return storedToken
+      if (age < 45 * 60 * 1000) return storedToken
     }
 
+    // Refresh via the native Google session. getTokens() returns a FRESH access
+    // token when a native session exists (the library refreshes internally), so
+    // it's the real fix path — signInSilently() just (re)establishes that session
+    // for a user who came in on a cached Supabase session and never hit signIn()
+    // this process. Separate try blocks so a signInSilently() that throws
+    // NO_SAVED_CREDENTIAL_FOUND doesn't skip an otherwise-usable getTokens().
+    try { await GoogleSignin.signInSilently() } catch {}
     try {
-      await GoogleSignin.signInSilently()
       const { accessToken } = await GoogleSignin.getTokens()
       if (accessToken) {
         await setGoogleAccessToken(accessToken)
         await setGoogleAccessTokenCachedAtNow()
         return accessToken
       }
-    } catch {}
+    } catch (e) {
+      logError('getAccessToken.getTokens', e)
+    }
 
+    // Last resort: a cached token past its trust window. verifyToken() at the
+    // call site still gates it, so a truly dead one becomes SESSION_EXPIRED
+    // rather than us silently uploading with a bad bearer.
     if (storedToken) return storedToken
     return null
-  } catch {
+  } catch (e) {
+    logError('getAccessToken', e)
     return null
+  }
+}
+
+// Interactive re-consent for the Drive scope, used when the native Google
+// session can't be silently refreshed (e.g. cached-Supabase-session user who
+// never hit signIn() this install, or reinstall). Re-runs the full Google
+// account picker and caches the fresh token so the next backup succeeds without
+// a heavy-handed sign-out/sign-in of the whole app.
+export async function reauthorizeDrive() {
+  try {
+    await GoogleSignin.hasPlayServices()
+    await GoogleSignin.signIn()
+    const { accessToken } = await GoogleSignin.getTokens()
+    if (accessToken) {
+      await setGoogleAccessToken(accessToken)
+      await setGoogleAccessTokenCachedAtNow()
+      return true
+    }
+    return false
+  } catch (e) {
+    logError('reauthorizeDrive', e)
+    return false
   }
 }
 

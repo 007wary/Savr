@@ -138,7 +138,6 @@ function RootLayoutInner() {
           initialSessionLoadedRef.current = true
           setCachedUser(cachedUser)
           setSession({ user: cachedUser, expires_at: 9999999999 })
-          SplashScreen.hideAsync().catch(() => {})
           crashlytics().setUserId(cachedUser.id).catch(() => {})
           crashlytics().setAttribute('email', cachedUser.email || '').catch(() => {})
 
@@ -237,23 +236,20 @@ setTimeout(() => {
           // window) — don't clobber that real session with a stale/null
           // result from a getSession() call that started before it.
           if (initialSessionLoadedRef.current) {
-            SplashScreen.hideAsync().catch(() => {})
+            // real session already landed via SIGNED_IN
           } else if (cachedSession) {
             initialSessionLoadedRef.current = true
             setCachedUser(cachedSession.user)
             setSession(cachedSession)
-            SplashScreen.hideAsync().catch(() => {})
           } else {
             initialSessionLoadedRef.current = true
             setSession(null)
-            SplashScreen.hideAsync().catch(() => {})
           }
         }
       } catch (e) {
         logError('rootLayoutInit', e)
         initialSessionLoadedRef.current = true
         setSession(null)
-        SplashScreen.hideAsync().catch(() => {})
       }
     }
 
@@ -457,8 +453,25 @@ try {
     return () => clearTimeout(t)
   }, [session, onboardingDone, transitioning])
 
-  if ((session === undefined || onboardingDone === undefined || transitioning) && !watchdogTripped) {
-    return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />
+  const gateOpen = (session === undefined || onboardingDone === undefined || transitioning) && !watchdogTripped
+
+  // Keep the native splash up until the gate closes and the real navigator is
+  // about to paint, THEN hide it. Hiding earlier (the moment `session` resolved)
+  // exposed the blank gate View while onboarding/transition/first-paint were
+  // still pending — that gap, rendered in the theme bg (white in light mode),
+  // was the white flash after the logo splash. Tying the hide to real UI means
+  // the native splash hands directly off to the mounted app.
+  useEffect(() => {
+    if (!gateOpen) SplashScreen.hideAsync().catch(() => {})
+  }, [gateOpen])
+
+  if (gateOpen) {
+    // Match the native splash color (#0F0F0F), NOT COLORS.bg — the theme bg is
+    // white in light mode, and revealing it while the native splash tears down
+    // is exactly the white flash after the logo. Keeping this dark makes the
+    // gate frame continuous with the splash. The native splash is still up here
+    // (we only hide it once real UI mounts, in the effect below).
+    return <View style={{ flex: 1, backgroundColor: '#0F0F0F' }} />
   }
 
   return (

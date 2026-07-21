@@ -9,7 +9,7 @@ import { SCREEN } from '../src/constants/theme'
 import { useTheme } from '../src/lib/themeContext'
 import { getUser, getCachedUser } from '../src/lib/auth'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { backupToDrive, hasDataChanged } from '../src/services/driveBackupService'
+import { backupToDrive, hasDataChanged, reauthorizeDrive } from '../src/services/driveBackupService'
 import CustomAlert from '../src/components/CustomAlert'
 import useAlert from '../src/hooks/useAlert'
 
@@ -83,7 +83,15 @@ export default function BackupScreen() {
       return showAlert('Already Up To Date', 'Your backup is already up to date. No new changes to backup.')
     }
     setBackingUp(true)
-    const result = await backupToDrive()
+    let result = await backupToDrive()
+    // A token failure usually just means the Drive access token lapsed and the
+    // native session needs re-consent — not that the whole app login is dead.
+    // Re-authorize inline and retry once before falling back to the hard message,
+    // so the common case never asks the user to sign out of the app.
+    if (!result.success && (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED')) {
+      const reauthed = await reauthorizeDrive()
+      if (reauthed) result = await backupToDrive()
+    }
     setBackingUp(false)
     if (result.success) {
       setLastBackup(result.backedUpAt)
@@ -92,7 +100,7 @@ export default function BackupScreen() {
       await AsyncStorage.setItem(LAST_BACKUP_TRIGGER_KEY, new Date().toISOString().split('T')[0])
       showAlert('✅ Backup Successful', 'Your data has been backed up to Google Drive.')
     } else if (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED') {
-      showAlert('Sign In Required', 'Your Google session has expired. Please sign out and sign in again.')
+      showAlert('Google Access Needed', 'Savr needs permission to save your backup to Google Drive. Please try again and approve access.')
     } else if (result.error === 'NO_DATA') {
       showAlert('Nothing to Backup', 'Add expenses, income, accounts, or budgets before backing up.')
     } else {

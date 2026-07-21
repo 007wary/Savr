@@ -278,6 +278,10 @@ if (avatar) {
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 4 },
   rowLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
   rowIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  // flex:1 so title/subtitle wrap within the space left by the icon + trailing
+  // control (Switch/chevron) instead of overflowing under it — the long
+  // Forecast Nudge subtitle otherwise ran beneath the toggle.
+  rowText: { flex: 1 },
   rowTitle: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
   rowSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 1 },
   divider: { height: 1, backgroundColor: COLORS.border },
@@ -347,7 +351,7 @@ if (avatar) {
             <View style={[styles.rowIcon, { backgroundColor: '#6C63FF22' }]}>
               <Ionicons name="notifications-outline" size={18} color={COLORS.accent} />
             </View>
-            <View>
+            <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Notifications</Text>
               <Text style={styles.rowSubtitle}>Enable push notifications</Text>
             </View>
@@ -367,7 +371,7 @@ if (avatar) {
             <View style={[styles.rowIcon, { backgroundColor: '#FFB80022' }]}>
               <Ionicons name="wallet-outline" size={18} color={COLORS.accentYellow} />
             </View>
-            <View>
+            <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Budget Alerts</Text>
               <Text style={styles.rowSubtitle}>Warn when nearing budget limit</Text>
             </View>
@@ -388,7 +392,7 @@ if (avatar) {
             <View style={[styles.rowIcon, { backgroundColor: COLORS.accent + '22' }]}>
               <Ionicons name="trending-up-outline" size={18} color={COLORS.accent} />
             </View>
-            <View>
+            <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Forecast Nudge</Text>
               <Text style={styles.rowSubtitle}>One mid-month heads-up if you&apos;re trending over goal</Text>
             </View>
@@ -409,7 +413,7 @@ if (avatar) {
             <View style={[styles.rowIcon, { backgroundColor: '#00D9A522' }]}>
               <Ionicons name="cash-outline" size={18} color={COLORS.accentGreen} />
             </View>
-            <View>
+            <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Currency</Text>
               <Text style={styles.rowSubtitle}>
                 {selectedCurrency?.flag + ' ' + currency + ' — ' + (selectedCurrency?.name || '')}
@@ -425,7 +429,7 @@ if (avatar) {
             <View style={[styles.rowIcon, { backgroundColor: '#5B9BD522' }]}>
               <Ionicons name="server-outline" size={18} color="#5B9BD5" />
             </View>
-            <View>
+            <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Manage Data</Text>
               <Text style={styles.rowSubtitle}>
   {lastBackup ? formatBackupDate(lastBackup) : 'Backup and recurring expenses'}
@@ -442,7 +446,7 @@ if (avatar) {
             <View style={[styles.rowIcon, { backgroundColor: '#9C27B022' }]}>
               <Ionicons name="contrast-outline" size={18} color="#9C27B0" />
             </View>
-            <View>
+            <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Appearance</Text>
               <Text style={styles.rowSubtitle}>
                 {theme === 'light' ? 'Light' : theme === 'dark' ? 'Dark' : 'System default'}
@@ -494,7 +498,7 @@ if (avatar) {
             <View style={[styles.rowIcon, { backgroundColor: '#6C63FF22' }]}>
               <Ionicons name="information-circle-outline" size={18} color={COLORS.accent} />
             </View>
-            <View>
+            <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Version</Text>
               <Text style={styles.rowSubtitle}>{'Savr v' + APP_VERSION}</Text>
             </View>
@@ -541,7 +545,7 @@ if (avatar) {
             <View style={[styles.rowIcon, { backgroundColor: '#30D15822' }]}>
               <Ionicons name="share-social-outline" size={18} color='#30D158' />
             </View>
-            <View>
+            <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Share Savr</Text>
               <Text style={styles.rowSubtitle}>Invite friends to track smarter</Text>
             </View>
@@ -559,7 +563,7 @@ if (avatar) {
             <View style={[styles.rowIcon, { backgroundColor: '#FFD70022' }]}>
               <Ionicons name="star-outline" size={18} color='#FFD700' />
             </View>
-            <View>
+            <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Rate Savr</Text>
               <Text style={styles.rowSubtitle}>Enjoying the app? Leave a review</Text>
             </View>
@@ -577,7 +581,7 @@ if (avatar) {
             <View style={[styles.rowIcon, { backgroundColor: '#00BCD422' }]}>
               <Ionicons name="help-circle-outline" size={18} color='#00BCD4' />
             </View>
-            <View>
+            <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Help & Support</Text>
               <Text style={styles.rowSubtitle}>Visit our website for help and FAQs</Text>
             </View>
@@ -595,7 +599,7 @@ if (avatar) {
             <View style={[styles.rowIcon, { backgroundColor: '#4CAF5022' }]}>
               <Ionicons name="mail-outline" size={18} color='#4CAF50' />
             </View>
-            <View>
+            <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Send Feedback</Text>
               <Text style={styles.rowSubtitle}>Share your thoughts and suggestions</Text>
             </View>

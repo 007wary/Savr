@@ -450,7 +450,7 @@ const isCurrentMonth = true
   avatarImage: { width: 38, height: 38, borderRadius: 19, borderWidth: 2, borderColor: COLORS.accent },
   avatarFallback: { width: 38, height: 38, borderRadius: 19, backgroundColor: COLORS.accent, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: COLORS.accent + '66' },
   avatarInitials: { fontSize: 13, fontWeight: '700', color: '#fff' },
-  totalCard: { borderRadius: 24, padding: 24, marginBottom: 16 },
+  totalCard: { borderRadius: 24, padding: 24, paddingTop: 32, marginBottom: 16 },
   totalRow: { flexDirection: 'row', alignItems: 'center', width: '100%' },
   totalLeft: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
   totalRight: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
