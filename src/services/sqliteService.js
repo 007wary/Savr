@@ -124,6 +124,20 @@ export const initializeDatabase = async () => {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    -- Per-user learned category mappings. When a user overrides the keyword
+    -- detector (picks a category different from what we auto-detected), we
+    -- remember the note token -> category so next time we get it right. The
+    -- count column lets a repeated correction outrank a one-off. Local per device.
+    CREATE TABLE IF NOT EXISTS learned_categories (
+      user_id TEXT NOT NULL,
+      token TEXT NOT NULL,
+      category TEXT NOT NULL,
+      count INTEGER DEFAULT 1,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, token)
+    );
+    CREATE INDEX IF NOT EXISTS idx_learned_user ON learned_categories(user_id);
     CREATE INDEX IF NOT EXISTS idx_expenses_user_id ON expenses(user_id);
     CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date);
     CREATE INDEX IF NOT EXISTS idx_expenses_user_date ON expenses(user_id, date);
@@ -516,6 +530,52 @@ export async function setMeta(key, value) {
     `INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`,
     [key, String(value)]
   )
+}
+
+// ─── LEARNED CATEGORIES ─────────────────────────────────────
+// Load the whole per-user map once (it's tiny) so the detector can run
+// synchronously on every keystroke without hitting the DB each time.
+export async function getLearnedCategories(userId) {
+  const database = await getDB()
+  const rows = await database.getAllAsync(
+    `SELECT token, category, count FROM learned_categories WHERE user_id = ?`,
+    [userId]
+  )
+  return rows || []
+}
+
+// Record that `tokens` (words from a note) map to `category`. Called when the
+// user picks a category that differs from what we auto-detected. Upserts and
+// bumps the count so a repeated correction wins over a stale one.
+export async function learnCategory(userId, tokens, category) {
+  if (!userId || !category || !Array.isArray(tokens) || tokens.length === 0) return
+  const database = await getDB()
+  const ts = now()
+  for (const token of tokens) {
+    if (!token || token.length < 3) continue
+    await runWithRetry(database,
+      `INSERT INTO learned_categories (user_id, token, category, count, updated_at)
+       VALUES (?, ?, ?, 1, ?)
+       ON CONFLICT(user_id, token) DO UPDATE SET
+         category = excluded.category,
+         count = CASE WHEN learned_categories.category = excluded.category
+                      THEN learned_categories.count + 1 ELSE 1 END,
+         updated_at = excluded.updated_at`,
+      [userId, token, category, ts]
+    )
+  }
+}
+
+// Daily expense totals for the current month, used by the spending forecast.
+// Returns [{ date, total }] for the given YYYY-MM month key.
+export async function getDailyExpenseTotals(userId, month) {
+  const database = await getDB()
+  const rows = await database.getAllAsync(
+    `SELECT date, SUM(amount) AS total FROM expenses
+     WHERE user_id = ? AND date LIKE ? GROUP BY date ORDER BY date`,
+    [userId, `${month}%`]
+  )
+  return rows || []
 }
 
 // ─── ACCOUNTS ───────────────────────────────────────────────

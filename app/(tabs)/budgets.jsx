@@ -224,7 +224,10 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
   recommendItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   recommendItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   recommendIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  recommendNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   recommendCatName: { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  fixedTag: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: COLORS.accent + '18', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  fixedTagText: { fontSize: 9, fontWeight: '700', color: COLORS.accent, letterSpacing: 0.3 },
   recommendAvg: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
   recommendItemRight: { alignItems: 'flex-end', gap: 6 },
   recommendAmount: { fontSize: 14, fontWeight: '800', color: COLORS.accent },
@@ -311,8 +314,20 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
                           <Ionicons name={cat.icon} size={16} color={cat.color} />
                         </View>
                         <View>
-                          <Text style={styles.recommendCatName}>{category}</Text>
-                          <Text style={styles.recommendAvg}>3-month avg: {formatAmount(rec.avg, currencySymbol, currencyCode)}</Text>
+                          <View style={styles.recommendNameRow}>
+                            <Text style={styles.recommendCatName}>{category}</Text>
+                            {rec.fixed && (
+                              <View style={styles.fixedTag}>
+                                <Ionicons name="lock-closed" size={9} color={COLORS.accent} />
+                                <Text style={styles.fixedTagText}>Fixed cost</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.recommendAvg}>
+                            {rec.fixed
+                              ? `Steady ~${formatAmount(rec.avg, currencySymbol, currencyCode)}/mo`
+                              : `3-month avg: ${formatAmount(rec.avg, currencySymbol, currencyCode)}`}
+                          </Text>
                         </View>
                       </View>
                       <View style={styles.recommendItemRight}>

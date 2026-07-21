@@ -29,12 +29,27 @@ export function generateBudgetRecommendations(allExpenses, categories) {
     if (activemonths.length === 0) return // No history — skip
 
     const avg = activemonths.reduce((sum, t) => sum + t, 0) / activemonths.length
-    const recommended = Math.ceil(avg * 0.9) // 10% less than average
+
+    // Decide how aggressively to trim, based on how much this category varies
+    // month to month (coefficient of variation = stddev / mean). A near-constant
+    // category is a fixed cost — rent, EMI, subscriptions — where recommending
+    // "spend 10% less" is nonsense; budget it at ~what it actually is. A highly
+    // variable category is discretionary, where there's real room to cut.
+    let factor = 0.9 // default: trim 10%
+    let fixed = false
+    if (activemonths.length >= 2) {
+      const variance = activemonths.reduce((s, t) => s + (t - avg) ** 2, 0) / activemonths.length
+      const cv = Math.sqrt(variance) / avg
+      if (cv < 0.15) { factor = 1.02; fixed = true }   // fixed cost: match spend (+small buffer)
+      else if (cv < 0.4) factor = 0.95                 // semi-stable: trim 5%
+      else factor = 0.85                               // volatile/discretionary: trim 15%
+    }
 
     recommendations[cat.label] = {
       avg: Math.round(avg),
-      recommended,
+      recommended: Math.ceil(avg * factor),
       months: activemonths.length,
+      fixed, // UI can label these "fixed cost" instead of showing a cut
     }
   })
 

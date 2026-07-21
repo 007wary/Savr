@@ -10,8 +10,9 @@ import { getCurrencySymbol, loadCurrency, formatAmount, roundMoney } from '../..
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { sortExpenses } from '../../src/lib/dateUtils'
 import { getUser, getCachedUser } from '../../src/lib/auth'
-import { checkWeeklySummary, checkBudgetAlerts } from '../../src/lib/notifications'
+import { checkWeeklySummary, checkBudgetAlerts, checkForecastNudge } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
+import { forecastMonthEnd } from '../../src/lib/spendingForecast'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getExpenses, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal, getAccountsTotal, getTodayIncomeTotal, getBudgets } from '../../src/services/sqliteService'
 import CustomAlert from '../../src/components/CustomAlert'
@@ -195,6 +196,14 @@ const isCurrentMonth = true
       if (offsetSnapshot === 0) {
         checkWeeklySummary(allRecentExpenses)
         checkBudgetAlerts(filtered, budgets, snapshotMonth).catch(() => {})
+        // Mid-month forecast nudge (opt-in, once/month) — reuses the same
+        // forecast the dashboard card shows.
+        if (goal) {
+          const dm = {}
+          for (const e of filtered) dm[e.date] = (dm[e.date] || 0) + parseFloat(e.amount)
+          const dt = Object.entries(dm).map(([date, t]) => ({ date, total: t }))
+          checkForecastNudge(forecastMonthEnd(dt, goal, new Date()), snapshotMonth).catch(() => {})
+        }
         let currentStreak = 0
         for (let i = 0; i < 30; i++) {
           const d = new Date()
@@ -416,6 +425,19 @@ const isCurrentMonth = true
     return result
   }, [expenses, byCategory, total, lastMonthTotal, daysInMonth, currencySymbol, currencyCode, spendingGoal, goalExceeded, goalPercentage])
 
+  // Month-end forecast, surfaced as its own card. Only meaningful for the live
+  // month once a few days of data exist and days still remain. Returns null
+  // otherwise so the card is simply not rendered.
+  const forecast = useMemo(() => {
+    if (!isCurrentMonth || expenses.length === 0) return null
+    const dailyMap = {}
+    for (const e of expenses) dailyMap[e.date] = (dailyMap[e.date] || 0) + parseFloat(e.amount)
+    const dailyTotals = Object.entries(dailyMap).map(([date, t]) => ({ date, total: t }))
+    const f = forecastMonthEnd(dailyTotals, spendingGoal, new Date())
+    if (f.dayOfMonth < 3 || f.daysInMonth - f.dayOfMonth <= 0) return null
+    return f
+  }, [expenses, spendingGoal, isCurrentMonth])
+
   const styles = useMemo(() => StyleSheet.create({
   outerContainer: { flex: 1, backgroundColor: COLORS.bg },
   scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal },
@@ -439,6 +461,13 @@ const isCurrentMonth = true
   totalSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
   goalCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   goalCardExceeded: { borderColor: COLORS.accentRed + '66' },
+  forecastCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1 },
+  forecastHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  forecastIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  forecastTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
+  forecastSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+  forecastAmount: { fontSize: 18, fontWeight: '800' },
+  forecastMsg: { fontSize: 13, color: COLORS.textMuted, marginTop: 12, lineHeight: 19 },
   goalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   goalHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   goalIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
@@ -706,6 +735,34 @@ const isCurrentMonth = true
             )}
           </TouchableOpacity>
         )}
+
+        {forecast && (() => {
+          const over = forecast.goal && forecast.willExceedGoal
+          const fColor = over ? COLORS.accentRed : forecast.goal ? COLORS.accentGreen : COLORS.accent
+          return (
+            <View style={[styles.forecastCard, { borderColor: fColor + '44' }]}>
+              <View style={styles.forecastHeader}>
+                <View style={[styles.forecastIconBox, { backgroundColor: fColor + '22' }]}>
+                  <Ionicons name="trending-up-outline" size={18} color={fColor} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.forecastTitle}>Month-End Forecast</Text>
+                  <Text style={styles.forecastSub}>Projected from your pace this month</Text>
+                </View>
+                <Text style={[styles.forecastAmount, { color: fColor }]}>
+                  {formatAmount(forecast.projectedTotal, currencySymbol, currencyCode)}
+                </Text>
+              </View>
+              <Text style={styles.forecastMsg}>
+                {over
+                  ? `${formatAmount(forecast.projectedOverGoal, currencySymbol, currencyCode)} over your goal. Keep it under ${formatAmount(forecast.safeDailySpend, currencySymbol, currencyCode)}/day to stay on track.`
+                  : forecast.goal
+                    ? `On track to finish within your ${formatAmount(forecast.goal, currencySymbol, currencyCode)} goal.`
+                    : `Averaging ${formatAmount(forecast.dailyPace, currencySymbol, currencyCode)}/day so far.`}
+              </Text>
+            </View>
+          )
+        })()}
 
         {expenses.length > 0 && (
           <View style={styles.statsRow}>

@@ -14,10 +14,10 @@ import useAlert from '../../src/hooks/useAlert'
 import { clearCache, saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import { getCurrencySymbol, loadCurrency, formatAmount, getQuickAmounts } from '../../src/lib/currency'
-import { detectCategory } from '../../src/lib/categoryDetector'
+import { detectCategoryWithSource, tokenizeNote } from '../../src/lib/categoryDetector'
 import { detectAnomaly } from '../../src/lib/anomalyDetector'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
-import { addExpenseAtomic, addRecurring, addIncomeAtomic, addRecurringIncome, addTransferAtomic, getExpenses, getBudgets, getAccounts } from '../../src/services/sqliteService'
+import { addExpenseAtomic, addRecurring, addIncomeAtomic, addRecurringIncome, addTransferAtomic, getExpenses, getBudgets, getAccounts, getLearnedCategories, learnCategory } from '../../src/services/sqliteService'
 import { Analytics } from '../../src/lib/analytics'
 import { scheduleBackup } from '../../src/services/backgroundBackup'
 import { checkAndRequestReview } from '../../src/lib/reviewService'
@@ -72,6 +72,9 @@ export default function AddExpense() {
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
   const userRef = useRef(null)
+  // Per-user learned note→category map, loaded once and refreshed after a
+  // correction. Powers the "app learns your habits" categorization.
+  const learnedRef = useRef([])
   const [showCelebration, setShowCelebration] = useState(false)
   const celebrationScale = useRef(new Animated.Value(0)).current
   const celebrationOpacity = useRef(new Animated.Value(0)).current
@@ -114,6 +117,9 @@ export default function AddExpense() {
       setCurrencyCode(code)
       setQuickAmounts(getQuickAmounts(code))
       userRef.current = getCachedUser() || await getUser()
+      if (userRef.current) {
+        try { learnedRef.current = await getLearnedCategories(userRef.current.id) } catch {}
+      }
     }
     init()
   }, [])
@@ -152,8 +158,14 @@ export default function AddExpense() {
   function handleNoteChange(text) {
     setNote(text)
     if (activeTab === 'expense') {
-      const detected = detectCategory(text)
+      const { category: detected, source } = detectCategoryWithSource(text, learnedRef.current)
       if (detected) {
+        // Only log a fresh auto-detection when it changes the selection, so we
+        // don't fire an event on every keystroke of the same note.
+        if (detected !== selectedCategory) {
+          Analytics.categoryAutodetected(detected, source)
+          if (source === 'learned') Analytics.learnedCategoryHit(detected)
+        }
         setSelectedCategory(detected)
         setAutoDetected(true)
       } else if (autoDetected) {
@@ -164,6 +176,23 @@ export default function AddExpense() {
   }
 
   function handleCategorySelect(label) {
+    // If the user is overriding an auto-detection (or picking a category for a
+    // note the keywords missed), remember it so we get this note right next
+    // time. Fire-and-forget; never block the tap.
+    if (activeTab === 'expense' && note.trim()) {
+      // A correction = we had auto-detected something and the user picked a
+      // different category. That's our accuracy signal and what we learn from.
+      if (autoDetected && selectedCategory && selectedCategory !== label) {
+        Analytics.categoryCorrected(selectedCategory, label)
+      }
+      const tokens = tokenizeNote(note)
+      if (tokens.length && userRef.current) {
+        learnCategory(userRef.current.id, tokens, label)
+          .then(() => getLearnedCategories(userRef.current.id))
+          .then(rows => { learnedRef.current = rows })
+          .catch(() => {})
+      }
+    }
     setSelectedCategory(label)
     setAutoDetected(false)
   }
@@ -408,16 +437,18 @@ export default function AddExpense() {
         const allExpenses = user ? await getExpenses(user.id) : []
         const anomaly = detectAnomaly(expenseData.amount, selectedCategory, allExpenses)
         if (anomaly) {
+          Analytics.anomalyShown(selectedCategory)
           setSubmitting(false)
           showAlert(
             '⚠️ Unusual Expense Detected',
             `This ${selectedCategory} expense of ${formatAmount(expenseData.amount, currencySymbol, currencyCode)} is ${anomaly.multiplier}x your usual spending.\n\nYour average ${selectedCategory} expense is ${formatAmount(anomaly.avg, currencySymbol, currencyCode)} based on ${anomaly.count} past transactions.\n\nWas this intentional?`,
             [
-              { text: 'Cancel', style: 'cancel', onPress: () => { addInFlightRef.current = false } },
+              { text: 'Cancel', style: 'cancel', onPress: () => { Analytics.anomalyDismissed(selectedCategory); addInFlightRef.current = false } },
               {
                 text: 'Yes, Add It',
                 onPress: async () => {
                   try {
+                    Analytics.anomalyConfirmed(selectedCategory)
                     setSubmitting(true)
                     resetForm()
                     await saveExpense(expenseData, entryMonth, currentMonth)
