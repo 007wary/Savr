@@ -39,6 +39,8 @@ function RootLayoutInner() {
   const [session, setSession] = useState(undefined)
   const [onboardingDone, setOnboardingDone] = useState(undefined)
   const [transitioning, setTransitioning] = useState(false)
+  const [watchdogTripped, setWatchdogTripped] = useState(false)
+  const [navTick, setNavTick] = useState(0)
   const [signingIn, setSigningInState] = useState(isSigningIn())
   const recurringProcessedRef = useRef(false)
   const initialSessionLoadedRef = useRef(false)
@@ -59,6 +61,60 @@ function RootLayoutInner() {
     const screen = segments.join('/')
     Analytics.screen(screen)
   }, [segments])
+
+  // Route taps on local notifications to the right screen and record the open.
+  // Handles both a warm app (listener) and a cold start where the tap launched
+  // the app (getLastNotificationResponse).
+  //
+  // Navigation is NEVER performed directly here: on a cold start this effect can
+  // run before the launch gate has resolved `session` and the navigator is
+  // mounted, and pushing then can wedge navigation and freeze the app on a blank
+  // screen. Instead we stash the target in `pendingNavRef` and let the effect
+  // below perform it once the app is ready.
+  const pendingNavRef = useRef(null)
+  useEffect(() => {
+    let sub
+    let handledColdStart = false
+
+    const handle = async (response) => {
+      try {
+        const { resolveNotificationTap } = await import('../src/lib/notifications')
+        const { route, event } = resolveNotificationTap(response)
+        if (event && Analytics[event]) Analytics[event]()
+        if (route) {
+          pendingNavRef.current = route
+          setNavTick((n) => n + 1) // wake the drain effect
+        }
+      } catch {}
+    }
+
+    ;(async () => {
+      try {
+        const Notifications = await import('expo-notifications')
+        // Cold start: the tap that launched the app.
+        const last = await Notifications.getLastNotificationResponseAsync()
+        if (last && !handledColdStart) {
+          handledColdStart = true
+          await handle(last)
+        }
+        // Warm start: taps while the app is running.
+        sub = Notifications.addNotificationResponseReceivedListener(handle)
+      } catch {}
+    })()
+
+    return () => { try { sub?.remove() } catch {} }
+  }, [])
+
+  // Drain a pending notification navigation, but only once the launch gate has
+  // resolved (navigator mounted, no transition in flight). Runs whenever those
+  // conditions or a new tap change.
+  useEffect(() => {
+    if (session === undefined || onboardingDone === undefined || transitioning) return
+    const route = pendingNavRef.current
+    if (!route) return
+    pendingNavRef.current = null
+    try { router.push(route) } catch {}
+  }, [session, onboardingDone, transitioning, navTick, router])
 
   useEffect(() => {
     async function init() {
@@ -376,7 +432,28 @@ try {
     }
   }, [session, segments, onboardingDone, signingIn, router])
 
-  if (session === undefined || onboardingDone === undefined || transitioning) {
+  // Startup watchdog. The gate below renders a blank screen while session or
+  // onboardingDone are still undefined, or while a post-login transition is in
+  // flight. Every path that resolves those runs inside async init / auth
+  // callbacks / navigation effects — if any of them hangs or a state flag is
+  // left stuck (e.g. `transitioning` never cleared because navigation landed
+  // somewhere unexpected), the app freezes on a blank screen forever. This
+  // guarantees we always fall through to a rendered UI within a few seconds:
+  // treat an unresolved session as logged-out, and force-clear a stuck
+  // transition. Whatever the init/auth flow later resolves still applies.
+  useEffect(() => {
+    if (session !== undefined && onboardingDone !== undefined && !transitioning) return
+    const t = setTimeout(() => {
+      if (session === undefined) setSession(null)
+      if (onboardingDone === undefined) setOnboardingDone(false)
+      setTransitioning(false)
+      setWatchdogTripped(true)
+      logError('startupWatchdog', new Error('launch gate did not resolve in time'))
+    }, 4000)
+    return () => clearTimeout(t)
+  }, [session, onboardingDone, transitioning])
+
+  if ((session === undefined || onboardingDone === undefined || transitioning) && !watchdogTripped) {
     return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />
   }
 
