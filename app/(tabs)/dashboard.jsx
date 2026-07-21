@@ -18,6 +18,7 @@ import { getExpenses, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal, getA
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { signalFirstPaint } from '../../src/lib/splashSignal'
+import { mark } from '../../src/lib/startupTiming'
 
 function CountUp({ value, style, symbol, currencyCode }) {
   const [display, setDisplay] = useState(0)
@@ -245,10 +246,12 @@ const isCurrentMonth = true
   }, [])
 
   const fetchData = useCallback(async (forceRefresh = false) => {
+    mark('dashboard fetchData start')
     const { month: offsetMonth } = getMonthInfo(0)
     const cacheKey = `savr_cache_dashboard_${offsetMonth}`
     if (!forceRefresh) {
       const cached = await loadCache(cacheKey)
+      mark(cached ? 'dashboard cache HIT' : 'dashboard cache MISS')
       if (cached) {
         setExpenses(sortExpenses(cached.expenses))
         setUserName(cached.userName)
@@ -548,7 +551,13 @@ const isCurrentMonth = true
   goalBannerText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#fff' },
   }), [COLORS])
 
-  if (loading) return <DashboardSkeleton />
+  // Fire the first-paint signal from the skeleton too, not just the real
+  // content below. The skeleton IS the first frame the user should see; gating
+  // signalFirstPaint on the loaded content meant the native splash stayed up
+  // for the entire data load (and in practice only came down when the 4s
+  // startup watchdog force-hid it — measured). The skeleton painting is the
+  // real handoff point from splash to app.
+  if (loading) return <DashboardSkeleton onLayout={() => { mark('dashboard SKELETON onLayout'); signalFirstPaint() }} />
 
   const h = new Date().getHours()
   const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'

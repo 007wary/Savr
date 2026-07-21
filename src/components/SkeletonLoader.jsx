@@ -26,12 +26,12 @@ function SkeletonBox({ width, height, borderRadius = 8, style, colors }) {
 
 const S = SkeletonBox
 
-export function DashboardSkeleton() {
+export function DashboardSkeleton({ onLayout }) {
   const { COLORS } = useTheme()
   const styles = useMemo(() => makeStyles(COLORS), [COLORS])
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={onLayout}>
       <S colors={COLORS} width={200} height={28} borderRadius={6} style={{ marginBottom: 24 }} />
       <View style={styles.monthNav}>
         <S colors={COLORS} width={24} height={24} borderRadius={6} />
