@@ -1,3 +1,4 @@
+import { mark } from '../src/lib/startupTiming'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../src/lib/supabase'
 import { View, AppState } from 'react-native'
@@ -20,6 +21,8 @@ import * as NavigationBar from 'expo-navigation-bar'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
 import { logError } from '../src/lib/errorLog'
 import { onFirstPaint } from '../src/lib/splashSignal'
+
+mark('_layout module eval')
 
 SplashScreen.preventAutoHideAsync()
 
@@ -119,6 +122,7 @@ function RootLayoutInner() {
 
   useEffect(() => {
     async function init() {
+      mark('init() start')
       clearExpiredCache().catch(() => {})
 
       // Check cached user immediately before anything else
@@ -126,6 +130,7 @@ function RootLayoutInner() {
         loadCachedUser(),
         AsyncStorage.getItem('savr_onboarding_done'),
       ])
+      mark('cachedUser + onboarding read resolved')
       setOnboardingDone(onboardingDoneRaw === 'true')
 
       // Initialize database in parallel — don't block startup
@@ -139,6 +144,7 @@ function RootLayoutInner() {
           initialSessionLoadedRef.current = true
           setCachedUser(cachedUser)
           setSession({ user: cachedUser, expires_at: 9999999999 })
+          mark('session set from cache (gate can close)')
           crashlytics().setUserId(cachedUser.id).catch(() => {})
           crashlytics().setAttribute('email', cachedUser.email || '').catch(() => {})
 
@@ -484,6 +490,7 @@ try {
     const hide = () => {
       if (done) return
       done = true
+      mark('splash hide (first paint done)')
       SplashScreen.hideAsync().catch(() => {})
     }
     const unsub = onFirstPaint(hide)

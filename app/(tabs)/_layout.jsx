@@ -28,7 +28,7 @@ useEffect(() => {
 
   return (
     <Tabs
-      lazy={false}
+      lazy={true}
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: COLORS.bg },

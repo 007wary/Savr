@@ -33,13 +33,15 @@ const SecureChunkStore = {
       const countStr = await SecureStore.getItemAsync(`${key}_chunks`)
       if (!countStr) return null
       const count = parseInt(countStr, 10)
-      let result = ''
-      for (let i = 0; i < count; i++) {
-        const chunk = await SecureStore.getItemAsync(`${key}_chunk_${i}`)
-        if (chunk === null) return null
-        result += chunk
-      }
-      return result
+      // Read all chunks in parallel. SecureStore reads are individually slow on
+      // Android (encrypted keystore), and awaiting them one-by-one serialized
+      // that cost on the session-restore path at startup — N round-trips became
+      // one round-trip's latency. Order is preserved by index.
+      const chunks = await Promise.all(
+        Array.from({ length: count }, (_, i) => SecureStore.getItemAsync(`${key}_chunk_${i}`))
+      )
+      if (chunks.some((c) => c === null)) return null
+      return chunks.join('')
     } catch {
       return null
     }

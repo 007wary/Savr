@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 let db = null
 let opening = null
+let initPromise = null
 
 function isBusyError(e) {
   const msg = (e?.message || '').toLowerCase()
@@ -42,7 +43,10 @@ export const getDB = async () => {
   }
 }
 
-export const initializeDatabase = async () => {
+// Runs the actual open + migrations + table/index creation. Memoized via
+// initPromise so it executes exactly once per app run no matter how many
+// callers race it on cold launch.
+const runInit = async () => {
   const database = await getDB()
 
   // Migration: add account_id to recurring tables if missing
@@ -207,6 +211,25 @@ export const initializeDatabase = async () => {
   return database
 }
 
+// Idempotent: the first call kicks off runInit(); every subsequent call (and
+// every query via getReadyDB) awaits the same promise. If init fails the
+// promise is cleared so a later call can retry.
+export const initializeDatabase = async () => {
+  if (!initPromise) {
+    initPromise = runInit().catch((e) => { initPromise = null; throw e })
+  }
+  return initPromise
+}
+
+// Every read/write goes through this instead of getDB() so no query can run
+// against a half-migrated schema on cold launch — they all wait for the
+// tables/indexes to exist first. On a warm run initPromise is already
+// resolved, so this is a cheap await.
+const getReadyDB = async () => {
+  await initializeDatabase()
+  return db
+}
+
 // ─── HELPERS ────────────────────────────────────────────────
 const now = () => new Date().toISOString()
 const id = () => uuidv4()
@@ -228,7 +251,7 @@ async function adjustAccountBalanceIfExists(database, accountId, delta) {
 }
 
 export async function addExpenseAtomic(userId, { amount, category, note, date, is_recurring = 0, recurring_id = null, account_id = null }) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const newId = id()
   const ts = now()
   await database.withTransactionAsync(async () => {
@@ -248,7 +271,7 @@ export async function addExpenseAtomic(userId, { amount, category, note, date, i
 }
 
 export async function getExpenses(userId, { month } = {}) {
-  const database = await getDB()
+  const database = await getReadyDB()
   if (month) {
     return await database.getAllAsync(
       `SELECT * FROM expenses WHERE user_id = ? AND date LIKE ? ORDER BY date DESC, created_at DESC`,
@@ -262,7 +285,7 @@ export async function getExpenses(userId, { month } = {}) {
 }
 
 export async function updateExpense(id, { amount, category, note, date, account_id }) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await database.withTransactionAsync(async () => {
     const existing = await database.getFirstAsync(`SELECT amount, account_id FROM expenses WHERE id = ?`, [id])
     const newAccountId = account_id === undefined ? existing?.account_id ?? null : (account_id || null)
@@ -291,7 +314,7 @@ export async function updateExpense(id, { amount, category, note, date, account_
 // balance can't drift if a caller forgets to reverse it (an expense debits the
 // account, so deleting must credit it back by the same amount).
 export async function deleteExpenseAtomic(id) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await database.withTransactionAsync(async () => {
     const existing = await database.getFirstAsync(
       `SELECT amount, account_id FROM expenses WHERE id = ?`, [id]
@@ -307,7 +330,7 @@ export async function deleteExpenseAtomic(id) {
 }
 
 export async function getExpenseSummary(userId, month) {
-  const database = await getDB()
+  const database = await getReadyDB()
   return await database.getAllAsync(
     `SELECT category, SUM(amount) as total FROM expenses
      WHERE user_id = ? AND date LIKE ?
@@ -317,7 +340,7 @@ export async function getExpenseSummary(userId, month) {
 }
 
 export async function getMonthlyTotal(userId, month) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const result = await database.getFirstAsync(
     `SELECT SUM(amount) as total FROM expenses WHERE user_id = ? AND date LIKE ?`,
     [userId, `${month}%`]
@@ -327,7 +350,7 @@ export async function getMonthlyTotal(userId, month) {
 
 // ─── BUDGETS ────────────────────────────────────────────────
 export async function getBudgets(userId, month) {
-  const database = await getDB()
+  const database = await getReadyDB()
   return await database.getAllAsync(
     `SELECT * FROM budgets WHERE user_id = ? AND month = ?`,
     [userId, month]
@@ -335,7 +358,7 @@ export async function getBudgets(userId, month) {
 }
 
 export async function saveBudget(userId, { category, limit_amount, month }) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const existing = await database.getFirstAsync(
     `SELECT id FROM budgets WHERE user_id = ? AND category = ? AND month = ?`,
     [userId, category, month]
@@ -359,13 +382,13 @@ export async function saveBudget(userId, { category, limit_amount, month }) {
 }
 
 export async function deleteBudget(id) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await runWithRetry(database,`DELETE FROM budgets WHERE id = ?`, [id])
 }
 
 // ─── RECURRING ──────────────────────────────────────────────
 export async function getRecurring(userId) {
-  const database = await getDB()
+  const database = await getReadyDB()
   return await database.getAllAsync(
     `SELECT * FROM recurring_expenses WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC`,
     [userId]
@@ -381,7 +404,7 @@ function anchorDayFromDate(dateStr) {
 }
 
 export async function addRecurring(userId, { amount, category, note, frequency, next_due, account_id = null }) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const newId = id()
   const ts = now()
   await runWithRetry(database,
@@ -393,7 +416,7 @@ export async function addRecurring(userId, { amount, category, note, frequency, 
 }
 
 export async function updateRecurringAfterLog(id, nextDue, lastLogged) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await runWithRetry(database,
     `UPDATE recurring_expenses SET next_due = ?, last_logged = ?, updated_at = ? WHERE id = ?`,
     [nextDue, lastLogged, now(), id]
@@ -406,7 +429,7 @@ export async function updateRecurringAfterLog(id, nextDue, lastLogged) {
 // next_due itself is a valid calendar date under any frequency, so it is left
 // untouched — only anchor_day could silently rot on a frequency switch.
 export async function updateRecurringExpense(id, { amount, note, frequency }) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const existing = await database.getFirstAsync(
     `SELECT frequency, next_due FROM recurring_expenses WHERE id = ?`, [id]
   )
@@ -421,7 +444,7 @@ export async function updateRecurringExpense(id, { amount, note, frequency }) {
 // atomically in a single DB transaction, so a crash mid-run can't leave balances
 // updated without the rule advancing (or vice versa).
 export async function processRecurringExpenseItemAtomic(userId, item, todayStr, calculateNextDue) {
-  const database = await getDB()
+  const database = await getReadyDB()
   let logged = 0
   const anchorDay = item.anchor_day || anchorDayFromDate(item.next_due)
   await database.withTransactionAsync(async () => {
@@ -462,7 +485,7 @@ export async function processRecurringExpenseItemAtomic(userId, item, todayStr, 
 }
 
 export async function deleteRecurring(id) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await runWithRetry(database,
     `UPDATE recurring_expenses SET is_active = 0, updated_at = ? WHERE id = ?`,
     [now(), id]
@@ -470,7 +493,7 @@ export async function deleteRecurring(id) {
 }
 
 export async function getInactiveRecurring(userId) {
-  const database = await getDB()
+  const database = await getReadyDB()
   return await database.getAllAsync(
     `SELECT * FROM recurring_expenses WHERE user_id = ? AND is_active = 0 ORDER BY updated_at DESC`,
     [userId]
@@ -478,13 +501,13 @@ export async function getInactiveRecurring(userId) {
 }
 
 export async function permanentDeleteRecurring(id) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await runWithRetry(database,`DELETE FROM recurring_expenses WHERE id = ?`, [id])
 }
 
 // ─── SPENDING GOALS ─────────────────────────────────────────
 export async function getSpendingGoal(userId) {
-  const database = await getDB()
+  const database = await getReadyDB()
   return await database.getFirstAsync(
     `SELECT * FROM spending_goals WHERE user_id = ? ORDER BY created_at DESC LIMIT 1`,
     [userId]
@@ -492,7 +515,7 @@ export async function getSpendingGoal(userId) {
 }
 
 export async function saveSpendingGoal(userId, { title, target_amount, deadline }) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const existing = await getSpendingGoal(userId)
   if (existing) {
     await runWithRetry(database,
@@ -513,19 +536,19 @@ export async function saveSpendingGoal(userId, { title, target_amount, deadline 
 }
 
 export async function deleteSpendingGoal(userId) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await runWithRetry(database,`DELETE FROM spending_goals WHERE user_id = ?`, [userId])
 }
 
 // ─── APP META ───────────────────────────────────────────────
 export async function getMeta(key) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const result = await database.getFirstAsync(`SELECT value FROM app_meta WHERE key = ?`, [key])
   return result?.value || null
 }
 
 export async function setMeta(key, value) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await runWithRetry(database,
     `INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`,
     [key, String(value)]
@@ -536,7 +559,7 @@ export async function setMeta(key, value) {
 // Load the whole per-user map once (it's tiny) so the detector can run
 // synchronously on every keystroke without hitting the DB each time.
 export async function getLearnedCategories(userId) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const rows = await database.getAllAsync(
     `SELECT token, category, count FROM learned_categories WHERE user_id = ?`,
     [userId]
@@ -549,7 +572,7 @@ export async function getLearnedCategories(userId) {
 // bumps the count so a repeated correction wins over a stale one.
 export async function learnCategory(userId, tokens, category) {
   if (!userId || !category || !Array.isArray(tokens) || tokens.length === 0) return
-  const database = await getDB()
+  const database = await getReadyDB()
   const ts = now()
   for (const token of tokens) {
     if (!token || token.length < 3) continue
@@ -569,7 +592,7 @@ export async function learnCategory(userId, tokens, category) {
 // Daily expense totals for the current month, used by the spending forecast.
 // Returns [{ date, total }] for the given YYYY-MM month key.
 export async function getDailyExpenseTotals(userId, month) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const rows = await database.getAllAsync(
     `SELECT date, SUM(amount) AS total FROM expenses
      WHERE user_id = ? AND date LIKE ? GROUP BY date ORDER BY date`,
@@ -580,7 +603,7 @@ export async function getDailyExpenseTotals(userId, month) {
 
 // ─── ACCOUNTS ───────────────────────────────────────────────
 export async function addAccount(userId, { name, type, balance = 0, currency = 'USD' }) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const newId = id()
   const ts = now()
   await runWithRetry(database,
@@ -592,7 +615,7 @@ export async function addAccount(userId, { name, type, balance = 0, currency = '
 }
 
 export async function getAccounts(userId) {
-  const database = await getDB()
+  const database = await getReadyDB()
   return await database.getAllAsync(
     `SELECT * FROM accounts WHERE user_id = ? ORDER BY created_at ASC`,
     [userId]
@@ -600,7 +623,7 @@ export async function getAccounts(userId) {
 }
 
 export async function getAccountsTotal(userId) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const result = await database.getFirstAsync(
     `SELECT SUM(balance) as total, COUNT(*) as count FROM accounts WHERE user_id = ?`,
     [userId]
@@ -613,7 +636,7 @@ export async function getAccountsTotal(userId) {
 // `balance` is only written when the caller explicitly passes it (i.e. the user
 // changed the balance field); omit it and the transaction-driven value is kept.
 export async function updateAccount(id, { name, type, balance, currency }) {
-  const database = await getDB()
+  const database = await getReadyDB()
   if (balance === undefined) {
     await runWithRetry(database,
       `UPDATE accounts SET name = ?, type = ?, currency = ?, updated_at = ? WHERE id = ?`,
@@ -628,7 +651,7 @@ export async function updateAccount(id, { name, type, balance, currency }) {
 }
 
 export async function updateAccountBalance(id, delta) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await runWithRetry(database,
     `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
     [delta, now(), id]
@@ -639,7 +662,7 @@ export async function updateAccountBalance(id, delta) {
 // nonexistent account_id and transfers with no valid endpoint, so unlink/remove
 // those references in the same transaction as the account deletion.
 export async function deleteAccount(id) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await database.withTransactionAsync(async () => {
     await runWithRetry(database, `UPDATE expenses SET account_id = NULL WHERE account_id = ?`, [id])
     await runWithRetry(database, `UPDATE income SET account_id = NULL WHERE account_id = ?`, [id])
@@ -652,7 +675,7 @@ export async function deleteAccount(id) {
 
 // ─── INCOME ─────────────────────────────────────────────────
 export async function addIncomeAtomic(userId, { amount, category, note, date, account_id = null }) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const newId = id()
   const ts = now()
   await database.withTransactionAsync(async () => {
@@ -672,7 +695,7 @@ export async function addIncomeAtomic(userId, { amount, category, note, date, ac
 }
 
 export async function getIncome(userId) {
-  const database = await getDB()
+  const database = await getReadyDB()
   return await database.getAllAsync(
     `SELECT * FROM income WHERE user_id = ? ORDER BY date DESC, created_at DESC`,
     [userId]
@@ -680,7 +703,7 @@ export async function getIncome(userId) {
 }
 
 export async function getIncomeByMonth(userId, month) {
-  const database = await getDB()
+  const database = await getReadyDB()
   return await database.getAllAsync(
     `SELECT * FROM income WHERE user_id = ? AND date LIKE ? ORDER BY date DESC, created_at DESC`,
     [userId, `${month}%`]
@@ -688,7 +711,7 @@ export async function getIncomeByMonth(userId, month) {
 }
 
 export async function getMonthlyIncomeTotal(userId, month) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const result = await database.getFirstAsync(
     `SELECT SUM(amount) as total FROM income WHERE user_id = ? AND date LIKE ?`,
     [userId, `${month}%`]
@@ -697,7 +720,7 @@ export async function getMonthlyIncomeTotal(userId, month) {
 }
 
 export async function getTodayIncomeTotal(userId, date) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const result = await database.getFirstAsync(
     `SELECT SUM(amount) as total FROM income WHERE user_id = ? AND date = ?`,
     [userId, date]
@@ -706,7 +729,7 @@ export async function getTodayIncomeTotal(userId, date) {
 }
 
 export async function updateIncome(id, { amount, category, note, date, account_id }) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const newAccountId = account_id || null
   await database.withTransactionAsync(async () => {
     const existing = await database.getFirstAsync(`SELECT amount, account_id FROM income WHERE id = ?`, [id])
@@ -734,7 +757,7 @@ export async function updateIncome(id, { amount, category, note, date, account_i
 // Deletes an income row and reverses the credit to its account atomically
 // (income credits the account, so deleting must debit it back).
 export async function deleteIncomeAtomic(id) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await database.withTransactionAsync(async () => {
     const existing = await database.getFirstAsync(
       `SELECT amount, account_id FROM income WHERE id = ?`, [id]
@@ -751,7 +774,7 @@ export async function deleteIncomeAtomic(id) {
 
 // ─── TRANSFERS ──────────────────────────────────────────────
 export async function addTransferAtomic(userId, { from_account_id, to_account_id, amount, note, date }) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const newId = id()
   const ts = now()
   await database.withTransactionAsync(async () => {
@@ -773,7 +796,7 @@ export async function addTransferAtomic(userId, { from_account_id, to_account_id
 }
 
 export async function getTransfers(userId) {
-  const database = await getDB()
+  const database = await getReadyDB()
   return await database.getAllAsync(
     `SELECT * FROM transfers WHERE user_id = ? ORDER BY date DESC, created_at DESC`,
     [userId]
@@ -784,7 +807,7 @@ export async function getTransfers(userId) {
 // from-account and credits the to-account, so deleting credits back the from
 // and debits back the to).
 export async function deleteTransferAtomic(id) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await database.withTransactionAsync(async () => {
     const existing = await database.getFirstAsync(
       `SELECT from_account_id, to_account_id, amount FROM transfers WHERE id = ?`, [id]
@@ -807,7 +830,7 @@ export async function deleteTransferAtomic(id) {
 
 // ─── RECURRING INCOME ───────────────────────────────────────
 export async function addRecurringIncome(userId, { amount, category, note, frequency, next_due, account_id = null }) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const newId = id()
   const ts = now()
   await runWithRetry(database,
@@ -819,7 +842,7 @@ export async function addRecurringIncome(userId, { amount, category, note, frequ
 }
 
 export async function getRecurringIncome(userId) {
-  const database = await getDB()
+  const database = await getReadyDB()
   return await database.getAllAsync(
     `SELECT * FROM recurring_income WHERE user_id = ? AND is_active = 1 ORDER BY created_at DESC`,
     [userId]
@@ -827,7 +850,7 @@ export async function getRecurringIncome(userId) {
 }
 
 export async function getInactiveRecurringIncome(userId) {
-  const database = await getDB()
+  const database = await getReadyDB()
   return await database.getAllAsync(
     `SELECT * FROM recurring_income WHERE user_id = ? AND is_active = 0 ORDER BY updated_at DESC`,
     [userId]
@@ -835,7 +858,7 @@ export async function getInactiveRecurringIncome(userId) {
 }
 
 export async function updateRecurringIncomeAfterLog(id, nextDue, lastLogged) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await runWithRetry(database,
     `UPDATE recurring_income SET next_due = ?, last_logged = ?, updated_at = ? WHERE id = ?`,
     [nextDue, lastLogged, now(), id]
@@ -844,7 +867,7 @@ export async function updateRecurringIncomeAfterLog(id, nextDue, lastLogged) {
 
 // See updateRecurringExpense — same anchor_day maintenance for recurring income.
 export async function updateRecurringIncome(id, { amount, note, frequency }) {
-  const database = await getDB()
+  const database = await getReadyDB()
   const existing = await database.getFirstAsync(
     `SELECT next_due FROM recurring_income WHERE id = ?`, [id]
   )
@@ -857,7 +880,7 @@ export async function updateRecurringIncome(id, { amount, note, frequency }) {
 
 // See processRecurringExpenseItemAtomic — same atomicity guarantee for recurring income.
 export async function processRecurringIncomeItemAtomic(userId, item, todayStr, calculateNextDue) {
-  const database = await getDB()
+  const database = await getReadyDB()
   let logged = 0
   const anchorDay = item.anchor_day || anchorDayFromDate(item.next_due)
   await database.withTransactionAsync(async () => {
@@ -898,7 +921,7 @@ export async function processRecurringIncomeItemAtomic(userId, item, todayStr, c
 }
 
 export async function deleteRecurringIncome(id) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await runWithRetry(database,
     `UPDATE recurring_income SET is_active = 0, updated_at = ? WHERE id = ?`,
     [now(), id]
@@ -906,6 +929,6 @@ export async function deleteRecurringIncome(id) {
 }
 
 export async function permanentDeleteRecurringIncome(id) {
-  const database = await getDB()
+  const database = await getReadyDB()
   await runWithRetry(database,`DELETE FROM recurring_income WHERE id = ?`, [id])
 }
