@@ -94,7 +94,8 @@ export function formatAmount(amount, symbol = '$', currencyCode = null) {
     })
     return `${symbol}${formatted}`
   } catch {
-    return `${symbol}${parseFloat(amount).toFixed(2)}`
+    const n = parseFloat(amount)
+    return `${symbol}${(isNaN(n) ? 0 : n).toFixed(2)}`
   }
 }
 
@@ -105,7 +106,8 @@ export async function formatAmountWithCode(amount) {
     const symbol = cur?.symbol || '$'
     return formatAmount(amount, symbol, code)
   } catch {
-    return `$${parseFloat(amount).toFixed(2)}`
+    const n = parseFloat(amount)
+    return `$${(isNaN(n) ? 0 : n).toFixed(2)}`
   }
 }
 

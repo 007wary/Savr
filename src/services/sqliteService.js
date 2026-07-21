@@ -53,6 +53,19 @@ export const initializeDatabase = async () => {
     await database.execAsync(`ALTER TABLE recurring_income ADD COLUMN account_id TEXT`)
   } catch {}
 
+  // Migration: add anchor_day (1–31) so monthly rules created on the 29th–31st
+  // don't permanently drift to an earlier day after a short month. Existing
+  // rows are backfilled from the day-of-month of their current next_due, which
+  // is correct for any rule that hasn't drifted yet.
+  try {
+    await database.execAsync(`ALTER TABLE recurring_expenses ADD COLUMN anchor_day INTEGER`)
+    await database.execAsync(`UPDATE recurring_expenses SET anchor_day = CAST(strftime('%d', next_due) AS INTEGER) WHERE anchor_day IS NULL AND next_due IS NOT NULL`)
+  } catch {}
+  try {
+    await database.execAsync(`ALTER TABLE recurring_income ADD COLUMN anchor_day INTEGER`)
+    await database.execAsync(`UPDATE recurring_income SET anchor_day = CAST(strftime('%d', next_due) AS INTEGER) WHERE anchor_day IS NULL AND next_due IS NOT NULL`)
+  } catch {}
+
   await database.execAsync(`
     PRAGMA journal_mode = WAL;
     PRAGMA busy_timeout = 5000;
@@ -91,6 +104,7 @@ export const initializeDatabase = async () => {
       next_due TEXT NOT NULL,
       last_logged TEXT,
       is_active INTEGER DEFAULT 1,
+      anchor_day INTEGER,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -165,6 +179,7 @@ export const initializeDatabase = async () => {
       next_due TEXT NOT NULL,
       last_logged TEXT,
       is_active INTEGER DEFAULT 1,
+      anchor_day INTEGER,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -181,6 +196,22 @@ export const initializeDatabase = async () => {
 // ─── HELPERS ────────────────────────────────────────────────
 const now = () => new Date().toISOString()
 const id = () => uuidv4()
+
+// Adjusts an account's balance by `delta`, but only if the account row still
+// exists. Account deletion unlinks references (deleteAccount), yet a stale
+// account_id can survive on restored/imported rows where no matching account
+// was restored; mutating a nonexistent account would silently lose money.
+// Returns true if a row was updated. Must be called inside a transaction.
+async function adjustAccountBalanceIfExists(database, accountId, delta) {
+  if (!accountId || delta === 0) return false
+  const acc = await database.getFirstAsync(`SELECT id FROM accounts WHERE id = ?`, [accountId])
+  if (!acc) return false
+  await runWithRetry(database,
+    `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+    [delta, now(), accountId]
+  )
+  return true
+}
 
 export async function addExpense(userId, { amount, category, note, date, is_recurring = 0, recurring_id = null, account_id = null }) {
   const database = await getDB()
@@ -240,29 +271,15 @@ export async function updateExpense(id, { amount, category, note, date, account_
     if (existing) {
       if (existing.account_id && existing.account_id !== newAccountId) {
         // Account changed — restore the old account's debit entirely
-        await runWithRetry(database,
-          `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
-          [existing.amount, now(), existing.account_id]
-        )
+        await adjustAccountBalanceIfExists(database, existing.account_id, existing.amount)
         if (newAccountId) {
-          await runWithRetry(database,
-            `UPDATE accounts SET balance = balance - ?, updated_at = ? WHERE id = ?`,
-            [amount, now(), newAccountId]
-          )
+          await adjustAccountBalanceIfExists(database, newAccountId, -amount)
         }
       } else if (existing.account_id && existing.account_id === newAccountId) {
         const delta = existing.amount - amount
-        if (delta !== 0) {
-          await runWithRetry(database,
-            `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
-            [delta, now(), newAccountId]
-          )
-        }
+        await adjustAccountBalanceIfExists(database, newAccountId, delta)
       } else if (!existing.account_id && newAccountId) {
-        await runWithRetry(database,
-          `UPDATE accounts SET balance = balance - ?, updated_at = ? WHERE id = ?`,
-          [amount, now(), newAccountId]
-        )
+        await adjustAccountBalanceIfExists(database, newAccountId, -amount)
       }
     }
   })
@@ -358,14 +375,22 @@ export async function getRecurring(userId) {
   )
 }
 
+// The day-of-month a recurring rule anchors to, parsed from its first due date
+// ("YYYY-MM-DD" → 1–31). Stored so monthly rollover can re-anchor each month
+// instead of drifting after a short month. Null for non-parseable dates.
+function anchorDayFromDate(dateStr) {
+  const day = parseInt(String(dateStr || '').slice(8, 10), 10)
+  return Number.isFinite(day) && day >= 1 && day <= 31 ? day : null
+}
+
 export async function addRecurring(userId, { amount, category, note, frequency, next_due, account_id = null }) {
   const database = await getDB()
   const newId = id()
   const ts = now()
   await runWithRetry(database,
-    `INSERT INTO recurring_expenses (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, null, 1, ?, ?, ?)`,
-    [newId, userId, amount, category, note || null, frequency, next_due, account_id, ts, ts]
+    `INSERT INTO recurring_expenses (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, anchor_day, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, null, 1, ?, ?, ?, ?)`,
+    [newId, userId, amount, category, note || null, frequency, next_due, account_id, anchorDayFromDate(next_due), ts, ts]
   )
   return newId
 }
@@ -384,13 +409,14 @@ export async function updateRecurringAfterLog(id, nextDue, lastLogged) {
 export async function processRecurringExpenseItemAtomic(userId, item, todayStr, calculateNextDue) {
   const database = await getDB()
   let logged = 0
+  const anchorDay = item.anchor_day || anchorDayFromDate(item.next_due)
   await database.withTransactionAsync(async () => {
     let currentDue = item.next_due
     let lastLogged = item.last_logged
 
     while (currentDue <= todayStr) {
       if (lastLogged === currentDue) {
-        currentDue = calculateNextDue(currentDue, item.frequency)
+        currentDue = calculateNextDue(currentDue, item.frequency, anchorDay)
         continue
       }
 
@@ -409,7 +435,7 @@ export async function processRecurringExpenseItemAtomic(userId, item, todayStr, 
       }
 
       lastLogged = currentDue
-      currentDue = calculateNextDue(currentDue, item.frequency)
+      currentDue = calculateNextDue(currentDue, item.frequency, anchorDay)
       logged++
     }
 
@@ -632,29 +658,15 @@ export async function updateIncome(id, { amount, category, note, date, account_i
     if (existing) {
       if (existing.account_id && existing.account_id !== newAccountId) {
         // Account changed — reverse the old account's credit entirely
-        await runWithRetry(database,
-          `UPDATE accounts SET balance = balance - ?, updated_at = ? WHERE id = ?`,
-          [existing.amount, now(), existing.account_id]
-        )
+        await adjustAccountBalanceIfExists(database, existing.account_id, -existing.amount)
         if (newAccountId) {
-          await runWithRetry(database,
-            `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
-            [amount, now(), newAccountId]
-          )
+          await adjustAccountBalanceIfExists(database, newAccountId, amount)
         }
       } else if (existing.account_id && existing.account_id === newAccountId) {
         const delta = amount - existing.amount
-        if (delta !== 0) {
-          await runWithRetry(database,
-            `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
-            [delta, now(), newAccountId]
-          )
-        }
+        await adjustAccountBalanceIfExists(database, newAccountId, delta)
       } else if (!existing.account_id && newAccountId) {
-        await runWithRetry(database,
-          `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
-          [amount, now(), newAccountId]
-        )
+        await adjustAccountBalanceIfExists(database, newAccountId, amount)
       }
     }
   })
@@ -762,9 +774,9 @@ export async function addRecurringIncome(userId, { amount, category, note, frequ
   const newId = id()
   const ts = now()
   await runWithRetry(database,
-    `INSERT INTO recurring_income (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, null, 1, ?, ?, ?)`,
-    [newId, userId, amount, category, note || null, frequency, next_due, account_id, ts, ts]
+    `INSERT INTO recurring_income (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, anchor_day, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, null, 1, ?, ?, ?, ?)`,
+    [newId, userId, amount, category, note || null, frequency, next_due, account_id, anchorDayFromDate(next_due), ts, ts]
   )
   return newId
 }
@@ -797,13 +809,14 @@ export async function updateRecurringIncomeAfterLog(id, nextDue, lastLogged) {
 export async function processRecurringIncomeItemAtomic(userId, item, todayStr, calculateNextDue) {
   const database = await getDB()
   let logged = 0
+  const anchorDay = item.anchor_day || anchorDayFromDate(item.next_due)
   await database.withTransactionAsync(async () => {
     let currentDue = item.next_due
     let lastLogged = item.last_logged
 
     while (currentDue <= todayStr) {
       if (lastLogged === currentDue) {
-        currentDue = calculateNextDue(currentDue, item.frequency)
+        currentDue = calculateNextDue(currentDue, item.frequency, anchorDay)
         continue
       }
 
@@ -822,7 +835,7 @@ export async function processRecurringIncomeItemAtomic(userId, item, todayStr, c
       }
 
       lastLogged = currentDue
-      currentDue = calculateNextDue(currentDue, item.frequency)
+      currentDue = calculateNextDue(currentDue, item.frequency, anchorDay)
       logged++
     }
 

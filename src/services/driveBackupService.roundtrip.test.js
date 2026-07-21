@@ -155,7 +155,7 @@ function fullDataset() {
       { id: 'b1', user_id: USER, category: 'Food', limit_amount: 500, month: '2026-07', created_at: 't', updated_at: 't' },
     ],
     recurring: [
-      { id: 'r1', user_id: USER, amount: 9.99, category: 'Subscriptions', note: 'music', frequency: 'monthly', next_due: '2026-08-01', last_logged: '2026-07-01', is_active: 1, account_id: 'a1', created_at: 't', updated_at: 't' },
+      { id: 'r1', user_id: USER, amount: 9.99, category: 'Subscriptions', note: 'music', frequency: 'monthly', next_due: '2026-08-01', last_logged: '2026-07-01', is_active: 1, account_id: 'a1', anchor_day: 1, created_at: 't', updated_at: 't' },
     ],
     goals: [
       { id: 'g1', user_id: USER, title: 'Emergency fund', target_amount: 10000, current_amount: 2500, deadline: '2026-12-31', created_at: 't', updated_at: 't' },
@@ -171,7 +171,7 @@ function fullDataset() {
       { id: 't1', user_id: USER, from_account_id: 'a1', to_account_id: 'a2', amount: 200, note: 'save', date: '2026-07-03', created_at: 't', updated_at: 't' },
     ],
     recurringIncome: [
-      { id: 'ri1', user_id: USER, amount: 3000, category: 'Salary', note: null, frequency: 'monthly', next_due: '2026-08-01', last_logged: '2026-07-01', is_active: 1, account_id: 'a1', created_at: 't', updated_at: 't' },
+      { id: 'ri1', user_id: USER, amount: 3000, category: 'Salary', note: null, frequency: 'monthly', next_due: '2026-08-01', last_logged: '2026-07-01', is_active: 1, account_id: 'a1', anchor_day: 1, created_at: 't', updated_at: 't' },
     ],
   }
 }
@@ -270,6 +270,19 @@ describe('backup → restore round trip', () => {
     expect(dump.expenses.map(e => e.id)).toEqual(['e9'])
     // Other tables emptied because the backup omitted them and restore wipes first.
     expect(dump.accounts).toEqual([])
+  })
+
+  it('backfills anchor_day from next_due when a legacy backup omits it', async () => {
+    // Backups made before the anchor_day column existed carry no such field.
+    // Restore must derive it from the day-of-month of next_due so month-end
+    // recurring rules stop drifting after the upgrade.
+    await restoreAllDataToSQLite(USER, {
+      recurring: [{ id: 'r9', amount: 5, category: 'Rent', frequency: 'monthly', next_due: '2026-08-31' }],
+      recurringIncome: [{ id: 'ri9', amount: 5, category: 'Salary', frequency: 'monthly', next_due: '2026-08-29' }],
+    })
+    const dump = await getAllDataFromSQLite(USER)
+    expect(dump.recurring.find(r => r.id === 'r9').anchor_day).toBe(31)
+    expect(dump.recurringIncome.find(r => r.id === 'ri9').anchor_day).toBe(29)
   })
 
   it('does not touch another user\'s rows', async () => {

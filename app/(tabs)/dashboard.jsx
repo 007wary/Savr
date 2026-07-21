@@ -31,9 +31,12 @@ function CountUp({ value, style, symbol, currencyCode }) {
       step++
       current += increment
       if (step >= steps) { current = end; clearInterval(timer) }
+      // Track the value actually on screen so that if `value` changes again
+      // mid-animation, the next run starts from where the number visually is
+      // rather than jumping to the previous target.
+      prev.current = current
       setDisplay(current)
     }, duration / steps)
-    prev.current = end
     return () => clearInterval(timer)
   }, [value])
   return (

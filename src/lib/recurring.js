@@ -31,12 +31,18 @@ export async function processDueRecurring(userId) {
   }
 }
 
-export function calculateNextDue(currentDue, frequency) {
+// `anchorDay` (optional, 1–31) is the original day-of-month the monthly series
+// was created on. When supplied, each month is computed from that anchor rather
+// than from the previous (possibly clamped) due date, so a rule set on the 31st
+// lands on Feb 28 but then returns to Mar 31 / Apr 30 instead of permanently
+// drifting back to the 28th. Omit it (or pass a non-monthly frequency) to keep
+// the legacy "advance from currentDue" behaviour.
+export function calculateNextDue(currentDue, frequency, anchorDay = null) {
   const next = new Date(currentDue + 'T00:00:00')
   if (frequency === 'daily') next.setDate(next.getDate() + 1)
   else if (frequency === 'weekly') next.setDate(next.getDate() + 7)
   else if (frequency === 'monthly') {
-    const day = next.getDate()
+    const day = anchorDay || next.getDate()
     next.setDate(1)
     next.setMonth(next.getMonth() + 1)
     const daysInTargetMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()

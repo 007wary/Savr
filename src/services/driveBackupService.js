@@ -19,6 +19,13 @@ function backupPayloadHasRows(data) {
   return Object.values(data).some((v) => Array.isArray(v) && v.length > 0)
 }
 
+// Day-of-month (1–31) parsed from a "YYYY-MM-DD" string, used to backfill
+// anchor_day for recurring rows from backups made before the column existed.
+function anchorDayFromDate(dateStr) {
+  const day = parseInt(String(dateStr || '').slice(8, 10), 10)
+  return Number.isFinite(day) && day >= 1 && day <= 31 ? day : null
+}
+
 async function getAccessToken() {
   try {
     const [tokenTime, storedToken] = await Promise.all([
@@ -61,8 +68,9 @@ async function verifyToken(accessToken) {
 
 async function getOrCreateFolder(accessToken) {
   try {
+    const folderQuery = `name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`
     const searchResponse = await fetch(
-      `${DRIVE_API_BASE}/files?q=name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`,
+      `${DRIVE_API_BASE}/files?q=${encodeURIComponent(folderQuery)}&fields=files(id,name)`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
     const searchData = await searchResponse.json()
@@ -181,9 +189,9 @@ async function writeAllDataToSQLite(db, userId, data, now) {
 
   for (const r of (data.recurring || [])) {
     await db.runAsync(
-      `INSERT OR REPLACE INTO recurring_expenses (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [r.id, userId, r.amount, r.category, r.note, r.frequency, r.next_due, r.last_logged, r.is_active ?? 1, r.account_id || null, r.created_at || now, r.updated_at || now]
+      `INSERT OR REPLACE INTO recurring_expenses (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, anchor_day, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [r.id, userId, r.amount, r.category, r.note, r.frequency, r.next_due, r.last_logged, r.is_active ?? 1, r.account_id || null, r.anchor_day ?? anchorDayFromDate(r.next_due), r.created_at || now, r.updated_at || now]
     )
   }
 
@@ -221,9 +229,9 @@ async function writeAllDataToSQLite(db, userId, data, now) {
 
   for (const ri of (data.recurringIncome || [])) {
     await db.runAsync(
-      `INSERT OR REPLACE INTO recurring_income (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [ri.id, userId, ri.amount, ri.category, ri.note, ri.frequency, ri.next_due, ri.last_logged, ri.is_active ?? 1, ri.account_id || null, ri.created_at || now, ri.updated_at || now]
+      `INSERT OR REPLACE INTO recurring_income (id, user_id, amount, category, note, frequency, next_due, last_logged, is_active, account_id, anchor_day, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [ri.id, userId, ri.amount, ri.category, ri.note, ri.frequency, ri.next_due, ri.last_logged, ri.is_active ?? 1, ri.account_id || null, ri.anchor_day ?? anchorDayFromDate(ri.next_due), ri.created_at || now, ri.updated_at || now]
     )
   }
 }

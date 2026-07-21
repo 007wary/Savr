@@ -38,4 +38,29 @@ describe('calculateNextDue', () => {
     expect(calculateNextDue('2027-02-28', 'daily')).toBe('2027-03-01')
     expect(calculateNextDue('2028-02-28', 'daily')).toBe('2028-02-29')
   })
+
+  describe('with an anchor day (no month-end drift)', () => {
+    it('re-anchors to the 31st after a short month instead of drifting', () => {
+      // Jan 31 → Feb 28 (clamped) → but next month returns to Mar 31, not Mar 28.
+      expect(calculateNextDue('2026-01-31', 'monthly', 31)).toBe('2026-02-28')
+      expect(calculateNextDue('2026-02-28', 'monthly', 31)).toBe('2026-03-31')
+      expect(calculateNextDue('2026-03-31', 'monthly', 31)).toBe('2026-04-30')
+      expect(calculateNextDue('2026-04-30', 'monthly', 31)).toBe('2026-05-31')
+    })
+
+    it('re-anchors to the 29th/30th correctly across February', () => {
+      expect(calculateNextDue('2026-01-30', 'monthly', 30)).toBe('2026-02-28')
+      expect(calculateNextDue('2026-02-28', 'monthly', 30)).toBe('2026-03-30')
+      expect(calculateNextDue('2028-01-29', 'monthly', 29)).toBe('2028-02-29') // leap
+    })
+
+    it('leaves mid-month anchors unchanged', () => {
+      expect(calculateNextDue('2026-07-15', 'monthly', 15)).toBe('2026-08-15')
+    })
+
+    it('ignores the anchor for daily/weekly frequencies', () => {
+      expect(calculateNextDue('2026-07-01', 'daily', 31)).toBe('2026-07-02')
+      expect(calculateNextDue('2026-07-01', 'weekly', 31)).toBe('2026-07-08')
+    })
+  })
 })

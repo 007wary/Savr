@@ -1,4 +1,4 @@
-import { roundMoney } from './currency'
+import { roundMoney, formatAmount } from './currency'
 
 describe('roundMoney', () => {
   it('corrects binary floating-point drift', () => {
@@ -23,5 +23,17 @@ describe('roundMoney', () => {
 
   it('handles negative amounts', () => {
     expect(roundMoney(-5.005)).toBe(-5)
+  })
+})
+
+describe('formatAmount', () => {
+  it('formats a normal amount with symbol', () => {
+    expect(formatAmount(1234.5, '$', 'USD')).toBe('$1,234.50')
+  })
+
+  it('never renders NaN for non-numeric input', () => {
+    expect(formatAmount('abc', '$', 'USD')).toBe('$0.00')
+    expect(formatAmount(undefined, '$', 'USD')).toBe('$0.00')
+    expect(formatAmount(null, '$', 'USD')).toBe('$0.00')
   })
 })

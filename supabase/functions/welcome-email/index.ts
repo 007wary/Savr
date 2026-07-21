@@ -40,9 +40,9 @@ serve(async (req) => {
     const payload = await req.json()
     const record = payload.record
     const email = record?.email
-    const name = record?.full_name || ''
+    const name = typeof record?.full_name === 'string' ? record.full_name : ''
 
-    if (!email) {
+    if (!email || typeof email !== 'string') {
       return new Response('No email found', { status: 400 })
     }
 
