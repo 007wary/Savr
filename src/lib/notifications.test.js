@@ -7,8 +7,22 @@ jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
   getPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ status: 'granted' })),
-  scheduleNotificationAsync: jest.fn(() => Promise.resolve('id')),
+  // Mirror the real parseTrigger validation: a non-null trigger must carry a
+  // `type` (or `channelId`), else the SDK throws. Enforcing it here means a
+  // legacy { hour, minute, repeats } trigger fails the test instead of silently
+  // no-op'ing at runtime — the exact gap that hid the streak-reminder bug.
+  scheduleNotificationAsync: jest.fn((req) => {
+    const t = req?.trigger
+    if (t !== null && t !== undefined && !('type' in t || 'channelId' in t)) {
+      return Promise.reject(new TypeError('invalid trigger: missing type/channelId'))
+    }
+    return Promise.resolve('id')
+  }),
   cancelScheduledNotificationAsync: jest.fn(() => Promise.resolve()),
+  setNotificationChannelAsync: jest.fn(() => Promise.resolve()),
+  SchedulableTriggerInputTypes: { DAILY: 'daily' },
+  AndroidImportance: { HIGH: 6 },
+  AndroidNotificationVisibility: { PUBLIC: 1 },
 }))
 jest.mock('./currency', () => ({
   getCurrencySymbol: () => Promise.resolve('₹'),
@@ -17,7 +31,7 @@ jest.mock('./currency', () => ({
 
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import * as Notifications from 'expo-notifications'
-import { checkForecastNudge, resolveNotificationTap, FORECAST_NUDGE_KEY } from './notifications'
+import { checkForecastNudge, resolveNotificationTap, scheduleStreakReminder, FORECAST_NUDGE_KEY } from './notifications'
 
 const scheduleMock = Notifications.scheduleNotificationAsync
 
@@ -89,4 +103,15 @@ it('fires only once per month', async () => {
 it('does nothing with a null forecast', async () => {
   await checkForecastNudge(null, '2026-06')
   expect(scheduleMock).not.toHaveBeenCalled()
+})
+
+describe('scheduleStreakReminder', () => {
+  it('schedules a daily reminder with a valid typed trigger', async () => {
+    await scheduleStreakReminder(3)
+    expect(scheduleMock).toHaveBeenCalledTimes(1)
+    const { trigger } = scheduleMock.mock.calls[0][0]
+    // A bare { hour, minute, repeats } would reject in the mock (as it throws
+    // in the real SDK) — assert the trigger is a well-formed DAILY trigger.
+    expect(trigger).toMatchObject({ type: 'daily', hour: 21, minute: 0 })
+  })
 })

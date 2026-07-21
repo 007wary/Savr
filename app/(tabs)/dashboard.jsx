@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getExpenses, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal, getAccountsTotal, getTodayIncomeTotal, getBudgets } from '../../src/services/sqliteService'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
+import { signalFirstPaint } from '../../src/lib/splashSignal'
 
 function CountUp({ value, style, symbol, currencyCode }) {
   const [display, setDisplay] = useState(0)
@@ -553,7 +554,7 @@ const isCurrentMonth = true
   const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
 
   return (
-    <View style={styles.outerContainer}>
+    <View style={styles.outerContainer} onLayout={signalFirstPaint}>
       <View style={styles.header}>
         <Text style={styles.brandText}>Savr</Text>
         <View style={styles.avatarBtn}>

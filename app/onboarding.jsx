@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useTheme } from '../src/lib/themeContext'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { signalFirstPaint } from '../src/lib/splashSignal'
 
 const { width } = Dimensions.get('window')
 
@@ -121,7 +122,7 @@ export default function Onboarding() {
   }), [COLORS])
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={signalFirstPaint}>
       <StatusBar barStyle="light-content" />
 
       {/* Skip button */}

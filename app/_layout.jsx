@@ -19,6 +19,7 @@ import { isSigningIn, subscribeSigningIn, setSigningIn } from '../src/lib/authSt
 import * as NavigationBar from 'expo-navigation-bar'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
 import { logError } from '../src/lib/errorLog'
+import { onFirstPaint } from '../src/lib/splashSignal'
 
 SplashScreen.preventAutoHideAsync()
 
@@ -213,7 +214,11 @@ if (user) {
 }, 5000)
 
 setTimeout(() => {
-  import('../src/lib/notifications').then(({ scheduleStreakReminder }) => {
+  import('../src/lib/notifications').then(async ({ ensureAndroidChannel, scheduleStreakReminder }) => {
+    // Channel must exist before anything schedules against it (streak reminder
+    // here, budget alerts from the dashboard) or those notifications fall back
+    // to the OS default channel.
+    await ensureAndroidChannel()
     scheduleStreakReminder(0).catch(() => {})
   }).catch(() => {})
 }, 6000)
@@ -455,14 +460,38 @@ try {
 
   const gateOpen = (session === undefined || onboardingDone === undefined || transitioning) && !watchdogTripped
 
-  // Keep the native splash up until the gate closes and the real navigator is
-  // about to paint, THEN hide it. Hiding earlier (the moment `session` resolved)
-  // exposed the blank gate View while onboarding/transition/first-paint were
-  // still pending — that gap, rendered in the theme bg (white in light mode),
-  // was the white flash after the logo splash. Tying the hide to real UI means
-  // the native splash hands directly off to the mounted app.
+  // Keep the native splash up until the gate closes AND the first real screen
+  // has actually painted, THEN hide it.
+  //
+  // Hiding the instant `gateOpen` flips false is too early: that state change and
+  // this effect run on the same commit the <Stack> first mounts, but expo-router
+  // still needs a frame or two to resolve the route and paint the child screen.
+  // In that gap the splash is already gone and the mounted-but-empty Stack shows
+  // its `contentStyle` background (COLORS.bg) — white in light mode, dark in dark
+  // mode. THAT theme-colored empty frame is the launch flash.
+  //
+  // The guarantee: the entry screen (dashboard / login / onboarding) calls
+  // signalFirstPaint() from its own onLayout, so we hide only once content has
+  // actually laid out — not on a guessed delay. Whichever entry screen the gate
+  // lands on is instrumented, so on every real launch the paint signal is what
+  // fires. A long fallback timeout only exists so an un-instrumented route (or
+  // an error screen) can never strand the splash up forever; it's deliberately
+  // generous so real paint always wins first on a normal launch — a short/RAF
+  // fallback would race the screen on a slow device and re-expose the flash.
   useEffect(() => {
-    if (!gateOpen) SplashScreen.hideAsync().catch(() => {})
+    if (gateOpen) return
+    let done = false
+    const hide = () => {
+      if (done) return
+      done = true
+      SplashScreen.hideAsync().catch(() => {})
+    }
+    const unsub = onFirstPaint(hide)
+    const fallback = setTimeout(hide, 3000)
+    return () => {
+      unsub()
+      clearTimeout(fallback)
+    }
   }, [gateOpen])
 
   if (gateOpen) {

@@ -24,6 +24,30 @@ if (Platform.OS !== 'web') {
 })
 }
 
+// Single high-importance Android channel that every notification — local alerts
+// AND server promo pushes — routes through. Without an explicit channel, Android
+// 8+ dumps everything into an OS-created default whose importance we don't
+// control, so `sound: true` / heads-up banners silently don't happen. Promos
+// only honor this if the FCM payload sets `android.notification.channel_id` to
+// this same id. Call once at startup; creating a channel that exists is a no-op.
+export const ANDROID_CHANNEL_ID = 'savr-default'
+
+export async function ensureAndroidChannel() {
+  if (Platform.OS !== 'android') return
+  try {
+    await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
+      name: 'Reminders & Alerts',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+      // Keep spend figures visible on the lock screen — they're not secrets to
+      // the device owner, and a redacted alert is useless as a budget nudge.
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    })
+  } catch {
+    // Best-effort — a failed channel create just falls back to the OS default.
+  }
+}
+
 export async function requestNotificationPermission() {
   try {
     const { status: existing } = await Notifications.getPermissionsAsync()
@@ -50,7 +74,7 @@ async function sendNotification(title, body) {
     if (!granted) return
     await Notifications.scheduleNotificationAsync({
       content: { title, body, sound: true },
-      trigger: null,
+      trigger: Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : null,
     })
   } catch {
     // Silently fail
@@ -143,7 +167,7 @@ export async function checkForecastNudge(forecast, currentMonth) {
         sound: true,
         data: { type: 'forecast_nudge' },
       },
-      trigger: null,
+      trigger: Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : null,
     })
     Analytics.forecastNudgeSent()
     await AsyncStorage.setItem(FORECAST_NOTIF_KEY, currentMonth)
@@ -189,7 +213,15 @@ export async function scheduleStreakReminder(streak = 0) {
 
     const id = await Notifications.scheduleNotificationAsync({
       content: { title, body, sound: true, data: { type: 'streak_reminder' } },
-      trigger: { hour: 21, minute: 0, repeats: true },
+      // Must carry an explicit `type` — expo-notifications >=0.29 rejects a bare
+      // { hour, minute, repeats } object (throws in parseTrigger), which the
+      // empty catch below would swallow, silently never scheduling anything.
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DAILY,
+        hour: 21,
+        minute: 0,
+        ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : {}),
+      },
     })
 
     await AsyncStorage.setItem(DAILY_REMINDER_ID_KEY, id)

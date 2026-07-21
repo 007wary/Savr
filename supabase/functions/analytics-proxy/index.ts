@@ -153,7 +153,11 @@ Deno.serve(async (req) => {
               message: {
                 token,
                 notification: { title, body },
-                android: { priority: 'high' }
+                // Route promos through the same high-importance channel the app
+                // creates (see ensureAndroidChannel in src/lib/notifications.js).
+                // Without a matching channel_id the OS bins these in its default
+                // channel and priority:'high' won't produce a heads-up banner.
+                android: { priority: 'high', notification: { channel_id: 'savr-default' } }
               }
             })
           }

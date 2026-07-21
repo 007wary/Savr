@@ -13,6 +13,7 @@ import useAlert from '../../src/hooks/useAlert'
 import { Ionicons } from '@expo/vector-icons'
 import { useRouter } from 'expo-router'
 import { setSigningIn } from '../../src/lib/authState'
+import { signalFirstPaint } from '../../src/lib/splashSignal'
 
 export default function Login() {
   const { COLORS } = useTheme()
@@ -121,7 +122,7 @@ export default function Login() {
   }), [COLORS])
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} onLayout={signalFirstPaint}>
       <View style={styles.inner}>
         <View style={styles.logoSection}>
           <Text style={styles.logoText}>Savr</Text>
