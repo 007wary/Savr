@@ -273,6 +273,25 @@ export async function deleteExpense(id) {
   await runWithRetry(database,`DELETE FROM expenses WHERE id = ?`, [id])
 }
 
+// Deletes an expense and restores the debit to its account atomically, so the
+// balance can't drift if a caller forgets to reverse it (addExpense debits the
+// account, so deleting must credit it back by the same amount).
+export async function deleteExpenseAtomic(id) {
+  const database = await getDB()
+  await database.withTransactionAsync(async () => {
+    const existing = await database.getFirstAsync(
+      `SELECT amount, account_id FROM expenses WHERE id = ?`, [id]
+    )
+    await runWithRetry(database, `DELETE FROM expenses WHERE id = ?`, [id])
+    if (existing?.account_id) {
+      await runWithRetry(database,
+        `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+        [existing.amount, now(), existing.account_id]
+      )
+    }
+  })
+}
+
 export async function getExpenseSummary(userId, month) {
   const database = await getDB()
   return await database.getAllAsync(
@@ -646,6 +665,24 @@ export async function deleteIncome(id) {
   await runWithRetry(database,`DELETE FROM income WHERE id = ?`, [id])
 }
 
+// Deletes an income row and reverses the credit to its account atomically
+// (addIncome credits the account, so deleting must debit it back).
+export async function deleteIncomeAtomic(id) {
+  const database = await getDB()
+  await database.withTransactionAsync(async () => {
+    const existing = await database.getFirstAsync(
+      `SELECT amount, account_id FROM income WHERE id = ?`, [id]
+    )
+    await runWithRetry(database, `DELETE FROM income WHERE id = ?`, [id])
+    if (existing?.account_id) {
+      await runWithRetry(database,
+        `UPDATE accounts SET balance = balance - ?, updated_at = ? WHERE id = ?`,
+        [existing.amount, now(), existing.account_id]
+      )
+    }
+  })
+}
+
 // ─── TRANSFERS ──────────────────────────────────────────────
 export async function addTransfer(userId, { from_account_id, to_account_id, amount, note, date }) {
   const database = await getDB()
@@ -692,6 +729,31 @@ export async function getTransfers(userId) {
 export async function deleteTransfer(id) {
   const database = await getDB()
   await runWithRetry(database, `DELETE FROM transfers WHERE id = ?`, [id])
+}
+
+// Deletes a transfer and reverses both legs atomically (a transfer debits the
+// from-account and credits the to-account, so deleting credits back the from
+// and debits back the to).
+export async function deleteTransferAtomic(id) {
+  const database = await getDB()
+  await database.withTransactionAsync(async () => {
+    const existing = await database.getFirstAsync(
+      `SELECT from_account_id, to_account_id, amount FROM transfers WHERE id = ?`, [id]
+    )
+    await runWithRetry(database, `DELETE FROM transfers WHERE id = ?`, [id])
+    if (existing?.from_account_id) {
+      await runWithRetry(database,
+        `UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?`,
+        [existing.amount, now(), existing.from_account_id]
+      )
+    }
+    if (existing?.to_account_id) {
+      await runWithRetry(database,
+        `UPDATE accounts SET balance = balance - ?, updated_at = ? WHERE id = ?`,
+        [existing.amount, now(), existing.to_account_id]
+      )
+    }
+  })
 }
 
 // ─── RECURRING INCOME ───────────────────────────────────────

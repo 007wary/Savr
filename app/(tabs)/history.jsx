@@ -19,7 +19,7 @@ import * as Sharing from 'expo-sharing'
 import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { getExpenses, updateExpense, deleteExpense, deleteRecurring, getRecurring, getIncome, deleteIncome, getTransfers, deleteTransfer, getAccounts, updateAccountBalance } from '../../src/services/sqliteService'
+import { getExpenses, updateExpense, deleteExpenseAtomic, deleteRecurring, getRecurring, getIncome, deleteIncomeAtomic, getTransfers, deleteTransferAtomic, getAccounts } from '../../src/services/sqliteService'
 import { scheduleBackup } from '../../src/services/backgroundBackup'
 
 const CACHE_KEY = 'savr_cache_history'
@@ -190,23 +190,17 @@ export default function History() {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
           const updated = (expenses || []).filter(e => e.id !== id)
+          const deletedItem = (expenses || []).find(e => e.id === id)
+
+          // Phase 1 — the durable DB delete. This is the point of no return.
+          // If it throws, nothing was removed, so leave the UI/caches untouched.
           try {
-            const deletedItem = (expenses || []).find(e => e.id === id)
             if (type === 'income') {
-              await deleteIncome(id)
-              if (deletedItem?.account_id) {
-                await updateAccountBalance(deletedItem.account_id, -deletedItem.amount)
-              }
+              await deleteIncomeAtomic(id)
             } else if (type === 'transfer') {
-              await deleteTransfer(id)
-              if (deletedItem?.from_account_id) {
-                await updateAccountBalance(deletedItem.from_account_id, deletedItem.amount)
-              }
-              if (deletedItem?.to_account_id) {
-                await updateAccountBalance(deletedItem.to_account_id, -deletedItem.amount)
-              }
+              await deleteTransferAtomic(id)
             } else {
-              await deleteExpense(id)
+              await deleteExpenseAtomic(id)
               if (deletedItem?.recurring_id) {
                 await deleteRecurring(deletedItem.recurring_id).catch(() => {})
               } else if (deletedItem?.is_recurring) {
@@ -224,20 +218,39 @@ export default function History() {
                 }
               }
             }
-            setExpenses(updated)
+          } catch {
+            // DB delete failed — row is intact. Restore the visible list and bail
+            // without touching any cache, so nothing goes out of sync.
+            setExpenses(expenses)
+            await saveCache(CACHE_KEY, expenses).catch(() => {})
+            return
+          }
+
+          // Phase 2 — the row is gone for good, so the UI must reflect that even
+          // if a cache write fails. Never revert here (that would resurrect an
+          // already-deleted item as a "phantom"); on failure, clear the caches
+          // that couldn't be updated so they rebuild from the DB on next load.
+          setExpenses(updated)
+          try {
             await saveCache(CACHE_KEY, updated)
             await updateDashboardCache(updated)
             const now = new Date()
             const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
             await clearCache(`savr_cache_budgets_${currentMonth}`)
             await clearCache(`savr_cache_reports_${currentMonth}`)
-
-            await AsyncStorage.removeItem('savr_last_backup_count')
-            scheduleBackup()
           } catch {
-            setExpenses(expenses)
-            await saveCache(CACHE_KEY, expenses)
+            const now = new Date()
+            const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+            await Promise.all([
+              clearCache(CACHE_KEY),
+              clearCache(`savr_cache_dashboard_${currentMonth}`),
+              clearCache(`savr_cache_budgets_${currentMonth}`),
+              clearCache(`savr_cache_reports_${currentMonth}`),
+            ].map(p => p.catch(() => {})))
           }
+
+          await AsyncStorage.removeItem('savr_last_backup_count').catch(() => {})
+          scheduleBackup()
         }
       }
     ])
