@@ -22,6 +22,7 @@ import { getUser, getCachedUser, clearUserCache } from '../src/lib/auth'
 import { saveCache, loadCache, clearCache } from '../src/lib/cache'
 import { checkBackupExists } from '../src/services/driveBackupService'
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { openLegalDoc } from '../src/lib/legalViewer'
 
 const APP_VERSION = Constants.expoConfig?.version || '1.0'
 const CACHE_KEY = 'savr_cache_settings'
@@ -512,7 +513,7 @@ if (avatar) {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => router.push({ pathname: '/webview', params: { type: 'privacy', title: 'Privacy Policy' } })}
+          onPress={() => openLegalDoc('privacy').catch(() => {})}
         >
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#5B9BD522' }]}>
@@ -527,7 +528,7 @@ if (avatar) {
 
         <TouchableOpacity
           style={styles.row}
-          onPress={() => router.push({ pathname: '/webview', params: { type: 'terms', title: 'Terms of Service' } })}
+          onPress={() => openLegalDoc('terms').catch(() => {})}
         >
           <View style={styles.rowLeft}>
             <View style={[styles.rowIcon, { backgroundColor: '#88888822' }]}>

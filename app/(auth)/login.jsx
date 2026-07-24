@@ -11,16 +11,15 @@ import { useTheme } from '../../src/lib/themeContext'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { Ionicons } from '@expo/vector-icons'
-import { useRouter } from 'expo-router'
 import { setSigningIn } from '../../src/lib/authState'
 import { signalFirstPaint } from '../../src/lib/splashSignal'
+import { openLegalDoc } from '../../src/lib/legalViewer'
 
 export default function Login() {
   const { COLORS } = useTheme()
   const [googleLoading, setGoogleLoading] = useState(false)
   const [accepted, setAccepted] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
-  const router = useRouter()
 
   async function handleGoogleLogin() {
     if (!accepted) {
@@ -62,11 +61,11 @@ export default function Login() {
   }
 
   function openPrivacyPolicy() {
-    router.push({ pathname: '/webview', params: { type: 'privacy', title: 'Privacy Policy' } })
+    openLegalDoc('privacy').catch(() => {})
   }
 
   function openTerms() {
-    router.push({ pathname: '/webview', params: { type: 'terms', title: 'Terms of Service' } })
+    openLegalDoc('terms').catch(() => {})
   }
 
   const styles = useMemo(() => StyleSheet.create({
