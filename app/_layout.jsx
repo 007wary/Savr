@@ -419,6 +419,14 @@ try {
     const inOnboarding = segments[0] === 'onboarding'
     const inAuth = segments[0] === '(auth)'
     const inTabs = segments[0] === '(tabs)'
+    // True only for the bare initial route (segments[0] is 'index' or
+    // unresolved) — NOT "any segment that isn't onboarding/auth/tabs". Other
+    // top-level screens (settings, recurring, backup, manage-data) are none
+    // of onboarding/auth/tabs either, but they're legitimate destinations,
+    // not the stray landing route. Conflating the two sent every navigation
+    // to a top-level screen straight back to dashboard the instant it
+    // mounted — a real regression, not a bounce race.
+    const onBareIndex = !segments[0] || segments[0] === 'index'
 
     if (!onboardingDone && !inOnboarding && session) {
       AsyncStorage.getItem('savr_onboarding_done').then(done => {
@@ -441,7 +449,7 @@ try {
         return
       }
       if (!session && inAuth) return
-      if (!session && !inAuth && !inOnboarding && !signingIn) {
+      if (!session && onBareIndex && !signingIn) {
         router.replace('/(auth)/login')
         return
       }
@@ -457,7 +465,13 @@ try {
       // window. (The logged-out equivalent is handled below, outside this
       // onboardingDone block, since a logged-out user belongs on login
       // regardless of onboarding state.)
-      if (session && !inOnboarding && !inAuth && !inTabs) {
+      //
+      // Gated on onBareIndex, NOT "any unmatched segment" — settings,
+      // recurring, backup, and manage-data are also top-level screens that
+      // match none of onboarding/auth/tabs, and are legitimate navigation
+      // targets. The broader check sent every tap into one of those screens
+      // straight back to dashboard the instant it mounted.
+      if (session && onBareIndex) {
         router.replace('/(tabs)/dashboard')
         return
       }
@@ -466,11 +480,11 @@ try {
     // Landed on the bare index route with no session — including when
     // onboarding isn't done yet, e.g. a fresh install before first login.
     // Onboarding-gating (above) only applies once a session exists, so a
-    // logged-out user on an unmatched segment always belongs on login.
+    // logged-out user on the bare index route always belongs on login.
     // Without this, index.jsx rendering blank (instead of its old hardcoded
     // Redirect to login) left this exact case with no navigation at all —
     // a permanently blank launch.
-    if (!session && !inOnboarding && !inAuth && !inTabs) {
+    if (!session && onBareIndex) {
       router.replace('/(auth)/login')
     }
   }, [session, segments, onboardingDone, signingIn, router])
