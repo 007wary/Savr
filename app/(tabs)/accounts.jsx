@@ -13,6 +13,7 @@ import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import { formatAmount, getCurrencySymbol, loadCurrency } from '../../src/lib/currency'
+import { logError } from '../../src/lib/errorLog'
 import { getAccounts, addAccount, updateAccount, deleteAccount } from '../../src/services/sqliteService'
 import { clearCache } from '../../src/lib/cache'
 import { monthKey } from '../../src/lib/dateUtils'
@@ -131,7 +132,8 @@ export default function Accounts() {
         }])
       }
       setShowSheet(false)
-    } catch {
+    } catch (e) {
+      logError('accounts.saveAccount', e)
       showAlert('Error', 'Could not save account. Please try again.')
     } finally {
       setSaving(false)

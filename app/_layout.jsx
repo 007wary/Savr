@@ -45,6 +45,7 @@ function RootLayoutInner() {
   const [signingIn, setSigningInState] = useState(isSigningIn())
   const recurringProcessedRef = useRef(false)
   const initialSessionLoadedRef = useRef(false)
+  const signedOutRef = useRef(false)
   const router = useRouter()
   const segments = useSegments()
 
@@ -149,16 +150,19 @@ function RootLayoutInner() {
             crashlytics().setAttribute('email', cachedUser.email || '').catch(() => {})
           }, 4000)
 
-          // Verify and update real session in background
+          // Verify and update real session in background. Guard against a
+          // SIGNED_OUT racing in before this resolves — otherwise a stale
+          // realSession from before the sign-out would silently revive a
+          // logged-out user's session.
           supabase.auth.getSession().then(({ data: { session: realSession } }) => {
-            if (realSession) {
+            if (realSession && !signedOutRef.current) {
               setCachedUser(realSession.user)
               setSession(realSession)
               const expiresAt = realSession.expires_at
               const now = Math.floor(Date.now() / 1000)
               if (expiresAt && expiresAt < now) {
                 supabase.auth.refreshSession().then(({ data: refreshed, error }) => {
-                  if (!error && refreshed.session) {
+                  if (!error && refreshed.session && !signedOutRef.current) {
                     setCachedUser(refreshed.session.user)
                     setSession(refreshed.session)
                   }
@@ -277,6 +281,7 @@ setTimeout(() => {
 
       if (event === 'SIGNED_IN') {
         initialSessionLoadedRef.current = true
+        signedOutRef.current = false
         setTransitioning(true)
         // Clear here, in the same update that sets session, so the redirect
         // effect below always sees session and signingIn flip together.
@@ -338,6 +343,7 @@ setTimeout(async () => {
       }
 
       if (event === 'SIGNED_OUT') {
+        signedOutRef.current = true
         const offlineUser = getCachedUser()
         Analytics.logout()
         await clearAllCache()

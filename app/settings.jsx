@@ -18,6 +18,7 @@ import { saveCurrency, loadCurrency } from '../src/lib/currency'
 import BottomSheet from '../src/components/BottomSheet'
 import { SettingsSkeleton } from '../src/components/SkeletonLoader'
 import CustomAlert from '../src/components/CustomAlert'
+import { logError } from '../src/lib/errorLog'
 import useAlert from '../src/hooks/useAlert'
 import { getUser, getCachedUser, clearUserCache } from '../src/lib/auth'
 import { saveCache, loadCache, clearCache } from '../src/lib/cache'
@@ -95,7 +96,8 @@ if (avatar) {
         if (info?.modifiedTime) setLastBackup(info.modifiedTime)
       }).catch(() => {})
 
-    } catch {
+    } catch (e) {
+      logError('settings.syncFromAuth', e)
     } finally {
       setLoading(false)
     }
@@ -157,7 +159,8 @@ if (avatar) {
       currency,
     })
     showAlert('✅ Saved!', 'Your profile has been updated.')
-    } catch {
+    } catch (e) {
+      logError('settings.saveProfile', e)
       showAlert('Error', 'Failed to save. Please try again.')
     } finally {
       setSaving(false)

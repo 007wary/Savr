@@ -13,6 +13,7 @@ import { getCurrencySymbol, loadCurrency, formatAmount, roundMoney } from '../sr
 import { getUser, getCachedUser } from '../src/lib/auth'
 import CustomAlert from '../src/components/CustomAlert'
 import useAlert from '../src/hooks/useAlert'
+import { logError } from '../src/lib/errorLog'
 import {
   getRecurring, getInactiveRecurring, deleteRecurring, permanentDeleteRecurring,
   getRecurringIncome, getInactiveRecurringIncome, deleteRecurringIncome, permanentDeleteRecurringIncome,
@@ -211,7 +212,8 @@ export default function RecurringScreen() {
         await refreshDashboardCache()
       }
       setEditingId(null)
-    } catch {
+    } catch (e) {
+      logError('recurring.handleSaveEdit', e)
       showAlert('Error', 'Could not save changes.')
     }
   }

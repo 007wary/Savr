@@ -18,6 +18,7 @@ import { getCurrencySymbol, loadCurrency, formatAmount, getQuickAmounts } from '
 import { detectCategoryWithSource, tokenizeNote } from '../../src/lib/categoryDetector'
 import { detectAnomaly } from '../../src/lib/anomalyDetector'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
+import { logError } from '../../src/lib/errorLog'
 import { addExpenseAtomic, addRecurring, addIncomeAtomic, addRecurringIncome, addTransferAtomic, getExpenses, getBudgets, getAccounts, getLearnedCategories, learnCategory } from '../../src/services/sqliteService'
 import { Analytics } from '../../src/lib/analytics'
 import { scheduleBackup } from '../../src/services/backgroundBackup'
@@ -294,7 +295,8 @@ export default function AddExpense() {
         if (!isRecurring) await checkAndRequestReview()
       router.replace('/(tabs)/dashboard')
       }
-    } catch {
+    } catch (e) {
+    logError('add.saveExpense', e)
     showAlert('Error', 'Could not save expense. Please try again.')
   } finally {
       setSubmitting(false)
@@ -349,7 +351,8 @@ export default function AddExpense() {
       if (!isRecurringIncome) await checkAndRequestReview()
       scheduleBackup()
       router.replace('/(tabs)/dashboard')
-    } catch {
+    } catch (e) {
+      logError('add.saveIncome', e)
       showAlert('Error', 'Could not save income. Please try again.')
     } finally {
       setSubmitting(false)
@@ -386,7 +389,8 @@ export default function AddExpense() {
       setTransferDate(new Date())
       scheduleBackup()
       router.replace('/(tabs)/dashboard')
-    } catch {
+    } catch (e) {
+      logError('add.saveTransfer', e)
       showAlert('Error', 'Could not save transfer. Please try again.')
     } finally {
       setSubmitting(false)
