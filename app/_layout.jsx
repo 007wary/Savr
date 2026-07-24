@@ -455,6 +455,17 @@ try {
         router.replace('/(tabs)/dashboard')
         return
       }
+      // Landed on the bare index route (the initial mount, before any segment
+      // matches (auth)/(tabs)/onboarding) — send straight to the real
+      // destination in one hop instead of index.jsx redirecting to login
+      // first and this effect correcting it a beat later. That extra login
+      // mount+unmount was pure waste on every cold launch for the common
+      // case (an already-authenticated, onboarded user), and it happened
+      // to land squarely in the first-paint window.
+      if (!inOnboarding && !inAuth && !inTabs) {
+        router.replace(session ? '/(tabs)/dashboard' : '/(auth)/login')
+        return
+      }
     }
   }, [session, segments, onboardingDone, signingIn, router])
 
