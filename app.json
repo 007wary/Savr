@@ -45,9 +45,11 @@
       [
         "react-native-google-mobile-ads",
         {
-          "androidAppId": "ca-app-pub-6010190127310138~6262367655"
+          "androidAppId": "ca-app-pub-6010190127310138~6262367655",
+          "delayAppMeasurementInit": true
         }
       ],
+      "./plugins/withDisableGmaAutoInit.js",
       "expo-router",
       "expo-notifications",
       "expo-secure-store",
