@@ -6,8 +6,9 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import DateTimePicker from '@react-native-community/datetimepicker'
 import { Ionicons } from '@expo/vector-icons'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useFocusEffect } from 'expo-router'
-import { CATEGORIES, SCREEN } from '../../src/constants/theme'
+import { CATEGORIES } from '../../src/constants/theme'
 import { useTheme } from '../../src/lib/themeContext'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
@@ -42,6 +43,7 @@ const INCOME_CATEGORIES = [
 
 export default function AddExpense() {
   const { COLORS } = useTheme()
+  const insets = useSafeAreaInsets()
   const [activeTab, setActiveTab] = useState('expense')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
@@ -542,7 +544,7 @@ export default function AddExpense() {
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
 
       {/* Back button header */}
-      <View style={[styles.header, { paddingTop: SCREEN.paddingTop }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity onPress={() => router.replace('/(tabs)/dashboard')}>
           <Ionicons name="chevron-back" size={26} color={COLORS.text} />
         </TouchableOpacity>

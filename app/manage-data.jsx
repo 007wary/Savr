@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { SCREEN } from '../src/constants/theme'
 import { useTheme } from '../src/lib/themeContext'
@@ -10,6 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 
 export default function ManageDataScreen() {
   const { COLORS } = useTheme()
+  const insets = useSafeAreaInsets()
   const [lastBackup, setLastBackup] = useState(null)
   const router = useRouter()
 
@@ -35,7 +37,7 @@ ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: tr
   }
 
   const styles = useMemo(() => StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop },
+    container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: insets.top + 8 },
     header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24, paddingHorizontal: SCREEN.paddingHorizontal },
     backBtn: { padding: 4 },
     heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
@@ -46,7 +48,7 @@ ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: tr
     rowTitle: { fontSize: 15, color: COLORS.text, fontWeight: '500' },
     rowSubtitle: { fontSize: 12, color: COLORS.textMuted, marginTop: 1 },
     divider: { height: 1, backgroundColor: COLORS.border },
-  }), [COLORS])
+  }), [COLORS, insets.top])
 
   return (
     <View style={styles.container}>

@@ -2,7 +2,6 @@ import { createContext, useContext, useState, useEffect } from 'react'
 import { useColorScheme } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { LIGHT_COLORS, DARK_COLORS } from '../constants/theme'
-import { mark } from './startupTiming'
 
 const THEME_KEY = 'savr_theme'
 
@@ -25,7 +24,6 @@ export function ThemeProvider({ children }) {
   // applies one frame later, before real content has painted.
   useEffect(() => {
     AsyncStorage.getItem(THEME_KEY).then(saved => {
-      mark('theme preference read resolved')
       if (saved === 'light' || saved === 'dark' || saved === 'system') {
         setThemeState(saved)
       }

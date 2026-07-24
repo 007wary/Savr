@@ -4,6 +4,7 @@ import {
   ActivityIndicator, ScrollView
 } from 'react-native'
 import { useFocusEffect, useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { SCREEN } from '../src/constants/theme'
 import { useTheme } from '../src/lib/themeContext'
@@ -17,6 +18,7 @@ const LAST_BACKUP_TRIGGER_KEY = 'savr_last_backup_trigger'
 
 export default function BackupScreen() {
   const { COLORS } = useTheme()
+  const insets = useSafeAreaInsets()
   const [lastBackup, setLastBackup] = useState(null)
   const [isUpToDate, setIsUpToDate] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -124,7 +126,7 @@ export default function BackupScreen() {
   const backupDate = lastBackup ? formatBackupDate(lastBackup) : null
 
   const styles = useMemo(() => StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
+    container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: insets.top + 8, paddingHorizontal: SCREEN.paddingHorizontal },
     header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
     backBtn: { padding: 4 },
     heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
@@ -145,7 +147,7 @@ export default function BackupScreen() {
     backupBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
     noteCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: COLORS.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: COLORS.border },
     noteText: { flex: 1, fontSize: 12, color: COLORS.textMuted, lineHeight: 18 },
-  }), [COLORS])
+  }), [COLORS, insets.top])
 
   return (
     <View style={styles.container}>

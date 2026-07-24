@@ -5,9 +5,6 @@ import { Ionicons } from '@expo/vector-icons'
 import { useTheme } from '../../src/lib/themeContext'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as NavigationBar from 'expo-navigation-bar'
-import { mark } from '../../src/lib/startupTiming'
-
-mark('tabs _layout MODULE eval')
 
 function TabIcon({ name, color, focused }) {
   return (
@@ -23,7 +20,6 @@ function TabIcon({ name, color, focused }) {
 }
 
 export default function TabsLayout() {
-  mark('tabs _layout COMPONENT body')
   const { COLORS } = useTheme()
   const insets = useSafeAreaInsets()
 useEffect(() => {

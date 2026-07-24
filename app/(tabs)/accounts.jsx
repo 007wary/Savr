@@ -4,9 +4,9 @@ import {
   TextInput, ActivityIndicator
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { SCREEN } from '../../src/constants/theme'
 import { useTheme } from '../../src/lib/themeContext'
 import BottomSheet from '../../src/components/BottomSheet'
 import CustomAlert from '../../src/components/CustomAlert'
@@ -29,6 +29,7 @@ const ACCOUNT_TYPES = [
 
 export default function Accounts() {
   const { COLORS } = useTheme()
+  const insets = useSafeAreaInsets()
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -191,7 +192,7 @@ export default function Accounts() {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
 
-      <View style={[styles.header, { paddingTop: SCREEN.paddingTop, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
         <Text style={styles.heading}>Accounts</Text>
         <TouchableOpacity style={styles.addBtn} onPress={openAdd}>
           <Ionicons name="add" size={22} color="#fff" />

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useMemo } from 'react'
 import { View, Animated, StyleSheet } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useTheme } from '../lib/themeContext'
 import { SCREEN } from '../constants/theme'
 
@@ -28,7 +29,8 @@ const S = SkeletonBox
 
 export function DashboardSkeleton({ onLayout }) {
   const { COLORS } = useTheme()
-  const styles = useMemo(() => makeStyles(COLORS), [COLORS])
+  const insets = useSafeAreaInsets()
+  const styles = useMemo(() => makeStyles(COLORS, insets.top), [COLORS, insets.top])
 
   return (
     <View style={styles.container} onLayout={onLayout}>
@@ -82,7 +84,8 @@ export function DashboardSkeleton({ onLayout }) {
 
 export function HistorySkeleton() {
   const { COLORS } = useTheme()
-  const styles = useMemo(() => makeStyles(COLORS), [COLORS])
+  const insets = useSafeAreaInsets()
+  const styles = useMemo(() => makeStyles(COLORS, insets.top), [COLORS, insets.top])
   return (
     <View style={styles.container}>
       <View style={styles.headingRow}>
@@ -109,7 +112,8 @@ export function HistorySkeleton() {
 
 export function BudgetsSkeleton() {
   const { COLORS } = useTheme()
-  const styles = useMemo(() => makeStyles(COLORS), [COLORS])
+  const insets = useSafeAreaInsets()
+  const styles = useMemo(() => makeStyles(COLORS, insets.top), [COLORS, insets.top])
   return (
     <View style={styles.container}>
       <S colors={COLORS} width={140} height={28} borderRadius={6} style={{ marginBottom: 8 }} />
@@ -132,7 +136,8 @@ export function BudgetsSkeleton() {
 
 export function ReportsSkeleton() {
   const { COLORS } = useTheme()
-  const styles = useMemo(() => makeStyles(COLORS), [COLORS])
+  const insets = useSafeAreaInsets()
+  const styles = useMemo(() => makeStyles(COLORS, insets.top), [COLORS, insets.top])
   return (
     <View style={styles.container}>
       <S colors={COLORS} width={120} height={28} borderRadius={6} style={{ marginBottom: 8 }} />
@@ -160,7 +165,8 @@ export function ReportsSkeleton() {
 
 export function SettingsSkeleton() {
   const { COLORS } = useTheme()
-  const styles = useMemo(() => makeStyles(COLORS), [COLORS])
+  const insets = useSafeAreaInsets()
+  const styles = useMemo(() => makeStyles(COLORS, insets.top), [COLORS, insets.top])
   return (
     <View style={styles.container}>
       <S colors={COLORS} width={120} height={28} borderRadius={6} style={{ marginBottom: 24 }} />
@@ -189,9 +195,9 @@ export function SettingsSkeleton() {
   )
 }
 
-function makeStyles(COLORS) {
+function makeStyles(COLORS, insetsTop) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
+    container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: insetsTop + 8, paddingHorizontal: SCREEN.paddingHorizontal },
     headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
     monthNav: {
       flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',

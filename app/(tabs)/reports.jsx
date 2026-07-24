@@ -4,6 +4,7 @@ import {
   RefreshControl, TouchableOpacity, Animated, ActivityIndicator
 } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { CATEGORIES, SCREEN } from '../../src/constants/theme'
@@ -46,6 +47,7 @@ function AnimatedBar({ percentage, color, delay = 0 }) {
 
 export default function Reports() {
   const { COLORS } = useTheme()
+  const insets = useSafeAreaInsets()
   const [expenses, setExpenses] = useState([])
   const [lastMonthExpenses, setLastMonthExpenses] = useState([])
   const [allExpenses, setAllExpenses] = useState([])
@@ -256,7 +258,7 @@ export default function Reports() {
 
   const styles = useMemo(() => StyleSheet.create({
   outerContainer: { flex: 1, backgroundColor: COLORS.bg },
-  stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
+  stickyHeader: { paddingTop: insets.top + 8, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
   scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8, marginBottom: 4 },
   subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 16 },
@@ -354,7 +356,7 @@ export default function Reports() {
   incomeExpenseBarBg: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, marginBottom: 6 },
   incomeExpenseBarFill: { height: 6, borderRadius: 3 },
   incomeExpenseBarLabel: { fontSize: 11, color: COLORS.textMuted, textAlign: 'right' },
-  }), [COLORS])
+  }), [COLORS, insets.top])
 
   if (loading) return <ReportsSkeleton />
 

@@ -4,6 +4,7 @@ import {
   StyleSheet, ActivityIndicator
 } from 'react-native'
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { cacheGoogleAccessToken } from '../../src/lib/googleAccessToken'
 import { supabase } from '../../src/lib/supabase'
 import { SCREEN } from '../../src/constants/theme'
@@ -17,6 +18,7 @@ import { openLegalDoc } from '../../src/lib/legalViewer'
 
 export default function Login() {
   const { COLORS } = useTheme()
+  const insets = useSafeAreaInsets()
   const [googleLoading, setGoogleLoading] = useState(false)
   const [accepted, setAccepted] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
@@ -72,11 +74,11 @@ export default function Login() {
   container: { flex: 1, backgroundColor: COLORS.bg },
   inner: {
     flex: 1, paddingHorizontal: SCREEN.paddingHorizontal,
-    justifyContent: 'center', paddingBottom: 40, paddingTop: SCREEN.paddingTop,
+    justifyContent: 'center', paddingBottom: 40, paddingTop: insets.top + 8,
   },
   logoSection: { alignItems: 'center', marginBottom: 24, marginTop: -20 },
   logoText: {
-    fontSize: 42, fontWeight: '900', color: COLORS.text,
+    fontSize: 42, fontWeight: '900', color: COLORS.accent,
     letterSpacing: -2, marginBottom: 6,
   },
   tagline: { fontSize: 15, color: COLORS.textMuted, letterSpacing: 0.3 },
@@ -118,7 +120,7 @@ export default function Login() {
     color: COLORS.text, fontWeight: '700',
     fontSize: 16, letterSpacing: -0.3,
   },
-  }), [COLORS])
+  }), [COLORS, insets.top])
 
   return (
     <View style={styles.container} onLayout={signalFirstPaint}>

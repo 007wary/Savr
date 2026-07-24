@@ -1,12 +1,13 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, TextInput, Modal, KeyboardAvoidingView, Platform, Image } from 'react-native'
 import { LinearGradient } from 'expo-linear-gradient'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { CATEGORIES, SCREEN } from '../../src/constants/theme'
+import { CATEGORIES, SCREEN, CURRENCIES } from '../../src/constants/theme'
 import { useTheme } from '../../src/lib/themeContext'
 import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
-import { getCurrencySymbol, loadCurrency, formatAmount, roundMoney } from '../../src/lib/currency'
+import { loadCurrency, formatAmount, roundMoney } from '../../src/lib/currency'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { sortExpenses } from '../../src/lib/dateUtils'
 import { getUser, getCachedUser } from '../../src/lib/auth'
@@ -18,9 +19,6 @@ import { getExpenses, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal, getA
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { signalFirstPaint } from '../../src/lib/splashSignal'
-import { mark } from '../../src/lib/startupTiming'
-
-mark('dashboard MODULE eval')
 
 function CountUp({ value, style, symbol, currencyCode }) {
   const [display, setDisplay] = useState(0)
@@ -78,8 +76,8 @@ function formatDate(dateStr) {
 }
 
 export default function Dashboard() {
-  mark('dashboard COMPONENT body')
   const { COLORS } = useTheme()
+  const insets = useSafeAreaInsets()
   const [expenses, setExpenses] = useState([])
   const [userName, setUserName] = useState('')
   const [refreshing, setRefreshing] = useState(false)
@@ -150,10 +148,17 @@ const isCurrentMonth = true
       const todayDate = new Date()
       const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`
       const { month: snapshotMonth } = getMonthInfo(offsetSnapshot)
-      const [symbol, code, currentExpenses, lastTotal, recurringItems, incomeTotal, accTotal, todayIncomeTotal, budgets, allRecentExpenses, goal] = await Promise.all([
-        getCurrencySymbol(),
+      // getExpenses(user.id) (unfiltered) is a strict superset of the
+      // month-filtered query below — both already ORDER BY date DESC,
+      // created_at DESC, so the month view can be derived from it in JS
+      // instead of round-tripping SQLite twice for overlapping data.
+      //
+      // getCurrencySymbol() itself calls loadCurrency() — calling both here
+      // in parallel meant two concurrent AsyncStorage reads racing to
+      // populate the same module-level cache on a cold start. Derive the
+      // code from the symbol call's own resolved currency instead.
+      const [code, lastTotal, recurringItems, incomeTotal, accTotal, todayIncomeTotal, budgets, allRecentExpenses, goal] = await Promise.all([
         loadCurrency(),
-        getExpenses(user.id, { month: snapshotMonth }),
         getMonthlyTotal(user.id, lastMonthInfo.month),
         getRecurring(user.id),
         getMonthlyIncomeTotal(user.id, snapshotMonth),
@@ -163,6 +168,8 @@ const isCurrentMonth = true
         getExpenses(user.id),
         loadGoal(user.id),
       ])
+      const symbol = CURRENCIES.find(c => c.code === code)?.symbol || '$'
+      const currentExpenses = allRecentExpenses.filter(e => e.date.startsWith(snapshotMonth))
       const filtered = sortExpenses(currentExpenses)
       const now = new Date()
 
@@ -249,12 +256,10 @@ const isCurrentMonth = true
   }, [])
 
   const fetchData = useCallback(async (forceRefresh = false) => {
-    mark('dashboard fetchData start')
     const { month: offsetMonth } = getMonthInfo(0)
     const cacheKey = `savr_cache_dashboard_${offsetMonth}`
     if (!forceRefresh) {
       const cached = await loadCache(cacheKey)
-      mark(cached ? 'dashboard cache HIT' : 'dashboard cache MISS')
       if (cached) {
         setExpenses(sortExpenses(cached.expenses))
         setUserName(cached.userName)
@@ -448,7 +453,7 @@ const isCurrentMonth = true
   const styles = useMemo(() => StyleSheet.create({
   outerContainer: { flex: 1, backgroundColor: COLORS.bg },
   scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal },
-  header: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  header: { paddingTop: insets.top + 8, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   brandText: { fontSize: 32, fontWeight: '900', color: COLORS.accent, letterSpacing: -1 },
   avatarBtn: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   avatarGreeting: { alignItems: 'flex-end' },
@@ -552,7 +557,7 @@ const isCurrentMonth = true
   streakSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   goalBannerWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
   goalBannerText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#fff' },
-  }), [COLORS])
+  }), [COLORS, insets.top])
 
   // Fire the first-paint signal from the skeleton too, not just the real
   // content below. The skeleton IS the first frame the user should see; gating
@@ -560,7 +565,7 @@ const isCurrentMonth = true
   // for the entire data load (and in practice only came down when the 4s
   // startup watchdog force-hid it — measured). The skeleton painting is the
   // real handoff point from splash to app.
-  if (loading) return <DashboardSkeleton onLayout={() => { mark('dashboard SKELETON onLayout'); signalFirstPaint() }} />
+  if (loading) return <DashboardSkeleton onLayout={signalFirstPaint} />
 
   const h = new Date().getHours()
   const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'

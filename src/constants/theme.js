@@ -1,12 +1,16 @@
 import { Dimensions } from 'react-native'
-import Constants from 'expo-constants'
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window')
 
+// No paddingTop here — top safe-area padding must come from useSafeAreaInsets()
+// at each screen, not a static constant. This used to be Constants.statusBarHeight
+// + 16, captured once at module load; under mandatory edge-to-edge (Android 15+,
+// targetSdkVersion 35) that's not reactive to the real inset and can end up
+// wrong depending on device/gesture-nav configuration. Every screen now computes
+// its own `insets.top + 8` header padding instead.
 export const SCREEN = {
   width: SCREEN_WIDTH,
   height: SCREEN_HEIGHT,
-  paddingTop: Constants.statusBarHeight + 16,
   paddingHorizontal: SCREEN_WIDTH < 380 ? 16 : 20,
   maxWidth: 500,
   isSmall: SCREEN_WIDTH < 360,

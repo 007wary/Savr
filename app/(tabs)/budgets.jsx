@@ -4,6 +4,7 @@ import {
   TouchableOpacity, TextInput, RefreshControl, KeyboardAvoidingView, Platform
 } from 'react-native'
 import { useFocusEffect } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CATEGORIES, SCREEN } from '../../src/constants/theme'
 import { useTheme } from '../../src/lib/themeContext'
 import { getCurrencySymbol, loadCurrency, formatAmount, roundMoney } from '../../src/lib/currency'
@@ -37,6 +38,7 @@ function getLast3MonthKeys() {
 
 export default function Budgets() {
   const { COLORS } = useTheme()
+  const insets = useSafeAreaInsets()
   const monthName = getMonthName()
 const currentMonth = getCurrentMonth()
 const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
@@ -209,7 +211,7 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
 
   const styles = useMemo(() => StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.bg },
-  stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
+  stickyHeader: { paddingTop: insets.top + 8, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg },
   scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal, backgroundColor: COLORS.bg },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8, marginBottom: 4 },
   subheading: { fontSize: 14, color: COLORS.textMuted, marginBottom: 16 },
@@ -263,7 +265,7 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   deleteBtn: { backgroundColor: COLORS.cardAlt, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
   deleteBtnText: { color: COLORS.accentRed, fontWeight: '600', fontSize: 13 },
-  }), [COLORS])
+  }), [COLORS, insets.top])
 
   if (loading) return <BudgetsSkeleton />
 

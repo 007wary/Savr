@@ -5,6 +5,7 @@ import {
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
 import DateTimePicker from '@react-native-community/datetimepicker'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { CATEGORIES, SCREEN } from '../../src/constants/theme'
@@ -27,6 +28,7 @@ const CACHE_KEY = 'savr_cache_history'
 
 export default function History() {
   const { COLORS } = useTheme()
+  const insets = useSafeAreaInsets()
   const [expenses, setExpenses] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
   const [editingExpense, setEditingExpense] = useState(null)
@@ -413,7 +415,7 @@ export default function History() {
   }
 
   const styles = useMemo(() => StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
+  container: { flex: 1, backgroundColor: COLORS.bg, paddingTop: insets.top + 8, paddingHorizontal: SCREEN.paddingHorizontal },
   headingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
   exportBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.card, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: COLORS.border },
@@ -477,7 +479,7 @@ export default function History() {
   incomeBadgeText: { fontSize: 10, color: '#4CAF50', fontWeight: '700' },
   transferBadge: { backgroundColor: '#607D8B22', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 },
   transferBadgeText: { fontSize: 10, color: '#607D8B', fontWeight: '700' },
-  }), [COLORS])
+  }), [COLORS, insets.top])
 
   if (expenses === null) return <HistorySkeleton />
 

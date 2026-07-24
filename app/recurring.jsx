@@ -4,6 +4,7 @@ import {
   TouchableOpacity, RefreshControl, TextInput
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { CATEGORIES, SCREEN } from '../src/constants/theme'
@@ -44,6 +45,7 @@ function FrequencyBadge({ frequency }) {
 
 export default function RecurringScreen() {
   const { COLORS } = useTheme()
+  const insets = useSafeAreaInsets()
   const [activeTab, setActiveTab] = useState('expense')
   const [activeItems, setActiveItems] = useState([])
   const [inactiveItems, setInactiveItems] = useState([])
@@ -329,7 +331,7 @@ export default function RecurringScreen() {
   const isIncome = activeTab === 'income'
 
   const styles = useMemo(() => StyleSheet.create({
-    container: { backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal },
+    container: { backgroundColor: COLORS.bg, paddingTop: insets.top + 8, paddingHorizontal: SCREEN.paddingHorizontal },
     header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
     backBtn: { padding: 4 },
     heading: { fontSize: 24, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
@@ -370,11 +372,11 @@ export default function RecurringScreen() {
     bottomTabRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderTopWidth: 1, borderTopColor: COLORS.border, height: 80, paddingBottom: 24 },
     bottomTabBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingTop: 6 },
     bottomTabText: { fontSize: 11, color: COLORS.textMuted, fontWeight: '600' },
-  }), [COLORS])
+  }), [COLORS, insets.top])
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: COLORS.bg, paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal }}>
+      <View style={{ flex: 1, backgroundColor: COLORS.bg, paddingTop: insets.top + 8, paddingHorizontal: SCREEN.paddingHorizontal }}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
             <Ionicons name="chevron-back" size={24} color={COLORS.text} />

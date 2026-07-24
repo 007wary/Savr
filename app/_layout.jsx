@@ -1,4 +1,3 @@
-import { mark } from '../src/lib/startupTiming'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../src/lib/supabase'
 import { View, AppState } from 'react-native'
@@ -21,8 +20,6 @@ import * as NavigationBar from 'expo-navigation-bar'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
 import { logError } from '../src/lib/errorLog'
 import { onFirstPaint } from '../src/lib/splashSignal'
-
-mark('_layout module eval')
 
 SplashScreen.preventAutoHideAsync()
 
@@ -122,7 +119,6 @@ function RootLayoutInner() {
 
   useEffect(() => {
     async function init() {
-      mark('init() start')
       clearExpiredCache().catch(() => {})
 
       // Check cached user immediately before anything else
@@ -130,7 +126,6 @@ function RootLayoutInner() {
         loadCachedUser(),
         AsyncStorage.getItem('savr_onboarding_done'),
       ])
-      mark('cachedUser + onboarding read resolved')
       setOnboardingDone(onboardingDoneRaw === 'true')
 
       // Initialize database in parallel — don't block startup
@@ -144,7 +139,6 @@ function RootLayoutInner() {
           initialSessionLoadedRef.current = true
           setCachedUser(cachedUser)
           setSession({ user: cachedUser, expires_at: 9999999999 })
-          mark('session set from cache (gate can close)')
           // Crashlytics identity is best-effort telemetry. Its first native call
           // also triggers lazy init of the Firebase SDK, which lands on the JS
           // thread in the exact window the dashboard is racing to first-paint —
@@ -528,7 +522,6 @@ try {
     const hide = () => {
       if (done) return
       done = true
-      mark('splash hide (first paint done)')
       SplashScreen.hideAsync().catch(() => {})
     }
     const unsub = onFirstPaint(hide)
@@ -540,12 +533,15 @@ try {
   }, [gateOpen])
 
   if (gateOpen) {
-    // Match the native splash color (#0F0F0F), NOT COLORS.bg — the theme bg is
-    // white in light mode, and revealing it while the native splash tears down
-    // is exactly the white flash after the logo. Keeping this dark makes the
-    // gate frame continuous with the splash. The native splash is still up here
-    // (we only hide it once real UI mounts, in the effect below).
-    return <View style={{ flex: 1, backgroundColor: '#0F0F0F' }} />
+    // Match COLORS.bg (theme-aware), NOT a hardcoded color — the native splash
+    // itself is now theme-adaptive (app.json's expo-splash-screen `dark`
+    // variant: white background in light mode, #0F0F0F in dark), so the gate
+    // frame must follow the same theme to stay continuous with whichever
+    // splash variant Android actually rendered. Mismatching them is exactly
+    // the flash this used to avoid, just in the opposite direction. The
+    // native splash is still up here (we only hide it once real UI mounts,
+    // in the effect below).
+    return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />
   }
 
   return (

@@ -6,6 +6,7 @@ import {
   Linking, Image, Share
 } from 'react-native'
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
@@ -29,6 +30,7 @@ const CACHE_KEY = 'savr_cache_settings'
 
 export default function Settings() {
   const { COLORS, theme, setTheme } = useTheme()
+  const insets = useSafeAreaInsets()
   const [user, setUser] = useState(null)
   const [displayName, setDisplayName] = useState('')
   const [phone, setPhone] = useState('')
@@ -259,7 +261,7 @@ if (avatar) {
 
   const styles = useMemo(() => StyleSheet.create({
   outerContainer: { flex: 1, backgroundColor: COLORS.bg },
-  stickyHeader: { paddingTop: SCREEN.paddingTop, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg, flexDirection: 'row', alignItems: 'center' },
+  stickyHeader: { paddingTop: insets.top + 8, paddingHorizontal: SCREEN.paddingHorizontal, paddingBottom: 8, backgroundColor: COLORS.bg, flexDirection: 'row', alignItems: 'center' },
   scrollView: { flex: 1, paddingHorizontal: SCREEN.paddingHorizontal, backgroundColor: COLORS.bg },
   heading: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -0.8 },
   profileCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20, marginBottom: 0, borderBottomWidth: 1, borderBottomColor: COLORS.border },
@@ -309,7 +311,7 @@ if (avatar) {
   readOnlyText: { fontSize: 15, color: COLORS.textMuted },
   saveBtn: { backgroundColor: COLORS.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginBottom: 8 },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  }), [COLORS])
+  }), [COLORS, insets.top])
 
   if (loading) return <SettingsSkeleton />
 
