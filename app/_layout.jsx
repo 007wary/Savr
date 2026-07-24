@@ -455,17 +455,29 @@ try {
         router.replace('/(tabs)/dashboard')
         return
       }
-      // Landed on the bare index route (the initial mount, before any segment
-      // matches (auth)/(tabs)/onboarding) — send straight to the real
-      // destination in one hop instead of index.jsx redirecting to login
-      // first and this effect correcting it a beat later. That extra login
-      // mount+unmount was pure waste on every cold launch for the common
-      // case (an already-authenticated, onboarded user), and it happened
-      // to land squarely in the first-paint window.
-      if (!inOnboarding && !inAuth && !inTabs) {
-        router.replace(session ? '/(tabs)/dashboard' : '/(auth)/login')
+      // Landed on the bare index route with a session and onboarding already
+      // done — send straight to dashboard in one hop instead of index.jsx
+      // redirecting to login first and this effect correcting it a beat
+      // later. That extra login mount+unmount was pure waste on every cold
+      // launch for the common case, landing squarely in the first-paint
+      // window. (The logged-out equivalent is handled below, outside this
+      // onboardingDone block, since a logged-out user belongs on login
+      // regardless of onboarding state.)
+      if (session && !inOnboarding && !inAuth && !inTabs) {
+        router.replace('/(tabs)/dashboard')
         return
       }
+    }
+
+    // Landed on the bare index route with no session — including when
+    // onboarding isn't done yet, e.g. a fresh install before first login.
+    // Onboarding-gating (above) only applies once a session exists, so a
+    // logged-out user on an unmatched segment always belongs on login.
+    // Without this, index.jsx rendering blank (instead of its old hardcoded
+    // Redirect to login) left this exact case with no navigation at all —
+    // a permanently blank launch.
+    if (!session && !inOnboarding && !inAuth && !inTabs) {
+      router.replace('/(auth)/login')
     }
   }, [session, segments, onboardingDone, signingIn, router])
 
