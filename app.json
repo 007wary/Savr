@@ -15,7 +15,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "transparent"
+        "backgroundColor": "#00000000"
       },
       "navigationBarColor": "#0F0F0F",
       "package": "com.saver.savr",
