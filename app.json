@@ -15,7 +15,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#00000000"
+        "backgroundColor": "#FFFFFF"
       },
       "navigationBarColor": "#0F0F0F",
       "package": "com.saver.savr",
@@ -56,13 +56,10 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFFFF",
+          "backgroundColor": "#0F0F0F",
           "image": "./assets/icon.png",
           "imageWidth": 80,
-          "resizeMode": "contain",
-          "dark": {
-            "backgroundColor": "#0F0F0F"
-          }
+          "resizeMode": "contain"
         }
       ],
       "expo-sqlite",

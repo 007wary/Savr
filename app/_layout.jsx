@@ -553,15 +553,13 @@ try {
   }, [gateOpen])
 
   if (gateOpen) {
-    // Match COLORS.bg (theme-aware), NOT a hardcoded color — the native splash
-    // itself is now theme-adaptive (app.json's expo-splash-screen `dark`
-    // variant: white background in light mode, #0F0F0F in dark), so the gate
-    // frame must follow the same theme to stay continuous with whichever
-    // splash variant Android actually rendered. Mismatching them is exactly
-    // the flash this used to avoid, just in the opposite direction. The
-    // native splash is still up here (we only hide it once real UI mounts,
-    // in the effect below).
-    return <View style={{ flex: 1, backgroundColor: COLORS.bg }} />
+    // Match the native splash, which is always #0F0F0F (app.json's
+    // expo-splash-screen has no `dark` variant — it's dark-only regardless
+    // of device theme). The gate frame must stay hardcoded dark too, or a
+    // light-theme device flashes white here between the dark native splash
+    // and this frame. The native splash is still up here (we only hide it
+    // once real UI mounts, in the effect below).
+    return <View style={{ flex: 1, backgroundColor: '#0F0F0F' }} />
   }
 
   return (
