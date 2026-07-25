@@ -24,6 +24,28 @@ describe('detectCategory — priority & longest-match', () => {
   })
 })
 
+describe('single-word keywords match whole words, not substrings', () => {
+  // Regression: single-word keywords were matched with String.includes(), so a
+  // keyword buried inside an unrelated word mis-categorized the expense.
+  it('does not match "car" inside "scary"', () => {
+    expect(detectCategory('scary movie')).toBe('Entertainment') // via "movie", not Transport
+  })
+  it('does not match "eat" inside "theater"', () => {
+    expect(detectCategory('theater tickets')).toBe('Entertainment') // via "theater"/"ticket", not Food
+  })
+  it('does not match "tea" inside "teaching"', () => {
+    expect(detectCategory('teaching class')).toBe('Education') // via "class", not Food
+  })
+  it('still matches a keyword that IS a standalone word', () => {
+    expect(detectCategory('green tea')).toBe('Food')
+    expect(detectCategory('bought a car')).toBe('Transport')
+  })
+  it('still matches keywords containing . or & as whole tokens', () => {
+    expect(detectCategory('booking.com hotel')).toBe('Transport')
+    expect(detectCategory('shopping at h&m')).toBe('Shopping')
+  })
+})
+
 describe('learned categories override keywords', () => {
   const learned = [{ token: 'swiggy', category: 'Bills', count: 3 }]
 

@@ -12,11 +12,12 @@ import BottomSheet from '../../src/components/BottomSheet'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { getUser, getCachedUser } from '../../src/lib/auth'
-import { formatAmount, getCurrencySymbol, loadCurrency } from '../../src/lib/currency'
+import { formatAmount, getCurrencySymbol, loadCurrency, roundMoney } from '../../src/lib/currency'
 import { logError } from '../../src/lib/errorLog'
-import { getAccounts, addAccount, updateAccount, deleteAccount } from '../../src/services/sqliteService'
+import { getAccounts, addAccount, updateAccount, deleteAccount, addAdjustmentAtomic } from '../../src/services/sqliteService'
 import { clearCache } from '../../src/lib/cache'
-import { monthKey } from '../../src/lib/dateUtils'
+import { monthKey, localDateKey } from '../../src/lib/dateUtils'
+import { scheduleBackup } from '../../src/services/backgroundBackup'
 
 const ACCOUNT_TYPES = [
   { label: 'Cash', icon: 'cash-outline', color: '#4CAF50' },
@@ -88,11 +89,14 @@ export default function Accounts() {
       if (!user) return
       if (editingAccount) {
         // The balance field is seeded with the account's current (transaction-driven)
-        // balance. Only send a balance write when the user actually changed it, so
-        // an edit of just name/type/currency doesn't clobber deltas from linked
-        // expenses/income/transfers with a stale absolute value.
+        // balance. A hand edit of it is a reconciliation ("my bank says X"), so we
+        // record the difference as an adjustment LEDGER ROW rather than overwriting
+        // the balance column — the row moves the balance by the same delta, shows up
+        // in history to explain the jump, and keeps the "every balance move has a
+        // row" invariant. Metadata-only edits (name/type/currency) touch no balance.
         const editedBalance = parseFloat(balance) || 0
-        const balanceChanged = editedBalance !== editingAccount.balance
+        const delta = roundMoney(editedBalance - editingAccount.balance)
+        const balanceChanged = delta !== 0
         // Preserve the account's own stored currency on edit rather than
         // overwriting it with the global app currency — editing name/type/balance
         // shouldn't silently mutate a field the user never touched here.
@@ -100,10 +104,18 @@ export default function Accounts() {
         await updateAccount(editingAccount.id, {
           name: name.trim(),
           type,
-          ...(balanceChanged ? { balance: editedBalance } : {}),
           currency: preservedCurrency,
         })
+        if (balanceChanged) {
+          await addAdjustmentAtomic(user.id, {
+            account_id: editingAccount.id,
+            delta,
+            note: 'Manual balance correction',
+            date: localDateKey(),
+          })
+        }
         await clearCache(`savr_cache_dashboard_${monthKey()}`)
+        if (balanceChanged) await clearCache('savr_cache_history')
         setAccounts(prev => prev.map(a =>
           a.id === editingAccount.id
             ? {
@@ -115,6 +127,7 @@ export default function Accounts() {
               }
             : a
         ))
+        if (balanceChanged) scheduleBackup()
       } else {
         const newId = await addAccount(user.id, {
           name: name.trim(),

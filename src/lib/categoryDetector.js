@@ -167,13 +167,20 @@ export function detectCategoryWithSource(note, learned = null) {
     if (best) return { category: best.category, source: 'learned' }
   }
 
-  // Pass 1: most-specific phrase match (longest wins).
+  // Pass 1: most-specific phrase match (longest wins). Phrases contain spaces
+  // and can straddle token boundaries ("gas station"), so a substring test is
+  // the right check here.
   for (const { category, keyword } of PHRASE_KEYWORDS) {
     if (lower.includes(keyword)) return { category, source: 'keyword' }
   }
-  // Pass 2: single-word match, highest-priority category wins.
+  // Pass 2: single-word match, highest-priority category wins. Match against
+  // whole word tokens, NOT substrings — a substring test flags a keyword buried
+  // inside an unrelated word ("car" in "scary", "eat" in "theater", "tea" in
+  // "teaching"), which mis-categorizes the expense and pollutes the
+  // autodetected-vs-corrected accuracy metric.
+  const wordTokens = new Set(lower.split(/[^a-z0-9&.]+/).filter(Boolean))
   for (const { category, keyword } of WORD_KEYWORDS) {
-    if (lower.includes(keyword)) return { category, source: 'keyword' }
+    if (wordTokens.has(keyword)) return { category, source: 'keyword' }
   }
   return { category: null, source: null }
 }

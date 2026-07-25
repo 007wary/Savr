@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
-import { getDB } from './sqliteService'
+import { getReadyDB } from './sqliteService'
 import { getUser, getCachedUser } from '../lib/auth'
 import {
   getGoogleAccessToken,
@@ -153,8 +153,8 @@ async function findBackupFileId(accessToken, folderId) {
 }
 
 async function getAllDataFromSQLite(userId) {
-  const db = await getDB()
-  const [expenses, budgets, recurring, goals, accounts, income, transfers, recurringIncome] = await Promise.all([
+  const db = await getReadyDB()
+  const [expenses, budgets, recurring, goals, accounts, income, transfers, recurringIncome, adjustments] = await Promise.all([
     db.getAllAsync('SELECT * FROM expenses WHERE user_id = ?', [userId]),
     db.getAllAsync('SELECT * FROM budgets WHERE user_id = ?', [userId]),
     db.getAllAsync('SELECT * FROM recurring_expenses WHERE user_id = ?', [userId]),
@@ -163,8 +163,9 @@ async function getAllDataFromSQLite(userId) {
     db.getAllAsync('SELECT * FROM income WHERE user_id = ?', [userId]),
     db.getAllAsync('SELECT * FROM transfers WHERE user_id = ?', [userId]),
     db.getAllAsync('SELECT * FROM recurring_income WHERE user_id = ?', [userId]),
+    db.getAllAsync('SELECT * FROM account_adjustments WHERE user_id = ?', [userId]),
   ])
-  return { expenses, budgets, recurring, goals, accounts, income, transfers, recurringIncome }
+  return { expenses, budgets, recurring, goals, accounts, income, transfers, recurringIncome, adjustments }
 }
 
 const REQUIRED_FIELDS = {
@@ -176,6 +177,7 @@ const REQUIRED_FIELDS = {
   income: ['id', 'amount', 'category', 'date'],
   transfers: ['id', 'from_account_id', 'to_account_id', 'amount', 'date'],
   recurringIncome: ['id', 'amount', 'category', 'frequency', 'next_due'],
+  adjustments: ['id', 'account_id', 'delta', 'date'],
 }
 
 const VALID_FREQUENCIES = ['daily', 'weekly', 'monthly']
@@ -215,6 +217,7 @@ async function writeAllDataToSQLite(db, userId, data, now) {
   await db.runAsync('DELETE FROM income WHERE user_id = ?', [userId])
   await db.runAsync('DELETE FROM transfers WHERE user_id = ?', [userId])
   await db.runAsync('DELETE FROM recurring_income WHERE user_id = ?', [userId])
+  await db.runAsync('DELETE FROM account_adjustments WHERE user_id = ?', [userId])
 
   for (const e of (data.expenses || [])) {
     await db.runAsync(
@@ -279,12 +282,20 @@ async function writeAllDataToSQLite(db, userId, data, now) {
       [ri.id, userId, ri.amount, ri.category, ri.note, ri.frequency, ri.next_due, ri.last_logged, ri.is_active ?? 1, ri.account_id || null, ri.anchor_day ?? anchorDayFromDate(ri.next_due), ri.created_at || now, ri.updated_at || now]
     )
   }
+
+  for (const adj of (data.adjustments || [])) {
+    await db.runAsync(
+      `INSERT OR REPLACE INTO account_adjustments (id, user_id, account_id, delta, note, date, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [adj.id, userId, adj.account_id, adj.delta, adj.note || null, adj.date, adj.created_at || now, adj.updated_at || now]
+    )
+  }
 }
 
 async function restoreAllDataToSQLite(userId, data) {
   validateBackupData(data)
 
-  const db = await getDB()
+  const db = await getReadyDB()
   const now = new Date().toISOString()
   const snapshot = await getAllDataFromSQLite(userId)
 
@@ -312,21 +323,31 @@ async function restoreAllDataToSQLite(userId, data) {
 
 export async function generateDataHash(userId) {
   try {
-    const db = await getDB()
-    const [
-      exp, inc, acc, tr, bud, rec, goals, recInc,
-    ] = await Promise.all([
-      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM expenses WHERE user_id = ?`, [userId]),
-      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM income WHERE user_id = ?`, [userId]),
-      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM accounts WHERE user_id = ?`, [userId]),
-      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM transfers WHERE user_id = ?`, [userId]),
-      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM budgets WHERE user_id = ?`, [userId]),
-      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM recurring_expenses WHERE user_id = ?`, [userId]),
-      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM spending_goals WHERE user_id = ?`, [userId]),
-      db.getFirstAsync(`SELECT COUNT(*) as count, MAX(updated_at) as latest FROM recurring_income WHERE user_id = ?`, [userId]),
+    const db = await getReadyDB()
+    // Each table's fingerprint is COUNT + MAX(updated_at) + MIN(updated_at) + a
+    // SUM over its primary numeric column. COUNT+MAX alone missed a same-second
+    // delete-then-reinsert that kept the row count and newest timestamp
+    // unchanged — a real edit that then never got backed up. MIN(updated_at)
+    // catches a same-count swap that leaves MAX unchanged, and the numeric SUM
+    // catches an in-place amount edit within the same second. `amt` names the
+    // per-table numeric column (budgets/goals don't have `amount`).
+    const fp = (table, amt) => db.getFirstAsync(
+      `SELECT COUNT(*) as count, MAX(updated_at) as latest, MIN(updated_at) as earliest, COALESCE(SUM(${amt}), 0) as total FROM ${table} WHERE user_id = ?`,
+      [userId]
+    )
+    const [exp, inc, acc, tr, bud, rec, goals, recInc, adj] = await Promise.all([
+      fp('expenses', 'amount'),
+      fp('income', 'amount'),
+      fp('accounts', 'balance'),
+      fp('transfers', 'amount'),
+      fp('budgets', 'limit_amount'),
+      fp('recurring_expenses', 'amount'),
+      fp('spending_goals', 'target_amount'),
+      fp('recurring_income', 'amount'),
+      fp('account_adjustments', 'delta'),
     ])
-    const p = (row) => `${row?.count || 0}_${row?.latest || ''}`
-    return [exp, inc, acc, tr, bud, rec, goals, recInc].map(p).join('|')
+    const p = (row) => `${row?.count || 0}_${row?.latest || ''}_${row?.earliest || ''}_${row?.total || 0}`
+    return [exp, inc, acc, tr, bud, rec, goals, recInc, adj].map(p).join('|')
   } catch {
     return null
   }

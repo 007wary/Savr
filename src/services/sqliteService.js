@@ -206,6 +206,24 @@ const runInit = async () => {
     CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id);
     CREATE INDEX IF NOT EXISTS idx_income_user_id ON income(user_id);
     CREATE INDEX IF NOT EXISTS idx_income_date ON income(user_id, date);
+
+    -- Manual balance corrections. When the user sets an account balance by
+    -- hand (e.g. bank says 1234, correct the tracked balance), we record the
+    -- difference as a signed delta ledger row rather than silently overwriting
+    -- the balance column, so account history explains the jump and the
+    -- every-balance-move-has-a-row invariant holds. The delta is applied to
+    -- accounts.balance in the same transaction (addAdjustmentAtomic).
+    CREATE TABLE IF NOT EXISTS account_adjustments (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      account_id TEXT NOT NULL,
+      delta REAL NOT NULL,
+      note TEXT,
+      date TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_adjustments_user ON account_adjustments(user_id);
   `)
 
   return database
@@ -224,8 +242,10 @@ export const initializeDatabase = async () => {
 // Every read/write goes through this instead of getDB() so no query can run
 // against a half-migrated schema on cold launch — they all wait for the
 // tables/indexes to exist first. On a warm run initPromise is already
-// resolved, so this is a cheap await.
-const getReadyDB = async () => {
+// resolved, so this is a cheap await. Exported so out-of-module callers (e.g.
+// the Drive backup service, which dumps/restores the whole DB) get the same
+// migration guarantee rather than racing runInit() via a raw getDB().
+export const getReadyDB = async () => {
   await initializeDatabase()
   return db
 }
@@ -423,17 +443,20 @@ export async function updateRecurringAfterLog(id, nextDue, lastLogged) {
   )
 }
 
-// User-facing edit of a recurring rule (amount/note/frequency). Unlike the raw
-// inline UPDATE it replaces, this re-derives anchor_day from the row's own
-// next_due so a monthly rule keeps re-anchoring to its intended day-of-month.
-// next_due itself is a valid calendar date under any frequency, so it is left
-// untouched — only anchor_day could silently rot on a frequency switch.
+// User-facing edit of a recurring rule (amount/note/frequency). next_due itself
+// is a valid calendar date under any frequency, so it is left untouched.
+//
+// anchor_day is PRESERVED, not re-derived: once a monthly rule set on the 31st
+// has drifted its next_due to a short month (e.g. Feb 28), re-deriving the
+// anchor from next_due would rewrite it to 28 and lose the original intent the
+// column exists to protect. Only backfill it from next_due when the row has no
+// anchor yet (a legacy row created before the column existed).
 export async function updateRecurringExpense(id, { amount, note, frequency }) {
   const database = await getReadyDB()
   const existing = await database.getFirstAsync(
-    `SELECT frequency, next_due FROM recurring_expenses WHERE id = ?`, [id]
+    `SELECT anchor_day, next_due FROM recurring_expenses WHERE id = ?`, [id]
   )
-  const anchorDay = anchorDayFromDate(existing?.next_due)
+  const anchorDay = existing?.anchor_day ?? anchorDayFromDate(existing?.next_due)
   await runWithRetry(database,
     `UPDATE recurring_expenses SET amount = ?, note = ?, frequency = ?, anchor_day = ?, updated_at = ? WHERE id = ?`,
     [amount, note || null, frequency, anchorDay, now(), id]
@@ -669,6 +692,10 @@ export async function deleteAccount(id) {
     await runWithRetry(database, `UPDATE recurring_expenses SET account_id = NULL WHERE account_id = ?`, [id])
     await runWithRetry(database, `UPDATE recurring_income SET account_id = NULL WHERE account_id = ?`, [id])
     await runWithRetry(database, `DELETE FROM transfers WHERE from_account_id = ? OR to_account_id = ?`, [id, id])
+    // Adjustments belong to a single account; when it's gone they have no
+    // meaning (and their delta already lived only in this account's balance),
+    // so remove them rather than orphaning them like expense/income rows.
+    await runWithRetry(database, `DELETE FROM account_adjustments WHERE account_id = ?`, [id])
     await runWithRetry(database, `DELETE FROM accounts WHERE id = ?`, [id])
   })
 }
@@ -828,6 +855,49 @@ export async function deleteTransferAtomic(id) {
   })
 }
 
+// ─── ACCOUNT ADJUSTMENTS ────────────────────────────────────
+// A manual balance correction: records the signed `delta` as a ledger row AND
+// moves the account balance by that same delta in one transaction, so a hand
+// edit of an account's balance is auditable in history instead of silently
+// overwriting the transaction-driven column. `delta` may be negative.
+export async function addAdjustmentAtomic(userId, { account_id, delta, note, date }) {
+  const database = await getReadyDB()
+  const newId = id()
+  const ts = now()
+  await database.withTransactionAsync(async () => {
+    await runWithRetry(database,
+      `INSERT INTO account_adjustments (id, user_id, account_id, delta, note, date, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [newId, userId, account_id, delta, note || null, date, ts, ts]
+    )
+    await adjustAccountBalanceIfExists(database, account_id, delta)
+  })
+  return newId
+}
+
+export async function getAdjustments(userId) {
+  const database = await getReadyDB()
+  return await database.getAllAsync(
+    `SELECT * FROM account_adjustments WHERE user_id = ? ORDER BY date DESC, created_at DESC`,
+    [userId]
+  )
+}
+
+// Deletes an adjustment and reverses its delta atomically (an adjustment moved
+// the balance by +delta, so deleting must move it by -delta).
+export async function deleteAdjustmentAtomic(id) {
+  const database = await getReadyDB()
+  await database.withTransactionAsync(async () => {
+    const existing = await database.getFirstAsync(
+      `SELECT account_id, delta FROM account_adjustments WHERE id = ?`, [id]
+    )
+    await runWithRetry(database, `DELETE FROM account_adjustments WHERE id = ?`, [id])
+    if (existing?.account_id) {
+      await adjustAccountBalanceIfExists(database, existing.account_id, -existing.delta)
+    }
+  })
+}
+
 // ─── RECURRING INCOME ───────────────────────────────────────
 export async function addRecurringIncome(userId, { amount, category, note, frequency, next_due, account_id = null }) {
   const database = await getReadyDB()
@@ -865,13 +935,13 @@ export async function updateRecurringIncomeAfterLog(id, nextDue, lastLogged) {
   )
 }
 
-// See updateRecurringExpense — same anchor_day maintenance for recurring income.
+// See updateRecurringExpense — same anchor_day preservation for recurring income.
 export async function updateRecurringIncome(id, { amount, note, frequency }) {
   const database = await getReadyDB()
   const existing = await database.getFirstAsync(
-    `SELECT next_due FROM recurring_income WHERE id = ?`, [id]
+    `SELECT anchor_day, next_due FROM recurring_income WHERE id = ?`, [id]
   )
-  const anchorDay = anchorDayFromDate(existing?.next_due)
+  const anchorDay = existing?.anchor_day ?? anchorDayFromDate(existing?.next_due)
   await runWithRetry(database,
     `UPDATE recurring_income SET amount = ?, note = ?, frequency = ?, anchor_day = ?, updated_at = ? WHERE id = ?`,
     [amount, note || null, frequency, anchorDay, now(), id]

@@ -25,7 +25,7 @@
 
 const TABLES = [
   'expenses', 'budgets', 'recurring_expenses', 'spending_goals',
-  'accounts', 'income', 'transfers', 'recurring_income',
+  'accounts', 'income', 'transfers', 'recurring_income', 'account_adjustments',
 ]
 
 function createFakeDB() {
@@ -172,6 +172,9 @@ function fullDataset() {
     recurringIncome: [
       { id: 'ri1', user_id: USER, amount: 3000, category: 'Salary', note: null, frequency: 'monthly', next_due: '2026-08-01', last_logged: '2026-07-01', is_active: 1, account_id: 'a1', anchor_day: 1, created_at: 't', updated_at: 't' },
     ],
+    adjustments: [
+      { id: 'adj1', user_id: USER, account_id: 'a1', delta: -12.34, note: 'reconcile', date: '2026-07-04', created_at: 't', updated_at: 't' },
+    ],
   }
 }
 
@@ -187,6 +190,7 @@ function seed(data) {
     income: 'income',
     transfers: 'transfers',
     recurringIncome: 'recurring_income',
+    adjustments: 'account_adjustments',
   }
   for (const [key, table] of Object.entries(map)) {
     for (const row of (data[key] || [])) mockDB._tables[table].push({ ...row })

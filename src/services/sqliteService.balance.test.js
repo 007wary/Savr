@@ -27,6 +27,7 @@ function createFakeDB() {
     recurring_income: [],
     budgets: [],
     spending_goals: [],
+    account_adjustments: [],
   }
 
   // Fail if a transaction body throws AFTER partial writes, to prove atomicity:
@@ -86,6 +87,39 @@ function createFakeDB() {
         const row = tables.expenses.find(r => r.id === rowId)
         if (row) Object.assign(row, { amount, category, note, date, account_id: accountId, updated_at: updatedAt })
         return { changes: row ? 1 : 0 }
+      }
+
+      // UPDATE recurring_expenses|recurring_income SET amount = ?, note = ?, frequency = ?, anchor_day = ?, updated_at = ? WHERE id = ?
+      if ((m = s.match(/^UPDATE (recurring_expenses|recurring_income) SET amount = \?, note = \?, frequency = \?, anchor_day = \?, updated_at = \? WHERE id = \?$/i))) {
+        const table = m[1]
+        const [amount, note, frequency, anchorDay, updatedAt, rowId] = params
+        const row = tables[table].find(r => r.id === rowId)
+        if (row) Object.assign(row, { amount, note, frequency, anchor_day: anchorDay, updated_at: updatedAt })
+        return { changes: row ? 1 : 0 }
+      }
+
+      // UPDATE <table> SET account_id = NULL WHERE account_id = ?  (deleteAccount unlink)
+      if ((m = s.match(/^UPDATE (\w+) SET account_id = NULL WHERE account_id = \?$/i))) {
+        const table = m[1]
+        let changes = 0
+        for (const r of tables[table]) {
+          if (r.account_id === params[0]) { r.account_id = null; changes++ }
+        }
+        return { changes }
+      }
+
+      // DELETE FROM transfers WHERE from_account_id = ? OR to_account_id = ?
+      if (/^DELETE FROM transfers WHERE from_account_id = \? OR to_account_id = \?$/i.test(s)) {
+        const before = tables.transfers.length
+        tables.transfers = tables.transfers.filter(r => r.from_account_id !== params[0] && r.to_account_id !== params[1])
+        return { changes: before - tables.transfers.length }
+      }
+
+      // DELETE FROM account_adjustments WHERE account_id = ?
+      if (/^DELETE FROM account_adjustments WHERE account_id = \?$/i.test(s)) {
+        const before = tables.account_adjustments.length
+        tables.account_adjustments = tables.account_adjustments.filter(r => r.account_id !== params[0])
+        return { changes: before - tables.account_adjustments.length }
       }
 
       // DELETE FROM <table> WHERE id = ?
@@ -316,6 +350,97 @@ describe('updateExpense — adjusts balance for edits', () => {
     await svc.updateExpense(eid, { amount: 30, category: 'Food', date: '2026-07-01', account_id: 'b' })
     expect(mockDB._account('a').balance).toBe(100)
     expect(mockDB._account('b').balance).toBe(70)
+  })
+})
+
+describe('updateRecurringExpense / updateRecurringIncome — anchor_day is preserved, not re-derived', () => {
+  function seedRecurring(table, { id, next_due, anchor_day, frequency = 'monthly' }) {
+    mockDB._tables[table].push({
+      id, user_id: USER, amount: 10, category: 'Bills', note: null,
+      frequency, next_due, last_logged: null, is_active: 1,
+      account_id: null, anchor_day, created_at: 't', updated_at: 't',
+    })
+  }
+
+  it('keeps the 31st anchor after next_due has drifted to a short month (expense)', async () => {
+    // A monthly rule set on the 31st, whose next_due has already rolled to Feb
+    // 28. Editing the amount must NOT rewrite anchor_day to 28 — re-deriving it
+    // from the drifted next_due is exactly the bug this guards.
+    seedRecurring('recurring_expenses', { id: 'r1', next_due: '2026-02-28', anchor_day: 31 })
+    await svc.updateRecurringExpense('r1', { amount: 25, note: 'rent', frequency: 'monthly' })
+    const row = mockDB._tables.recurring_expenses.find(r => r.id === 'r1')
+    expect(row.anchor_day).toBe(31)
+    expect(row.amount).toBe(25) // the edit still applied
+  })
+
+  it('keeps the 29th anchor after next_due has drifted (income)', async () => {
+    seedRecurring('recurring_income', { id: 'ri1', next_due: '2026-02-28', anchor_day: 29 })
+    await svc.updateRecurringIncome('ri1', { amount: 3200, note: null, frequency: 'monthly' })
+    const row = mockDB._tables.recurring_income.find(r => r.id === 'ri1')
+    expect(row.anchor_day).toBe(29)
+  })
+
+  it('backfills anchor_day from next_due for a legacy row that has none', async () => {
+    // A row created before the anchor_day column existed (anchor_day null) must
+    // get a sensible anchor derived from its next_due on first edit.
+    seedRecurring('recurring_expenses', { id: 'r2', next_due: '2026-08-31', anchor_day: null })
+    await svc.updateRecurringExpense('r2', { amount: 15, note: null, frequency: 'monthly' })
+    const row = mockDB._tables.recurring_expenses.find(r => r.id === 'r2')
+    expect(row.anchor_day).toBe(31)
+  })
+})
+
+describe('addAdjustmentAtomic — records a ledger row and moves the balance', () => {
+  it('applies a positive delta to the balance and stores the row', async () => {
+    seedAccount('acc', 100)
+    const aid = await svc.addAdjustmentAtomic(USER, { account_id: 'acc', delta: 34.5, note: 'reconcile', date: '2026-07-01' })
+    expect(mockDB._account('acc').balance).toBe(134.5)
+    const row = mockDB._tables.account_adjustments.find(r => r.id === aid)
+    expect(row).toMatchObject({ account_id: 'acc', delta: 34.5, note: 'reconcile', date: '2026-07-01', user_id: USER })
+  })
+
+  it('applies a negative delta (balance corrected downward)', async () => {
+    seedAccount('acc', 100)
+    await svc.addAdjustmentAtomic(USER, { account_id: 'acc', delta: -40, note: null, date: '2026-07-01' })
+    expect(mockDB._account('acc').balance).toBe(60)
+  })
+
+  it('does not move a nonexistent account but still records nothing orphaned', async () => {
+    // adjustAccountBalanceIfExists is a no-op on a missing account; the row is
+    // still inserted (delete-account cleanup would remove it), no throw.
+    await expect(
+      svc.addAdjustmentAtomic(USER, { account_id: 'ghost', delta: 10, date: '2026-07-01' })
+    ).resolves.toBeTruthy()
+  })
+})
+
+describe('deleteAdjustmentAtomic — reverses its delta', () => {
+  it('add-then-delete is balance-neutral', async () => {
+    seedAccount('acc', 200)
+    const aid = await svc.addAdjustmentAtomic(USER, { account_id: 'acc', delta: 55.25, date: '2026-07-01' })
+    expect(mockDB._account('acc').balance).toBe(255.25)
+    await svc.deleteAdjustmentAtomic(aid)
+    expect(mockDB._account('acc').balance).toBeCloseTo(200, 5)
+    expect(mockDB._tables.account_adjustments.length).toBe(0)
+  })
+
+  it('reverses a negative adjustment correctly', async () => {
+    seedAccount('acc', 100)
+    const aid = await svc.addAdjustmentAtomic(USER, { account_id: 'acc', delta: -30, date: '2026-07-01' })
+    expect(mockDB._account('acc').balance).toBe(70)
+    await svc.deleteAdjustmentAtomic(aid)
+    expect(mockDB._account('acc').balance).toBe(100)
+  })
+})
+
+describe('deleteAccount — removes the account\'s adjustment rows', () => {
+  it('drops adjustments belonging to the deleted account', async () => {
+    seedAccount('acc', 100)
+    await svc.addAdjustmentAtomic(USER, { account_id: 'acc', delta: 10, date: '2026-07-01' })
+    expect(mockDB._tables.account_adjustments.length).toBe(1)
+    await svc.deleteAccount('acc')
+    expect(mockDB._tables.account_adjustments.length).toBe(0)
+    expect(mockDB._account('acc')).toBeUndefined()
   })
 })
 

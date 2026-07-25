@@ -21,7 +21,7 @@ import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { sortExpenses } from '../../src/lib/dateUtils'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { getExpenses, updateExpense, deleteExpenseAtomic, deleteRecurring, getRecurring, getIncome, deleteIncomeAtomic, getTransfers, deleteTransferAtomic, getAccounts } from '../../src/services/sqliteService'
+import { getExpenses, updateExpense, deleteExpenseAtomic, deleteRecurring, getRecurring, getIncome, deleteIncomeAtomic, getTransfers, deleteTransferAtomic, getAccounts, getAdjustments, deleteAdjustmentAtomic } from '../../src/services/sqliteService'
 import { scheduleBackup } from '../../src/services/backgroundBackup'
 
 const CACHE_KEY = 'savr_cache_history'
@@ -53,11 +53,12 @@ export default function History() {
       const user = getCachedUser() || userRef.current || await getUser()
       if (!user) { setRefreshing(false); return }
       if (!userRef.current) userRef.current = user
-      const [expenseData, incomeData, transferData, accountData] = await Promise.all([
+      const [expenseData, incomeData, transferData, accountData, adjustmentData] = await Promise.all([
         getExpenses(user.id),
         getIncome(user.id),
         getTransfers(user.id),
         getAccounts(user.id),
+        getAdjustments(user.id),
       ])
       const accountMap = {}
       accountData.forEach(a => { accountMap[a.id] = a.name })
@@ -68,6 +69,14 @@ export default function History() {
           ...t,
           type: 'transfer',
           category: `${accountMap[t.from_account_id] || 'Unknown'} → ${accountMap[t.to_account_id] || 'Unknown'}`,
+        })),
+        // A manual balance correction. `delta` is signed; the list renders on
+        // `amount` (magnitude) + a sign derived from delta<0, so store both.
+        ...adjustmentData.map(adj => ({
+          ...adj,
+          type: 'adjustment',
+          amount: Math.abs(adj.delta),
+          category: accountMap[adj.account_id] || 'Account',
         })),
       ]
       const sorted = sortExpenses(merged)
@@ -141,7 +150,7 @@ export default function History() {
       .map(date => ({
         title: date,
         data: groups[date],
-        total: roundMoney(groups[date].filter(e => e.type !== 'income').reduce((sum, e) => sum + parseFloat(e.amount), 0))
+        total: roundMoney(groups[date].filter(e => e.type !== 'income' && e.type !== 'adjustment').reduce((sum, e) => sum + parseFloat(e.amount), 0))
       }))
   }, [filtered])
   const activeFilters = (selectedCategory !== 'All' ? 1 : 0) + (selectedMonth !== 'All' ? 1 : 0)
@@ -180,7 +189,7 @@ export default function History() {
   }
 
   async function handleDelete(id, type = 'expense') {
-    const label = type === 'income' ? 'Income' : type === 'transfer' ? 'Transfer' : 'Expense'
+    const label = type === 'income' ? 'Income' : type === 'transfer' ? 'Transfer' : type === 'adjustment' ? 'Adjustment' : 'Expense'
     showAlert(`Delete ${label}`, `Are you sure you want to delete this ${label.toLowerCase()}?`, [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -196,6 +205,8 @@ export default function History() {
               await deleteIncomeAtomic(id)
             } else if (type === 'transfer') {
               await deleteTransferAtomic(id)
+            } else if (type === 'adjustment') {
+              await deleteAdjustmentAtomic(id)
             } else {
               await deleteExpenseAtomic(id)
               if (deletedItem?.recurring_id) {
@@ -359,17 +370,24 @@ export default function History() {
   function renderItem({ item }) {
     const isIncome = item.type === 'income'
     const isTransfer = item.type === 'transfer'
+    const isAdjustment = item.type === 'adjustment'
+    // Adjustments carry a signed `delta`; a positive delta raised the balance
+    // (shown green with '+'), a negative one lowered it (red with '−').
+    const adjPositive = isAdjustment && parseFloat(item.delta) >= 0
     const cat = isIncome
       ? { icon: 'arrow-down-circle-outline', color: '#4CAF50' }
       : isTransfer
         ? { icon: 'swap-horizontal-outline', color: '#607D8B' }
-        : getCategoryInfo(item.category)
+        : isAdjustment
+          ? { icon: 'create-outline', color: '#9C27B0' }
+          : getCategoryInfo(item.category)
+    const nonEditable = isIncome || isTransfer || isAdjustment
 
     return (
       <TouchableOpacity
         style={styles.card}
-        onPress={() => { if (!isIncome && !isTransfer) openEdit(item) }}
-        activeOpacity={isIncome || isTransfer ? 1 : 0.7}
+        onPress={() => { if (!nonEditable) openEdit(item) }}
+        activeOpacity={nonEditable ? 1 : 0.7}
       >
         <View style={[styles.iconBox, { backgroundColor: cat.color + '22' }]}>
           <Ionicons name={cat.icon} size={20} color={cat.color} />
@@ -387,15 +405,25 @@ export default function History() {
                 <Text style={styles.transferBadgeText}>Transfer</Text>
               </View>
             )}
+            {isAdjustment && (
+              <View style={styles.adjustmentBadge}>
+                <Text style={styles.adjustmentBadgeText}>Adjustment</Text>
+              </View>
+            )}
           </View>
           <Text style={styles.note}>{item.note || formatDate(item.date)}</Text>
         </View>
         <View style={styles.right}>
-          <Text style={[styles.amount, isIncome && { color: '#4CAF50' }, isTransfer && { color: '#607D8B' }]}>
-            {isIncome ? '+' : ''}{formatAmount(item.amount, currencySymbol, currencyCode)}
+          <Text style={[
+            styles.amount,
+            isIncome && { color: '#4CAF50' },
+            isTransfer && { color: '#607D8B' },
+            isAdjustment && { color: adjPositive ? '#4CAF50' : COLORS.accentRed },
+          ]}>
+            {isIncome || (isAdjustment && adjPositive) ? '+' : isAdjustment ? '−' : ''}{formatAmount(item.amount, currencySymbol, currencyCode)}
           </Text>
         </View>
-        {!isTransfer && !isIncome && (
+        {!nonEditable && (
           <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id, 'expense')}>
             <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
           </TouchableOpacity>
@@ -407,6 +435,11 @@ export default function History() {
         )}
         {isTransfer && (
           <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id, 'transfer')}>
+            <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
+          </TouchableOpacity>
+        )}
+        {isAdjustment && (
+          <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(item.id, 'adjustment')}>
             <Ionicons name="trash-outline" size={16} color={COLORS.accentRed} />
           </TouchableOpacity>
         )}
@@ -468,17 +501,19 @@ export default function History() {
   cancelText: { color: COLORS.textMuted, fontWeight: '600', fontSize: 15 },
   saveBtn: { flex: 1, backgroundColor: COLORS.accent, borderRadius: 12, padding: 14, alignItems: 'center' },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  typeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  typeBtn: { flex: 1, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, alignItems: 'center' },
-  typeBtnActive: (key) => ({
-    backgroundColor: key === 'income' ? '#4CAF50' : key === 'expense' ? COLORS.accentRed : key === 'transfer' ? '#607D8B' : COLORS.accent,
-    borderColor: key === 'income' ? '#4CAF50' : key === 'expense' ? COLORS.accentRed : key === 'transfer' ? '#607D8B' : COLORS.accent,
-  }),
-  typeBtnText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
+  typeRow: { flexDirection: 'row', gap: 6, marginBottom: 12 },
+  typeBtn: { flex: 1, paddingVertical: 8, paddingHorizontal: 2, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, alignItems: 'center' },
+  typeBtnActive: (key) => {
+    const c = key === 'income' ? '#4CAF50' : key === 'expense' ? COLORS.accentRed : key === 'transfer' ? '#607D8B' : key === 'adjustment' ? '#9C27B0' : COLORS.accent
+    return { backgroundColor: c, borderColor: c }
+  },
+  typeBtnText: { fontSize: 12, color: COLORS.textMuted, fontWeight: '600' },
   incomeBadge: { backgroundColor: '#4CAF5022', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 },
   incomeBadgeText: { fontSize: 10, color: '#4CAF50', fontWeight: '700' },
   transferBadge: { backgroundColor: '#607D8B22', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 },
   transferBadgeText: { fontSize: 10, color: '#607D8B', fontWeight: '700' },
+  adjustmentBadge: { backgroundColor: '#9C27B022', borderRadius: 6, paddingVertical: 2, paddingHorizontal: 6 },
+  adjustmentBadgeText: { fontSize: 10, color: '#9C27B0', fontWeight: '700' },
   }), [COLORS, insets.top])
 
   if (expenses === null) return <HistorySkeleton />
@@ -524,13 +559,14 @@ export default function History() {
           { key: 'expense', label: 'Expenses' },
           { key: 'income', label: 'Income' },
           { key: 'transfer', label: 'Transfers' },
+          { key: 'adjustment', label: 'Adjust' },
         ].map(t => (
           <TouchableOpacity
             key={t.key}
             style={[styles.typeBtn, selectedType === t.key && styles.typeBtnActive(t.key)]}
             onPress={() => setSelectedType(t.key)}
           >
-            <Text style={[styles.typeBtnText, selectedType === t.key && { color: '#fff' }]}>
+            <Text numberOfLines={1} style={[styles.typeBtnText, selectedType === t.key && { color: '#fff' }]}>
               {t.label}
             </Text>
           </TouchableOpacity>
