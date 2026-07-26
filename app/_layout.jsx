@@ -236,10 +236,15 @@ if (user) {
     const lastCheck = await AsyncStorage.getItem(LAST_RECURRING_CHECK_KEY)
     if (lastCheck !== today && !recurringProcessedRef.current) {
       recurringProcessedRef.current = true
-      await Promise.all([
-        processDueRecurring(cachedUser.id).catch((e) => logError('processDueRecurring', e)),
-        processRecurringIncome(cachedUser.id).catch((e) => logError('processRecurringIncome', e)),
+      const [expenseCount, incomeCount] = await Promise.all([
+        processDueRecurring(cachedUser.id).catch((e) => { logError('processDueRecurring', e); return 0 }),
+        processRecurringIncome(cachedUser.id).catch((e) => { logError('processRecurringIncome', e); return 0 }),
       ])
+      // Auto-logged recurring rows are real data changes that otherwise only get
+      // backed up incidentally (if some other trigger happens to fire this
+      // session) — schedule one explicitly so a user who never touches the app
+      // beyond this cold start still gets their recurring transactions backed up.
+      if (expenseCount > 0 || incomeCount > 0) backupOnAppOpen()
       // Only mark today as checked once processing has actually run to completion,
       // so a crash/kill mid-run lets the app retry on next open instead of skipping
       // the rest of the day silently.
@@ -369,8 +374,12 @@ setTimeout(async () => {
             if (session?.user) {
               if (!recurringProcessedRef.current) {
                 recurringProcessedRef.current = true
-                processDueRecurring(session.user.id)
-                processRecurringIncome(session.user.id)
+                Promise.all([
+                  processDueRecurring(session.user.id),
+                  processRecurringIncome(session.user.id),
+                ]).then(([expenseCount, incomeCount]) => {
+                  if (expenseCount > 0 || incomeCount > 0) backupOnAppOpen()
+                }).catch(() => {})
               }
               import('../src/lib/userProfile').then(({ syncUserProfile }) => {
                 syncUserProfile(session.user)

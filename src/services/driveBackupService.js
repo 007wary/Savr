@@ -1,5 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
+// Hermes has no built-in TextDecoder (facebook/hermes#1403) but pako's ungzip
+// needs one internally for its `toText` option — polyfill before pako runs.
+// No-ops if a TextDecoder already exists, so it's safe alongside Hermes's
+// native TextEncoder.
+import 'fast-text-encoding'
+import { gzip, ungzip } from 'pako'
 import { getReadyDB } from './sqliteService'
 import { getUser, getCachedUser } from '../lib/auth'
 import {
@@ -149,6 +155,15 @@ async function getOrCreateFolder(accessToken) {
   }
 }
 
+async function deleteFile(accessToken, fileId) {
+  try {
+    await fetchWithTimeout(
+      `${DRIVE_API_BASE}/files/${fileId}`,
+      { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+  } catch {}
+}
+
 async function findBackupFileId(accessToken, folderId) {
   try {
     const query = folderId
@@ -159,8 +174,17 @@ async function findBackupFileId(accessToken, folderId) {
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
     const data = await response.json()
-    if (data.files && data.files.length > 0) return data.files[0]
-    return null
+    if (!data.files || data.files.length === 0) return null
+    if (data.files.length === 1) return data.files[0]
+
+    // More than one savr_backup.json can exist if two uploads ever raced and
+    // both missed finding an existing file (each took the create-new path).
+    // Keep the most recently modified one and clean up the rest so future
+    // lookups don't depend on undefined API ordering to pick the right file.
+    const sorted = [...data.files].sort((a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime))
+    const [newest, ...duplicates] = sorted
+    await Promise.all(duplicates.map((f) => deleteFile(accessToken, f.id)))
+    return newest
   } catch {
     return null
   }
@@ -432,6 +456,13 @@ export async function backupToDrive() {
       data,
     }
     const jsonContent = JSON.stringify(backupPayload)
+    // Gzip the payload before upload — a multi-year user's full transaction
+    // history re-uploads on every single edit (no delta sync), so compression
+    // is a real bandwidth/time win. Sent as opaque `application/gzip` bytes,
+    // not via the `Content-Encoding` header — Drive's handling of that header
+    // on uploads is undocumented, so we don't rely on it and instead gunzip
+    // explicitly ourselves on restore (see restoreFromDrive).
+    const compressed = gzip(jsonContent)
     const folderId = await getOrCreateFolder(accessToken)
     const existingFile = await findBackupFileId(accessToken, folderId)
 
@@ -442,9 +473,9 @@ export async function backupToDrive() {
           method: 'PATCH',
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
+            'Content-Type': 'application/gzip',
           },
-          body: jsonContent,
+          body: compressed,
         },
         30000
       )
@@ -453,6 +484,10 @@ export async function backupToDrive() {
         return { success: false, error: err.error?.message || 'Upload failed' }
       }
     } else {
+      // Multipart create embeds each part as text in the request body, which
+      // can't carry raw gzip bytes safely — upload uncompressed here. This
+      // path only runs once ever per user (the very first backup); every
+      // subsequent backup goes through the compressed PATCH path above.
       const metadata = {
         name: BACKUP_FILE_NAME,
         parents: folderId ? [folderId] : [],
@@ -519,7 +554,19 @@ export async function restoreFromDrive() {
     )
     if (!response.ok) return { success: false, error: 'Download failed' }
 
-    const backupPayload = await response.json()
+    // Backups written since gzip support was added are raw gzip bytes; older
+    // backups are plain JSON text. Detect by the gzip magic number (0x1f 0x8b)
+    // rather than trusting a content-type header, since Drive doesn't reliably
+    // preserve the upload's Content-Type on download.
+    const bytes = new Uint8Array(await response.arrayBuffer())
+    const isGzip = bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b
+    let backupPayload
+    try {
+      const jsonText = isGzip ? ungzip(bytes, { toText: true }) : new TextDecoder().decode(bytes)
+      backupPayload = JSON.parse(jsonText)
+    } catch {
+      return { success: false, error: 'Invalid backup file' }
+    }
     if (!backupPayload.data) return { success: false, error: 'Invalid backup file' }
 
     if (backupPayload.userId && backupPayload.userId !== user.id) {
@@ -528,6 +575,10 @@ export async function restoreFromDrive() {
 
     await restoreAllDataToSQLite(user.id, backupPayload.data)
     await AsyncStorage.setItem('savr_last_backup', backupPayload.backedUpAt)
+    // Without this, the next hasDataChanged() check compares against the
+    // pre-restore hash, sees a mismatch, and silently re-uploads the data we
+    // just downloaded right back to Drive on the next debounced trigger.
+    await saveBackupHash(user.id)
 
     return {
       success: true,

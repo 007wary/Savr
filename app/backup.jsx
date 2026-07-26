@@ -10,7 +10,8 @@ import { SCREEN } from '../src/constants/theme'
 import { useTheme } from '../src/lib/themeContext'
 import { getUser, getCachedUser } from '../src/lib/auth'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { backupToDrive, hasDataChanged, reauthorizeDrive } from '../src/services/driveBackupService'
+import { hasDataChanged, reauthorizeDrive } from '../src/services/driveBackupService'
+import { backupNow } from '../src/services/backgroundBackup'
 import CustomAlert from '../src/components/CustomAlert'
 import useAlert from '../src/hooks/useAlert'
 
@@ -95,14 +96,14 @@ export default function BackupScreen() {
       return showAlert('Already Up To Date', 'Your backup is already up to date. No new changes to backup.')
     }
     setBackingUp(true)
-    let result = await backupToDrive()
+    let result = await backupNow()
     // A token failure usually just means the Drive access token lapsed and the
     // native session needs re-consent — not that the whole app login is dead.
     // Re-authorize inline and retry once before falling back to the hard message,
     // so the common case never asks the user to sign out of the app.
     if (!result.success && (result.error === 'NO_TOKEN' || result.error === 'SESSION_EXPIRED')) {
       const reauthed = await reauthorizeDrive()
-      if (reauthed) result = await backupToDrive()
+      if (reauthed) result = await backupNow()
     }
     setBackingUp(false)
     if (result.success) {
