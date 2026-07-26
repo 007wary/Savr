@@ -28,6 +28,12 @@ export const DARK_COLORS = {
   text: '#FFFFFF',
   textMuted: '#888888',
   border: '#2A2A2A',
+  // Same gradient in both modes — the hero card is a deliberate saturated
+  // brand moment, not something that should fade to match the surrounding
+  // surface. onGradientPositive is the income/positive-figure color used
+  // against it (kept light-on-purple in both modes for contrast).
+  heroGradient: ['#7C75FF', '#6C63FF', '#5A50FF'],
+  onGradientPositive: '#a8ffb8',
 }
 
 export const LIGHT_COLORS = {
@@ -41,6 +47,8 @@ export const LIGHT_COLORS = {
   text: '#0F0F0F',
   textMuted: '#777777',
   border: '#E0E0E0',
+  heroGradient: ['#7C75FF', '#6C63FF', '#5A50FF'],
+  onGradientPositive: '#a8ffb8',
 }
 
 // Backward-compat alias — screens still importing COLORS directly won't break

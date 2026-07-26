@@ -567,18 +567,28 @@ const isCurrentMonth = true
   totalLabel: { fontSize: 10, color: 'rgba(255,255,255,0.7)', marginBottom: 6, letterSpacing: 1.5, textTransform: 'uppercase' },
   totalAmount: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.5, width: '100%', textAlign: 'center' },
   totalSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
-  goalCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
-  goalCardExceeded: { borderColor: COLORS.accentRed + '66' },
-  forecastCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1 },
-  forecastHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  forecastIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  forecastTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
-  forecastSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  forecastAmount: { fontSize: 18, fontWeight: '800' },
-  forecastMsg: { fontSize: 13, color: COLORS.textMuted, marginTop: 12, lineHeight: 19 },
+  // Daily Avg / vs Last Month used to be their own full-width card lower on
+  // the screen — folded into the hero as a quiet footer row instead, since
+  // it's the same "this month at a glance" data the hero already owns.
+  totalFooter: { flexDirection: 'row', marginTop: 2, paddingTop: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.18)', borderStyle: 'dashed' },
+  totalFooterCol: { flex: 1, alignItems: 'center' },
+  totalFooterLabel: { fontSize: 9, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' },
+  totalFooterValue: { fontSize: 12.5, fontWeight: '800', color: '#fff', marginTop: 3 },
+  // Streak + Goal are the two cards Savr most wants noticed (retention +
+  // active-goal-tracking), so they get a tinted background and a larger
+  // icon box; every other card stays on the plain COLORS.card style to
+  // keep them visually secondary rather than competing for attention.
+  goalCard: { backgroundColor: COLORS.accentGreen + '14', borderRadius: 18, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.accentGreen + '48' },
+  goalCardExceeded: { backgroundColor: COLORS.accentRed + '14', borderColor: COLORS.accentRed + '66' },
+  // Forecast is now a footer line inside the Goal card (both are read from
+  // the same "total vs goal" number, so they no longer compete as separate
+  // cards) — forecastFooter/forecastFooterText replace the old forecastCard.
+  forecastFooter: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: COLORS.border },
+  forecastFooterText: { flex: 1, fontSize: 11.5, color: COLORS.textMuted, lineHeight: 16 },
+  forecastFooterAmount: { fontWeight: '800' },
   goalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   goalHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  goalIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  goalIconBox: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
   goalTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
   goalSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   goalPctBadge: { backgroundColor: COLORS.cardAlt, borderRadius: 10, paddingVertical: 4, paddingHorizontal: 10, borderWidth: 1, borderColor: COLORS.border },
@@ -592,11 +602,6 @@ const isCurrentMonth = true
   goalEmptyIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.accent + '22', justifyContent: 'center', alignItems: 'center' },
   goalEmptyTitle: { fontSize: 15, fontWeight: '600', color: COLORS.text },
   goalEmptySub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
-  statsRow: { flexDirection: 'row', backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
-  statCard: { flex: 1, alignItems: 'center' },
-  statLabel: { fontSize: 11, color: COLORS.textMuted, marginBottom: 6, letterSpacing: 1, textTransform: 'uppercase' },
-  statValue: { fontSize: 16, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5, width: '100%', textAlign: 'center' },
-  statDivider: { width: 1, backgroundColor: COLORS.border, marginHorizontal: 8 },
   insightsCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   insightsTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   insightsTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
@@ -642,13 +647,17 @@ const isCurrentMonth = true
   quickStatLabel: { fontSize: 10, color: COLORS.textMuted, fontWeight: '700', letterSpacing: 1.2 },
   quickStatValue: { fontSize: 18, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5, marginBottom: 4 },
   quickStatSub: { fontSize: 11, color: COLORS.textMuted },
-  quickStatBadge: { backgroundColor: '#4CAF5022', borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8, borderWidth: 1, borderColor: '#4CAF5044' },
-  quickStatBadgeText: { fontSize: 10, color: '#4CAF50', fontWeight: '700' },
+  quickStatBadge: { backgroundColor: COLORS.accentGreen + '22', borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8, borderWidth: 1, borderColor: COLORS.accentGreen + '44' },
+  quickStatBadgeText: { fontSize: 10, color: COLORS.accentGreen, fontWeight: '700' },
   quickStatBadgePurple: { backgroundColor: COLORS.accent + '22', borderRadius: 20, paddingVertical: 3, paddingHorizontal: 8, borderWidth: 1, borderColor: COLORS.accent + '44' },
   quickStatBadgeTextPurple: { fontSize: 10, color: COLORS.accent, fontWeight: '700' },
-  streakCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#FF8C4244' },
-  streakCardEmpty: { borderColor: COLORS.border },
-  streakIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  // Active streak is a primary card (tinted bg, like Goal) — it's the
+  // strongest retention signal on the screen and should read that way.
+  // Empty state stays on plain COLORS.card since there's nothing to
+  // celebrate yet.
+  streakCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#FF8C4214', borderRadius: 18, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#FF8C4244' },
+  streakCardEmpty: { backgroundColor: COLORS.card, borderColor: COLORS.border },
+  streakIconBox: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
   streakTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
   streakSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
   goalBannerWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
@@ -697,7 +706,7 @@ const isCurrentMonth = true
         }
       >
 
-        <LinearGradient colors={['#7C75FF', '#6C63FF', '#5A50FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.totalCard}>
+        <LinearGradient colors={COLORS.heroGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.totalCard}>
           <View style={styles.totalRow}>
             <View style={styles.totalLeft}>
               <Text style={styles.totalLabel}>TOTAL SPENT</Text>
@@ -717,16 +726,30 @@ const isCurrentMonth = true
           <View style={styles.totalRow}>
             <View style={styles.totalLeft}>
               <Text style={styles.totalLabel}>MONTHLY INCOME</Text>
-              <CountUp value={monthlyIncome} style={[styles.totalAmount, { color: '#a8ffb8' }]} symbol={currencySymbol} currencyCode={currencyCode} />
+              <CountUp value={monthlyIncome} style={[styles.totalAmount, { color: COLORS.onGradientPositive }]} symbol={currencySymbol} currencyCode={currencyCode} />
               <Text style={styles.totalSub}>this month</Text>
             </View>
             <View style={styles.totalDivider} />
             <View style={styles.totalRight}>
               <Text style={styles.totalLabel}>TODAY INCOME</Text>
-              <CountUp value={todayIncome} style={[styles.totalAmount, { color: '#a8ffb8' }]} symbol={currencySymbol} currencyCode={currencyCode} />
+              <CountUp value={todayIncome} style={[styles.totalAmount, { color: COLORS.onGradientPositive }]} symbol={currencySymbol} currencyCode={currencyCode} />
               <Text style={styles.totalSub}>today</Text>
             </View>
           </View>
+          {expenses.length > 0 && (
+            <View style={styles.totalFooter}>
+              <View style={styles.totalFooterCol}>
+                <Text style={styles.totalFooterLabel}>Daily Avg</Text>
+                <Text style={styles.totalFooterValue}>{formatAmount(total / Math.max(daysInMonth, 1), currencySymbol, currencyCode)}</Text>
+              </View>
+              <View style={styles.totalFooterCol}>
+                <Text style={styles.totalFooterLabel}>vs Last Month</Text>
+                <Text style={[styles.totalFooterValue, { color: lastMonthTotal === 0 ? '#fff' : total > lastMonthTotal ? '#ffb3b3' : COLORS.onGradientPositive }]}>
+                  {lastMonthTotal === 0 ? 'N/A' : `${total > lastMonthTotal ? '▲' : '▼'} ${formatAmount(Math.abs(total - lastMonthTotal), currencySymbol, currencyCode)}`}
+                </Text>
+              </View>
+            </View>
+          )}
         </LinearGradient>
 
         {isCurrentMonth && (
@@ -864,53 +887,24 @@ const isCurrentMonth = true
                 <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
               </View>
             )}
+
+            {forecast && (() => {
+              const over = forecast.goal && forecast.willExceedGoal
+              const fColor = over ? COLORS.accentRed : forecast.goal ? COLORS.accentGreen : COLORS.accent
+              return (
+                <View style={styles.forecastFooter}>
+                  <Ionicons name="trending-up-outline" size={14} color={fColor} />
+                  <Text style={styles.forecastFooterText}>
+                    {over
+                      ? <>Forecasted <Text style={[styles.forecastFooterAmount, { color: fColor }]}>{formatAmount(forecast.projectedTotal, currencySymbol, currencyCode)}</Text> — {formatAmount(forecast.projectedOverGoal, currencySymbol, currencyCode)} over goal. Keep it under {formatAmount(forecast.safeDailySpend, currencySymbol, currencyCode)}/day.</>
+                      : forecast.goal
+                        ? <>On track — forecasted <Text style={[styles.forecastFooterAmount, { color: fColor }]}>{formatAmount(forecast.projectedTotal, currencySymbol, currencyCode)}</Text> by month end, within goal.</>
+                        : <>Forecasted <Text style={[styles.forecastFooterAmount, { color: fColor }]}>{formatAmount(forecast.projectedTotal, currencySymbol, currencyCode)}</Text> by month end · {formatAmount(forecast.dailyPace, currencySymbol, currencyCode)}/day pace.</>}
+                  </Text>
+                </View>
+              )
+            })()}
           </TouchableOpacity>
-        )}
-
-        {forecast && (() => {
-          const over = forecast.goal && forecast.willExceedGoal
-          const fColor = over ? COLORS.accentRed : forecast.goal ? COLORS.accentGreen : COLORS.accent
-          return (
-            <View style={[styles.forecastCard, { borderColor: fColor + '44' }]}>
-              <View style={styles.forecastHeader}>
-                <View style={[styles.forecastIconBox, { backgroundColor: fColor + '22' }]}>
-                  <Ionicons name="trending-up-outline" size={18} color={fColor} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.forecastTitle}>Month-End Forecast</Text>
-                  <Text style={styles.forecastSub}>Projected from your pace this month</Text>
-                </View>
-                <Text style={[styles.forecastAmount, { color: fColor }]}>
-                  {formatAmount(forecast.projectedTotal, currencySymbol, currencyCode)}
-                </Text>
-              </View>
-              <Text style={styles.forecastMsg}>
-                {over
-                  ? `${formatAmount(forecast.projectedOverGoal, currencySymbol, currencyCode)} over your goal. Keep it under ${formatAmount(forecast.safeDailySpend, currencySymbol, currencyCode)}/day to stay on track.`
-                  : forecast.goal
-                    ? `On track to finish within your ${formatAmount(forecast.goal, currencySymbol, currencyCode)} goal.`
-                    : `Averaging ${formatAmount(forecast.dailyPace, currencySymbol, currencyCode)}/day so far.`}
-              </Text>
-            </View>
-          )
-        })()}
-
-        {expenses.length > 0 && (
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Daily Avg</Text>
-              <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                {formatAmount(total / Math.max(daysInMonth, 1), currencySymbol, currencyCode)}
-              </Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>vs Last Month</Text>
-              <Text style={[styles.statValue, { color: total > lastMonthTotal ? COLORS.accentRed : COLORS.accentGreen }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                {lastMonthTotal === 0 ? 'N/A' : `${total > lastMonthTotal ? '▲' : '▼'} ${formatAmount(Math.abs(total - lastMonthTotal), currencySymbol, currencyCode)}`}
-              </Text>
-            </View>
-          </View>
         )}
 
         {insights.length > 0 && (
