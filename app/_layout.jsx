@@ -16,6 +16,7 @@ import { Analytics, setUserId } from '../src/lib/analytics'
 import crashlytics from '@react-native-firebase/crashlytics'
 import { setCachedUser, getCachedUser, loadCachedUser } from '../src/lib/auth'
 import { isSigningIn, subscribeSigningIn, setSigningIn } from '../src/lib/authState'
+import { setOnboardingDone as setOnboardingDoneShared, subscribeOnboardingDone } from '../src/lib/onboardingState'
 import * as NavigationBar from 'expo-navigation-bar'
 import { ErrorBoundary } from '../src/components/ErrorBoundary'
 import { logError } from '../src/lib/errorLog'
@@ -62,6 +63,16 @@ function RootLayoutInner() {
   // below re-runs when it flips, instead of silently missing the SIGNED_IN
   // navigation because the flag changed without a re-render.
   useEffect(() => subscribeSigningIn(setSigningInState), [])
+
+  // onboarding.jsx calls setOnboardingDoneShared() (not this component) when
+  // the user finishes/skips onboarding, since it can't reach this component's
+  // state directly. Subscribe so this state — and the redirect effect that
+  // reads it — actually picks up the change, instead of staying stuck on the
+  // stale `false` loaded at init and bouncing the user straight back to
+  // /onboarding on the next segment change.
+  useEffect(() => subscribeOnboardingDone((val) => {
+    if (val !== null) setOnboardingDone(val)
+  }), [])
 
   useEffect(() => {
     NavigationBar.setBackgroundColorAsync(COLORS.bg).catch(() => {})
@@ -136,7 +147,9 @@ function RootLayoutInner() {
         loadCachedUser(),
         AsyncStorage.getItem('savr_onboarding_done'),
       ])
-      setOnboardingDone(onboardingDoneRaw === 'true')
+      const onboardingDoneVal = onboardingDoneRaw === 'true'
+      setOnboardingDone(onboardingDoneVal)
+      setOnboardingDoneShared(onboardingDoneVal)
 
       // Initialize database in parallel — don't block startup
       const dbReady = initializeDatabase().catch((e) =>

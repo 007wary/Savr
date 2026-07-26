@@ -20,16 +20,9 @@ export default function Login() {
   const { COLORS } = useTheme()
   const insets = useSafeAreaInsets()
   const [googleLoading, setGoogleLoading] = useState(false)
-  const [accepted, setAccepted] = useState(false)
   const { alertConfig, showAlert, hideAlert } = useAlert()
 
   async function handleGoogleLogin() {
-    if (!accepted) {
-      return showAlert(
-        'Accept Terms',
-        'Please accept the Privacy Policy and Terms of Service to continue.'
-      )
-    }
     try {
       setGoogleLoading(true)
 
@@ -89,21 +82,10 @@ export default function Login() {
     padding: 13, borderWidth: 1, borderColor: COLORS.border,
   },
   featureText: { fontSize: 14, color: COLORS.text, fontWeight: '500' },
-  acceptRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: COLORS.card, borderRadius: 14,
-    padding: 14, marginBottom: 16,
-    borderWidth: 1, borderColor: COLORS.border,
+  acceptText: {
+    fontSize: 12.5, color: COLORS.textMuted, lineHeight: 18,
+    textAlign: 'center', marginTop: 4,
   },
-  checkbox: {
-    width: 22, height: 22, borderRadius: 6,
-    borderWidth: 2, borderColor: COLORS.border,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: COLORS.accent, borderColor: COLORS.accent,
-  },
-  acceptText: { flex: 1, fontSize: 13, color: COLORS.textMuted, lineHeight: 20 },
   acceptLink: { color: COLORS.accent, fontWeight: '600' },
   googleBtn: {
     flexDirection: 'row', alignItems: 'center',
@@ -115,7 +97,6 @@ export default function Login() {
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15, shadowRadius: 8, elevation: 4,
   },
-  googleBtnDisabled: { opacity: 0.5 },
   googleBtnText: {
     color: COLORS.text, fontWeight: '700',
     fontSize: 16, letterSpacing: -0.3,
@@ -146,34 +127,27 @@ export default function Login() {
           ))}
         </View>
 
-        <View style={styles.acceptRow}>
-          <TouchableOpacity onPress={() => setAccepted(!accepted)} activeOpacity={0.7}>
-            <View style={[styles.checkbox, accepted && styles.checkboxChecked]}>
-              {accepted && <Ionicons name="checkmark" size={14} color="#fff" />}
-            </View>
-          </TouchableOpacity>
-          <Text style={styles.acceptText}>
-            I agree to the{' '}
-            <Text style={styles.acceptLink} onPress={openTerms}>Terms of Service</Text>
-            {' '}and{' '}
-            <Text style={styles.acceptLink} onPress={openPrivacyPolicy}>Privacy Policy</Text>
-          </Text>
-        </View>
-
         <TouchableOpacity
-          style={[styles.googleBtn, !accepted && styles.googleBtnDisabled]}
+          style={styles.googleBtn}
           onPress={handleGoogleLogin}
-          disabled={googleLoading || !accepted}
+          disabled={googleLoading}
           activeOpacity={0.85}
         >
           {googleLoading
             ? <ActivityIndicator size="small" color={COLORS.text} />
-            : <Ionicons name="logo-google" size={20} color={accepted ? '#DB4437' : COLORS.textMuted} />
+            : <Ionicons name="logo-google" size={20} color="#DB4437" />
           }
-          <Text style={[styles.googleBtnText, !accepted && { color: COLORS.textMuted }]}>
+          <Text style={styles.googleBtnText}>
             {googleLoading ? 'Signing in...' : 'Continue with Google'}
           </Text>
         </TouchableOpacity>
+
+        <Text style={styles.acceptText}>
+          By continuing, you agree to our{' '}
+          <Text style={styles.acceptLink} onPress={openTerms}>Terms of Service</Text>
+          {' '}and{' '}
+          <Text style={styles.acceptLink} onPress={openPrivacyPolicy}>Privacy Policy</Text>
+        </Text>
       </View>
 
       <CustomAlert

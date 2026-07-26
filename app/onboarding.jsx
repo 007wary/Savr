@@ -14,6 +14,7 @@ import { requestNotificationPermission, isNotificationGranted } from '../src/lib
 import { loadCurrency, saveCurrency } from '../src/lib/currency'
 import { CURRENCIES } from '../src/constants/theme'
 import BottomSheet from '../src/components/BottomSheet'
+import { setOnboardingDone as setOnboardingDoneShared } from '../src/lib/onboardingState'
 
 const { width } = Dimensions.get('window')
 
@@ -111,6 +112,13 @@ export default function Onboarding() {
 
   async function handleDone() {
     await AsyncStorage.setItem('savr_onboarding_done', 'true')
+    // Must happen before the navigate: _layout.jsx's redirect effect reads
+    // its own onboardingDone React state (seeded once from AsyncStorage at
+    // launch) on every segment change, including the one this replace()
+    // triggers. Without updating the shared state here, that effect still
+    // sees the stale pre-onboarding value and immediately bounces the user
+    // straight back to /onboarding.
+    setOnboardingDoneShared(true)
     router.replace('/(auth)/login')
   }
 
@@ -157,7 +165,7 @@ export default function Onboarding() {
     },
     skipText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
     slideScroll: { flex: 1 },
-    slide: { width, paddingHorizontal: 28, paddingTop: 90, alignItems: 'center' },
+    slide: { width, paddingHorizontal: 28, paddingTop: 90, paddingBottom: 32, alignItems: 'center' },
     iconCircle: {
       width: 140, height: 140, borderRadius: 70,
       justifyContent: 'center', alignItems: 'center',
@@ -226,7 +234,13 @@ export default function Onboarding() {
         decelerationRate="fast"
       >
         {SLIDES.map((s, index) => (
-          <View key={index} style={styles.slide}>
+          <ScrollView
+            key={index}
+            style={{ width }}
+            contentContainerStyle={styles.slide}
+            showsVerticalScrollIndicator={false}
+            bounces={false}
+          >
             <LinearGradient
               colors={s.gradient}
               start={{ x: 0, y: 0 }}
@@ -299,7 +313,7 @@ export default function Onboarding() {
                 </TouchableOpacity>
               )
             )}
-          </View>
+          </ScrollView>
         ))}
       </ScrollView>
 
