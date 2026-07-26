@@ -182,6 +182,21 @@ const REQUIRED_FIELDS = {
 
 const VALID_FREQUENCIES = ['daily', 'weekly', 'monthly']
 
+// Fields that flow into SQL arithmetic (SUM, balance deltas, roundMoney) and
+// must be actual numbers — SQLite is dynamically typed and will silently
+// store a string, breaking arithmetic everywhere the value is later read.
+const NUMERIC_FIELDS = {
+  expenses: ['amount'],
+  budgets: ['limit_amount'],
+  recurring: ['amount'],
+  goals: ['target_amount'],
+  accounts: ['balance'],
+  income: ['amount'],
+  transfers: ['amount'],
+  recurringIncome: ['amount'],
+  adjustments: ['delta'],
+}
+
 function validateBackupData(data) {
   for (const [key, requiredFields] of Object.entries(REQUIRED_FIELDS)) {
     const rows = data[key]
@@ -196,6 +211,11 @@ function validateBackupData(data) {
       for (const field of requiredFields) {
         if (row[field] === undefined || row[field] === null) {
           throw new Error(`Invalid backup data: "${key}" row is missing required field "${field}"`)
+        }
+      }
+      for (const field of NUMERIC_FIELDS[key] || []) {
+        if (row[field] !== undefined && row[field] !== null && !Number.isFinite(Number(row[field]))) {
+          throw new Error(`Invalid backup data: "${key}" row has non-numeric "${field}"`)
         }
       }
       // Recurring rules drive a `while (currentDue <= today)` loop keyed on
@@ -313,9 +333,11 @@ async function restoreAllDataToSQLite(userId, data) {
       await db.withTransactionAsync(async () => {
         await writeAllDataToSQLite(db, userId, snapshot, now)
       })
-    } catch {
-      // Snapshot re-apply also failed — surface the original error; there is
-      // nothing more we can safely do locally.
+    } catch (snapshotError) {
+      // Snapshot re-apply also failed — local rows for this user may now be
+      // empty/partial. Surface the original error, but log the snapshot
+      // failure too since it's otherwise unrecoverable and invisible.
+      logError('restoreAllDataToSQLite:snapshotReapplyFailed', snapshotError)
     }
     throw restoreError
   }

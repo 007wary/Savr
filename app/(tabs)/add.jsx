@@ -929,7 +929,7 @@ export default function AddExpense() {
         title={alertConfig.title}
         message={alertConfig.message}
         buttons={alertConfig.buttons}
-        onClose={hideAlert}
+        onClose={() => { addInFlightRef.current = false; hideAlert() }}
       />
 
       <Modal visible={showCelebration} transparent animationType="fade" onRequestClose={handleCelebrationDone}>

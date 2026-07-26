@@ -380,7 +380,7 @@ try {
 
         if (expiresAt && expiresAt - now < fiveMinutes) {
           const { data, error } = await supabase.auth.refreshSession()
-          if (error || !data.session) {
+          if (error || !data.session || signedOutRef.current) {
             return
           } else {
             setSession(data.session)

@@ -5,6 +5,8 @@
 // anomalies. An expense is flagged when it sits far above the typical value on
 // a robust, outlier-resistant scale.
 
+import { localDateKey } from './dateUtils'
+
 function median(sorted) {
   const n = sorted.length
   const mid = Math.floor(n / 2)
@@ -13,13 +15,11 @@ function median(sorted) {
 
 export function detectAnomaly(newAmount, category, allExpenses) {
   try {
-    const now = new Date()
-
     // Get last 90 days expenses for this category (excluding today)
     const ninetyDaysAgo = new Date()
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
-    const ninetyDaysAgoStr = `${ninetyDaysAgo.getFullYear()}-${String(ninetyDaysAgo.getMonth() + 1).padStart(2, '0')}-${String(ninetyDaysAgo.getDate()).padStart(2, '0')}`
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const ninetyDaysAgoStr = localDateKey(ninetyDaysAgo)
+    const todayStr = localDateKey()
 
     const historicalExpenses = allExpenses.filter(e =>
       e.category === category &&

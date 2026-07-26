@@ -1,4 +1,5 @@
 import { getRecurring, processRecurringExpenseItemAtomic } from '../services/sqliteService'
+import { localDateKey } from './dateUtils'
 
 let isProcessing = false
 let isProcessingIncome = false
@@ -8,8 +9,7 @@ export async function processDueRecurring(userId) {
   isProcessing = true
 
   try {
-    const today = new Date()
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const todayStr = localDateKey()
 
     const recurring = await getRecurring(userId)
     if (!recurring || recurring.length === 0) return 0
@@ -53,7 +53,7 @@ export function calculateNextDue(currentDue, frequency, anchorDay = null) {
     const daysInTargetMonth = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()
     next.setDate(Math.min(day, daysInTargetMonth))
   }
-  return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`
+  return localDateKey(next)
 }
 
 export async function processRecurringIncome(userId) {
@@ -65,8 +65,7 @@ export async function processRecurringIncome(userId) {
     const items = await getRecurringIncome(userId)
     if (!items || items.length === 0) return 0
 
-    const today = new Date()
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const todayStr = localDateKey()
 
     let logged = 0
 

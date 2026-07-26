@@ -1,4 +1,5 @@
 import { getSpendingGoal, saveSpendingGoal, deleteSpendingGoal } from '../services/sqliteService'
+import { logError } from './errorLog'
 
 export async function saveGoal(userId, amount) {
   try {
@@ -7,7 +8,9 @@ export async function saveGoal(userId, amount) {
       target_amount: amount,
       deadline: null,
     })
-  } catch {}
+  } catch (e) {
+    logError('saveGoal', e)
+  }
 }
 
 export async function loadGoal(userId) {
@@ -22,5 +25,7 @@ export async function loadGoal(userId) {
 export async function clearGoal(userId) {
   try {
     await deleteSpendingGoal(userId)
-  } catch {}
+  } catch (e) {
+    logError('clearGoal', e)
+  }
 }

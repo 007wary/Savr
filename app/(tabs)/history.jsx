@@ -127,10 +127,11 @@ export default function History() {
   // memoized on their inputs — without this they'd recompute on every render,
   // including every keystroke in the search box.
   const filtered = useMemo(() => (expenses || []).filter(e => {
-    const cleanSearch = search.replace(/[₹$€£¥₩฿₽,\s]/g, '').toLowerCase()
+    const term = search.toLowerCase()
+    const cleanSearch = term.replace(/[₹$€£¥₩฿₽,\s]/g, '')
     const matchSearch = search === '' ||
-      e.note?.toLowerCase().includes(search.toLowerCase()) ||
-      e.category?.toLowerCase().includes(search.toLowerCase()) ||
+      e.note?.toLowerCase().includes(term) ||
+      e.category?.toLowerCase().includes(term) ||
       String(parseFloat(e.amount).toFixed(2)).includes(cleanSearch) ||
       String(parseFloat(e.amount).toFixed(0)).includes(cleanSearch)
     const matchCategory = selectedCategory === 'All' || e.category === selectedCategory

@@ -247,7 +247,7 @@ export default function Reports() {
   }, [expenses])
 
   const biggestExpense = useMemo(() =>
-    expenses.length > 0 ? [...expenses].sort((a, b) => b.amount - a.amount)[0] : null,
+    expenses.length > 0 ? [...expenses].sort((a, b) => parseFloat(b.amount) - parseFloat(a.amount))[0] : null,
   [expenses])
 
   // Plain-language interpretation of the numbers already computed above.
