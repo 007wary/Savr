@@ -19,6 +19,20 @@ function backupPayloadHasRows(data) {
   return Object.values(data).some((v) => Array.isArray(v) && v.length > 0)
 }
 
+// fetch() has no built-in timeout — on a captive portal or a dead network that
+// silently drops packets instead of erroring, every Drive call below would
+// hang indefinitely instead of failing, leaving backup/restore stuck forever.
+// Every network call in this file goes through here so that can't happen.
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 // Day-of-month (1–31) parsed from a "YYYY-MM-DD" string, used to backfill
 // anchor_day for recurring rows from backups made before the column existed.
 function anchorDayFromDate(dateStr) {
@@ -93,7 +107,7 @@ export async function reauthorizeDrive() {
 
 async function verifyToken(accessToken) {
   try {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${accessToken}`
     )
     const data = await response.json()
@@ -106,7 +120,7 @@ async function verifyToken(accessToken) {
 async function getOrCreateFolder(accessToken) {
   try {
     const folderQuery = `name='${FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`
-    const searchResponse = await fetch(
+    const searchResponse = await fetchWithTimeout(
       `${DRIVE_API_BASE}/files?q=${encodeURIComponent(folderQuery)}&fields=files(id,name)`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
@@ -114,7 +128,7 @@ async function getOrCreateFolder(accessToken) {
     if (searchData.files && searchData.files.length > 0) {
       return searchData.files[0].id
     }
-    const createResponse = await fetch(
+    const createResponse = await fetchWithTimeout(
       `${DRIVE_API_BASE}/files`,
       {
         method: 'POST',
@@ -140,7 +154,7 @@ async function findBackupFileId(accessToken, folderId) {
     const query = folderId
       ? `name='${BACKUP_FILE_NAME}' and '${folderId}' in parents and trashed=false`
       : `name='${BACKUP_FILE_NAME}' and trashed=false`
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${DRIVE_API_BASE}/files?q=${encodeURIComponent(query)}&fields=files(id,name,modifiedTime)`,
       { headers: { Authorization: `Bearer ${accessToken}` } }
     )
@@ -422,7 +436,7 @@ export async function backupToDrive() {
     const existingFile = await findBackupFileId(accessToken, folderId)
 
     if (existingFile) {
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `${DRIVE_UPLOAD_BASE}/files/${existingFile.id}?uploadType=media`,
         {
           method: 'PATCH',
@@ -431,7 +445,8 @@ export async function backupToDrive() {
             'Content-Type': 'application/json',
           },
           body: jsonContent,
-        }
+        },
+        30000
       )
       if (!response.ok) {
         const err = await response.json()
@@ -451,7 +466,7 @@ export async function backupToDrive() {
         `Content-Type: application/json\r\n\r\n` +
         `${jsonContent}\r\n` +
         `--${boundary}--`
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `${DRIVE_UPLOAD_BASE}/files?uploadType=multipart`,
         {
           method: 'POST',
@@ -460,7 +475,8 @@ export async function backupToDrive() {
             'Content-Type': `multipart/related; boundary=${boundary}`,
           },
           body: multipartBody,
-        }
+        },
+        30000
       )
       if (!response.ok) {
         const err = await response.json()
@@ -496,9 +512,10 @@ export async function restoreFromDrive() {
     if (!existingFile) existingFile = await findBackupFileId(accessToken, null)
     if (!existingFile) return { success: false, error: 'NO_BACKUP' }
 
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${DRIVE_API_BASE}/files/${existingFile.id}?alt=media`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      30000
     )
     if (!response.ok) return { success: false, error: 'Download failed' }
 

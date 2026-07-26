@@ -43,8 +43,18 @@ export default function BackupScreen() {
 
   async function checkOnlineStatus() {
     try {
-      await fetch('https://www.google.com', { method: 'HEAD', cache: 'no-cache' })
-      return true
+      // fetch() has no built-in timeout — on a captive portal or a dead network
+      // that silently drops packets instead of erroring, an unbounded await here
+      // would leave the backup button stuck on "Backing up..." forever. Race it
+      // against a hard timeout so a bad network always resolves to "offline".
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 8000)
+      try {
+        await fetch('https://www.google.com', { method: 'HEAD', cache: 'no-cache', signal: controller.signal })
+        return true
+      } finally {
+        clearTimeout(timeout)
+      }
     } catch {
       return false
     }

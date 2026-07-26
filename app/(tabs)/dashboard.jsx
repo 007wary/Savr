@@ -133,6 +133,7 @@ export default function Dashboard() {
   const backupExistsRef = useRef(null)
 const syncTokenRef = useRef(0)
 const fetchDataRef = useRef(null)
+const recentExpensesRef = useRef([])
 
   const { name: monthName } = getMonthInfo(0)
 const isCurrentMonth = true
@@ -162,10 +163,8 @@ const isCurrentMonth = true
       const initials = nameParts.length >= 2
         ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
         : fullName.slice(0, 2).toUpperCase()
-      setUserInitials(initials)
 
       const avatar = user.user_metadata?.picture || user.user_metadata?.avatar_url || null
-      setAvatarUrl(avatar)
       if (avatar) {
         try {
           await AsyncStorage.setItem('savr_avatar_url', avatar)
@@ -199,6 +198,10 @@ const isCurrentMonth = true
       const symbol = CURRENCIES.find(c => c.code === code)?.symbol || '$'
       const currentExpenses = allRecentExpenses.filter(e => e.date.startsWith(snapshotMonth))
       const filtered = sortExpenses(currentExpenses)
+      // detectAnomaly looks back 90 days on its own, so the insight card needs
+      // more than just this month's expenses — keep the full recent set in a
+      // ref (not state) so it doesn't trigger re-renders or bloat the cache.
+      if (offsetSnapshot === 0) recentExpensesRef.current = allRecentExpenses
       const now = new Date()
       const balanceTrend = computeBalanceTrend(accTotal.total, allRecentExpenses, allIncome, 7)
 
@@ -222,6 +225,8 @@ const isCurrentMonth = true
       })
 
       if (!isFocusedRef.current || token !== syncTokenRef.current) return
+      setUserInitials(initials)
+      setAvatarUrl(avatar)
       setExpenses(filtered)
       setUserName(firstName)
       setLastMonthTotal(lastTotal)
@@ -502,7 +507,7 @@ const isCurrentMonth = true
     // "biggest category" fact every month.
     const latest = expenses[0]
     if (latest) {
-      const history = expenses.filter(e => e.id !== latest.id)
+      const history = recentExpensesRef.current.filter(e => e.id !== latest.id)
       const anomaly = detectAnomaly(parseFloat(latest.amount), latest.category, history)
       if (anomaly) result.push(`Your recent ${latest.category} expense of ${formatAmount(latest.amount, currencySymbol, currencyCode)} is ${anomaly.multiplier}x your usual ${formatAmount(anomaly.avg, currencySymbol, currencyCode)}`)
     }
@@ -729,7 +734,7 @@ const isCurrentMonth = true
             style={[styles.streakCard, streak === 0 && styles.streakCardEmpty]}
             onPress={() => {
               setStreakBreakBanner(null)
-              router.push('/(tabs)/reports')
+              router.push(streak > 0 ? '/(tabs)/reports' : '/(tabs)/add')
             }}
             activeOpacity={0.8}
           >

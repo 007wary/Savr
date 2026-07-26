@@ -61,11 +61,13 @@ export default function Reports() {
   const [monthOffset, setMonthOffset] = useState(0)
   const [monthLoading, setMonthLoading] = useState(false)
   const userRef = useRef(null)
+  const syncTokenRef = useRef(0)
 
   // getNow() called fresh each time to avoid stale date if app open past midnight
   const getNow = () => new Date()
 
   const loadFromSQLite = useCallback(async () => {
+    const token = ++syncTokenRef.current
     try {
       const user = getCachedUser() || userRef.current || await getUser()
       if (!user) { setLoading(false); setRefreshing(false); setMonthLoading(false); return }
@@ -97,35 +99,45 @@ export default function Reports() {
       const incomeTotals = await Promise.all(incomeKeys.map(key => getMonthlyIncomeTotal(user.id, key)))
       const incomeByMonth = incomeKeys.map((key, i) => ({ key, amount: incomeTotals[i] }))
 
-      setExpenses(currentData)
-      setLastMonthExpenses(lastMonthData)
-      setAllExpenses(sixMonthData)
-      setMonthlyIncome(incomeTotal)
-      setLast6MonthsIncome(incomeByMonth)
       const CACHE_KEY = `savr_cache_reports_${selectedMonth}`
       await saveCache(CACHE_KEY, {
         expenses: currentData, lastMonthExpenses: lastMonthData,
         allExpenses: sixMonthData, monthlyIncome: incomeTotal,
         last6MonthsIncome: incomeByMonth,
       })
+
+      // Guard against a slower, superseded fetch (e.g. rapid prev/next taps)
+      // overwriting the screen with a different month's data than what's
+      // currently selected.
+      if (token !== syncTokenRef.current) return
+      setExpenses(currentData)
+      setLastMonthExpenses(lastMonthData)
+      setAllExpenses(sixMonthData)
+      setMonthlyIncome(incomeTotal)
+      setLast6MonthsIncome(incomeByMonth)
     } catch {}
     finally {
-      setLoading(false)
-      setRefreshing(false)
-      setMonthLoading(false)
+      if (token === syncTokenRef.current) {
+        setLoading(false)
+        setRefreshing(false)
+        setMonthLoading(false)
+      }
     }
   }, [monthOffset])
 
   const fetchData = useCallback(async (forceRefresh = false) => {
+    const token = ++syncTokenRef.current
     const { month: selectedMonth } = getMonthInfo(monthOffset)
     const CACHE_KEY = `savr_cache_reports_${selectedMonth}`
     const symbol = await getCurrencySymbol()
     const code = await loadCurrency()
+    if (token !== syncTokenRef.current) return
     setCurrencySymbol(symbol)
     setCurrencyCode(code)
     setMonthLoading(true)
     if (!forceRefresh) {
       const cached = await loadCache(CACHE_KEY)
+      if (token !== syncTokenRef.current) return
       if (cached) {
         setExpenses(cached.expenses || [])
         setLastMonthExpenses(cached.lastMonthExpenses || [])
@@ -671,7 +683,7 @@ export default function Reports() {
 
                 {expandedCategory === cat.label && (
                   <View style={styles.expandedList}>
-                    {cat.expenses.sort((a, b) => b.amount - a.amount).map(exp => (
+                    {[...cat.expenses].sort((a, b) => parseFloat(b.amount) - parseFloat(a.amount)).map(exp => (
                       <View key={exp.id} style={styles.expandedItem}>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.expandedNote}>{exp.note || exp.category}</Text>

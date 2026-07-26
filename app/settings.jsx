@@ -215,6 +215,7 @@ if (avatar) {
       setBudgetAlerts(false)
       setForecastNudge(false)
       await AsyncStorage.setItem(BUDGET_ALERTS_KEY, 'false')
+      await AsyncStorage.setItem(FORECAST_NUDGE_KEY, 'false')
       showAlert(
         'Disable Notifications',
         'To fully disable notifications, go to your device settings.',

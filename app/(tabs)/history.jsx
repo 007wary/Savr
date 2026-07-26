@@ -21,7 +21,7 @@ import { saveCache, loadCache, clearCache } from '../../src/lib/cache'
 import { sortExpenses } from '../../src/lib/dateUtils'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { getExpenses, updateExpense, deleteExpenseAtomic, deleteRecurring, getRecurring, getIncome, deleteIncomeAtomic, getTransfers, deleteTransferAtomic, getAccounts, getAdjustments, deleteAdjustmentAtomic } from '../../src/services/sqliteService'
+import { getExpenses, updateExpense, deleteExpenseAtomic, getRecurring, getIncome, deleteIncomeAtomic, getTransfers, deleteTransferAtomic, getAccounts, getAdjustments, deleteAdjustmentAtomic } from '../../src/services/sqliteService'
 import { scheduleBackup } from '../../src/services/backgroundBackup'
 
 const CACHE_KEY = 'savr_cache_history'
@@ -132,8 +132,10 @@ export default function History() {
     const matchSearch = search === '' ||
       e.note?.toLowerCase().includes(term) ||
       e.category?.toLowerCase().includes(term) ||
-      String(parseFloat(e.amount).toFixed(2)).includes(cleanSearch) ||
-      String(parseFloat(e.amount).toFixed(0)).includes(cleanSearch)
+      (cleanSearch !== '' && (
+        String(parseFloat(e.amount).toFixed(2)).includes(cleanSearch) ||
+        String(parseFloat(e.amount).toFixed(0)).includes(cleanSearch)
+      ))
     const matchCategory = selectedCategory === 'All' || e.category === selectedCategory
     const matchMonth = selectedMonth === 'All' || e.date.startsWith(selectedMonth)
     const matchType = selectedType === 'all' || e.type === selectedType
@@ -151,7 +153,10 @@ export default function History() {
       .map(date => ({
         title: date,
         data: groups[date],
-        total: roundMoney(groups[date].filter(e => e.type !== 'income' && e.type !== 'adjustment').reduce((sum, e) => sum + parseFloat(e.amount), 0))
+        // Only real spending counts toward the day's total — a transfer moves
+        // money between the user's own accounts (net zero), and an adjustment
+        // is a balance correction, neither of which is money spent.
+        total: roundMoney(groups[date].filter(e => e.type === 'expense').reduce((sum, e) => sum + parseFloat(e.amount), 0))
       }))
   }, [filtered])
   const activeFilters = (selectedCategory !== 'All' ? 1 : 0) + (selectedMonth !== 'All' ? 1 : 0)
@@ -197,7 +202,6 @@ export default function History() {
         text: 'Delete', style: 'destructive',
         onPress: async () => {
           const updated = (expenses || []).filter(e => e.id !== id)
-          const deletedItem = (expenses || []).find(e => e.id === id)
 
           // Phase 1 — the durable DB delete. This is the point of no return.
           // If it throws, nothing was removed, so leave the UI/caches untouched.
@@ -209,23 +213,12 @@ export default function History() {
             } else if (type === 'adjustment') {
               await deleteAdjustmentAtomic(id)
             } else {
+              // Deleting one logged occurrence must not touch the recurring rule
+              // that generated it — the rule may still be active and due to log
+              // more in the future. Deactivating a rule is its own explicit,
+              // warned action (see recurring.jsx's "Stop" flow), not an implicit
+              // side effect of removing a single row here.
               await deleteExpenseAtomic(id)
-              if (deletedItem?.recurring_id) {
-                await deleteRecurring(deletedItem.recurring_id).catch(() => {})
-              } else if (deletedItem?.is_recurring) {
-                // Legacy rows logged before recurring_id was always stored. Only safe to
-                // guess when exactly one active rule matches amount+category — if there's
-                // more than one candidate we can't tell which rule produced this expense,
-                // so leave both rules alone rather than risk deactivating the wrong one.
-                const user = getCachedUser() || userRef.current || await getUser()
-                if (user) {
-                  const recurringItems = await getRecurring(user.id)
-                  const matches = recurringItems.filter(r =>
-                    r.amount === deletedItem.amount && r.category === deletedItem.category
-                  )
-                  if (matches.length === 1) await deleteRecurring(matches[0].id).catch(() => {})
-                }
-              }
             }
           } catch {
             // DB delete failed — row is intact. Restore the visible list and bail
@@ -339,9 +332,13 @@ export default function History() {
     try {
       if (!expenses || expenses.length === 0) return showAlert('No data', 'No expenses to export')
       const headers = 'Date,Type,Category,Amount,Note\n'
-      const rows = expenses.map(e =>
-        [e.date, e.type || 'expense', e.category, e.amount, e.note || ''].map(csvCell).join(',')
-      ).join('\n')
+      const rows = expenses.map(e => {
+        // Adjustment rows carry `amount` as an unsigned magnitude (for display),
+        // with the real signed value in `delta` — export the signed value so a
+        // balance correction's direction isn't lost.
+        const amount = e.type === 'adjustment' ? e.delta : e.amount
+        return [e.date, e.type || 'expense', e.category, amount, e.note || ''].map(csvCell).join(',')
+      }).join('\n')
       const fileUri = FileSystem.cacheDirectory + 'expenses.csv'
       await FileSystem.writeAsStringAsync(fileUri, headers + rows, { encoding: 'utf8' })
       const isAvailable = await Sharing.isAvailableAsync()

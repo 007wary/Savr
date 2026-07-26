@@ -127,9 +127,10 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
     setSavingBudget(true)
     const limit = parseFloat(limitValue)
     const existing = budgets.find(b => b.category === category)
+    const tempId = `temp_${Date.now()}`
     const updatedBudgets = existing
       ? budgets.map(b => b.category === category ? { ...b, limit_amount: limit } : b)
-      : [...budgets, { id: `temp_${Date.now()}`, category, limit_amount: limit, month: currentMonth }]
+      : [...budgets, { id: tempId, category, limit_amount: limit, month: currentMonth }]
     setBudgets(updatedBudgets)
     await saveCache(CACHE_KEY, { budgets: updatedBudgets, expenses, allExpenses })
     setEditing(null)
@@ -138,7 +139,18 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
     try {
       const user = getCachedUser() || userRef.current || await getUser()
       if (!userRef.current) userRef.current = user
-      await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth })
+      const realId = await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth })
+      // Reconcile the optimistic temp id with SQLite's real id so a later
+      // delete (which looks up `existing.id` from this state) targets a row
+      // that actually exists — otherwise it silently no-ops and the budget
+      // reappears on next refetch.
+      if (!existing) {
+        setBudgets(prev => {
+          const reconciled = prev.map(b => b.id === tempId ? { ...b, id: realId } : b)
+          saveCache(CACHE_KEY, { budgets: reconciled, expenses, allExpenses })
+          return reconciled
+        })
+      }
     } catch {}
   }
 

@@ -127,7 +127,7 @@ export default function Accounts() {
               }
             : a
         ))
-        if (balanceChanged) scheduleBackup()
+        scheduleBackup()
       } else {
         const newId = await addAccount(user.id, {
           name: name.trim(),
@@ -143,6 +143,7 @@ export default function Accounts() {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         }])
+        scheduleBackup()
       }
       setShowSheet(false)
     } catch (e) {
@@ -163,6 +164,7 @@ export default function Accounts() {
           setAccounts(prev => prev.filter(a => a.id !== account.id))
           await clearCache(`savr_cache_dashboard_${monthKey()}`)
           await clearCache('savr_cache_history')
+          scheduleBackup()
         }
       }
     ])
