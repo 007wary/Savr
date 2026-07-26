@@ -278,16 +278,18 @@ export default function Reports() {
   totalLabel: { fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 8, letterSpacing: 1.5, textTransform: 'uppercase' },
   totalAmount: { fontSize: 42, fontWeight: '900', color: '#fff', letterSpacing: -2, width: '100%', textAlign: 'center' },
   totalSub: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6, letterSpacing: 0.3 },
-  miniCard: { backgroundColor: COLORS.card, borderRadius: 14, padding: 14, marginRight: 10, minWidth: 130, borderWidth: 1, borderColor: COLORS.border },
-  miniLabel: { fontSize: 9, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8 },
-  miniValue: { fontSize: 15, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
+  kpiCard: { backgroundColor: COLORS.card, borderRadius: 14, padding: 14, flexBasis: '47%', flexGrow: 1, borderWidth: 1, borderColor: COLORS.border },
+  kpiLabel: { fontSize: 9, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 1, marginBottom: 8 },
+  kpiValue: { fontSize: 15, fontWeight: '800', color: COLORS.text, letterSpacing: -0.5 },
+  groupTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text, letterSpacing: -0.4, marginBottom: 14 },
   forecastCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: COLORS.border },
   forecastHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   forecastTitle: { fontSize: 13, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5 },
   forecastAmount: { fontSize: 28, fontWeight: '800', color: COLORS.text, letterSpacing: -1, marginBottom: 6 },
   forecastSub: { fontSize: 12, color: COLORS.textMuted, marginBottom: 12, lineHeight: 18 },
-  forecastBar: { height: 6, backgroundColor: COLORS.border, borderRadius: 3, marginBottom: 6 },
-  forecastFill: { height: 6, borderRadius: 3 },
+  forecastBar: { height: 10, backgroundColor: COLORS.border, borderRadius: 5, marginBottom: 6, overflow: 'hidden' },
+  forecastFill: { height: 10, borderRadius: 5 },
   forecastPct: { fontSize: 11, color: COLORS.textMuted },
   compareCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1 },
   compareIconBox: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
@@ -297,7 +299,7 @@ export default function Reports() {
   insightsCard: { backgroundColor: COLORS.card, borderRadius: 16, padding: 16, marginBottom: 24, borderWidth: 1, borderColor: COLORS.border },
   insightsTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   insightsTitle: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted, letterSpacing: 1.5, textTransform: 'uppercase' },
-  insightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
+  insightRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10, padding: 10, borderRadius: 10, borderLeftWidth: 3 },
   insightText: { flex: 1, fontSize: 13, color: COLORS.text, lineHeight: 19 },
   section: { marginBottom: 28 },
   sectionTitle: { fontSize: 11, fontWeight: '800', color: COLORS.textMuted, marginBottom: 16, letterSpacing: 1.5, textTransform: 'uppercase' },
@@ -328,7 +330,7 @@ export default function Reports() {
   catTopRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   catName: { fontSize: 14, color: COLORS.text, fontWeight: '500' },
   catRight: { alignItems: 'flex-end' },
-  catAmount: { fontSize: 14, color: COLORS.text, fontWeight: '700' },
+  catAmount: { fontSize: 16, color: COLORS.text, fontWeight: '800', letterSpacing: -0.3 },
   catPercent: { fontSize: 11, color: COLORS.textMuted },
   progressBg: { height: 4, backgroundColor: COLORS.border, borderRadius: 2 },
   progressFill: { height: 4, borderRadius: 2 },
@@ -430,11 +432,11 @@ export default function Reports() {
               <Text style={styles.incomeExpenseTitle}>Income vs Expenses — {monthName}</Text>
               <View style={styles.incomeExpenseRow}>
                 <View style={styles.incomeExpenseItem}>
-                  <View style={[styles.incomeExpenseIcon, { backgroundColor: '#4CAF5022' }]}>
-                    <Ionicons name="arrow-down-circle-outline" size={20} color="#4CAF50" />
+                  <View style={[styles.incomeExpenseIcon, { backgroundColor: COLORS.accentGreen + '22' }]}>
+                    <Ionicons name="arrow-down-circle-outline" size={20} color={COLORS.accentGreen} />
                   </View>
                   <Text style={styles.incomeExpenseLabel}>Income</Text>
-                  <Text style={[styles.incomeExpenseAmount, { color: '#4CAF50' }]}>
+                  <Text style={[styles.incomeExpenseAmount, { color: COLORS.accentGreen }]}>
                     {formatAmount(monthlyIncome, currencySymbol, currencyCode)}
                   </Text>
                 </View>
@@ -450,15 +452,15 @@ export default function Reports() {
                 </View>
                 <View style={styles.incomeExpenseDivider} />
                 <View style={styles.incomeExpenseItem}>
-                  <View style={[styles.incomeExpenseIcon, { backgroundColor: monthlyIncome >= total ? '#4CAF5022' : COLORS.accentRed + '22' }]}>
+                  <View style={[styles.incomeExpenseIcon, { backgroundColor: monthlyIncome >= total ? COLORS.accentGreen + '22' : COLORS.accentRed + '22' }]}>
                     <Ionicons
                       name={monthlyIncome >= total ? 'trending-up-outline' : 'trending-down-outline'}
                       size={20}
-                      color={monthlyIncome >= total ? '#4CAF50' : COLORS.accentRed}
+                      color={monthlyIncome >= total ? COLORS.accentGreen : COLORS.accentRed}
                     />
                   </View>
                   <Text style={styles.incomeExpenseLabel}>Net</Text>
-                  <Text style={[styles.incomeExpenseAmount, { color: monthlyIncome >= total ? '#4CAF50' : COLORS.accentRed }]}>
+                  <Text style={[styles.incomeExpenseAmount, { color: monthlyIncome >= total ? COLORS.accentGreen : COLORS.accentRed }]}>
                     {monthlyIncome >= total ? '+' : '-'}{formatAmount(Math.abs(monthlyIncome - total), currencySymbol, currencyCode)}
                   </Text>
                 </View>
@@ -468,7 +470,7 @@ export default function Reports() {
                   <View style={styles.incomeExpenseBarBg}>
                     <View style={[styles.incomeExpenseBarFill, {
                       width: `${Math.min((total / Math.max(monthlyIncome, 1)) * 100, 100)}%`,
-                      backgroundColor: total > monthlyIncome ? COLORS.accentRed : '#4CAF50'
+                      backgroundColor: total > monthlyIncome ? COLORS.accentRed : COLORS.accentGreen
                     }]} />
                   </View>
                   <Text style={styles.incomeExpenseBarLabel}>
@@ -479,36 +481,36 @@ export default function Reports() {
             </View>
           )}
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
-            <View style={styles.miniCard}>
-              <Text style={styles.miniLabel}>DAILY AVG</Text>
-              <Text style={styles.miniValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+          <View style={styles.kpiGrid}>
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiLabel}>DAILY AVG</Text>
+              <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                 {formatAmount(dailyAvg, currencySymbol, currencyCode)}
               </Text>
             </View>
-            <View style={styles.miniCard}>
-              <Text style={styles.miniLabel}>FORECAST</Text>
-              <Text style={[styles.miniValue, { color: forecast > lastTotal && lastTotal > 0 ? COLORS.accentRed : COLORS.accentGreen }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                {formatAmount(forecast, currencySymbol, currencyCode)}
-              </Text>
-            </View>
-            <View style={styles.miniCard}>
-              <Text style={styles.miniLabel}>BIGGEST DAY</Text>
-              <Text style={styles.miniValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiLabel}>BIGGEST DAY</Text>
+              <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                 {biggestDay ? formatAmount(parseFloat(biggestDay[1]), currencySymbol, currencyCode) : 'N/A'}
               </Text>
             </View>
-            <View style={[styles.miniCard, { marginRight: 0 }]}>
-              <Text style={styles.miniLabel}>TOP CATEGORY</Text>
-              <Text style={styles.miniValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiLabel}>TOP CATEGORY</Text>
+              <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                 {categoryTotals[0] ? categoryTotals[0].label : 'N/A'}
               </Text>
             </View>
-          </ScrollView>
+            <View style={styles.kpiCard}>
+              <Text style={styles.kpiLabel}>TRANSACTIONS</Text>
+              <Text style={styles.kpiValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                {expenses.length}
+              </Text>
+            </View>
+          </View>
 
-          <View style={styles.forecastCard}>
+          <View style={[styles.forecastCard, total > forecast * 0.8 && { borderColor: COLORS.accentRed + '55' }]}>
             <View style={styles.forecastHeader}>
-              <Ionicons name="trending-up-outline" size={20} color={COLORS.accent} />
+              <Ionicons name="trending-up-outline" size={20} color={total > forecast * 0.8 ? COLORS.accentRed : COLORS.accent} />
               <Text style={styles.forecastTitle}>Spending Forecast</Text>
             </View>
             <Text style={styles.forecastAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
@@ -557,14 +559,21 @@ export default function Reports() {
                 <Ionicons name="bulb-outline" size={16} color={COLORS.accentYellow} />
                 <Text style={styles.insightsTitle}>What the numbers say</Text>
               </View>
-              {reportInsights.map((ins) => (
-                <View key={ins.key} style={styles.insightRow}>
-                  <Ionicons name={ins.icon} size={15} color={COLORS.accent} style={{ marginTop: 1 }} />
-                  <Text style={styles.insightText}>{ins.text}</Text>
-                </View>
-              ))}
+              {reportInsights.map((ins) => {
+                const toneColor = ins.tone === 'warning' ? COLORS.accentRed
+                  : ins.tone === 'positive' ? COLORS.accentGreen
+                  : COLORS.accent
+                return (
+                  <View key={ins.key} style={[styles.insightRow, { backgroundColor: toneColor + '14', borderLeftColor: toneColor }]}>
+                    <Ionicons name={ins.icon} size={15} color={toneColor} style={{ marginTop: 1 }} />
+                    <Text style={styles.insightText}>{ins.text}</Text>
+                  </View>
+                )
+              })}
             </View>
           )}
+
+          <Text style={styles.groupTitle}>Trends</Text>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>6 Month Trend</Text>
@@ -575,7 +584,7 @@ export default function Reports() {
                   <View style={{ flexDirection: 'row', gap: 2, height: '75%', alignItems: 'flex-end' }}>
                     {m.income > 0 && (
                       <View style={[styles.barBg, { width: 10 }]}>
-                        <AnimatedBar percentage={(m.income / max6) * 100} color="#4CAF50" delay={i * 100} />
+                        <AnimatedBar percentage={(m.income / max6) * 100} color={COLORS.accentGreen} delay={i * 100} />
                       </View>
                     )}
                     <View style={[styles.barBg, { width: m.income > 0 ? 10 : 20 }]}>
@@ -626,6 +635,8 @@ export default function Reports() {
               </View>
             </View>
           </View>
+
+          <Text style={styles.groupTitle}>Breakdown</Text>
 
           {(weekendTotal > 0 || weekdayTotal > 0) && (
             <View style={styles.section}>

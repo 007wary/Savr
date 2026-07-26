@@ -3,9 +3,11 @@
 // The screen paid the computational cost of the charts; this collects the
 // payoff by saying what they mean.
 //
-// Each insight is { key, icon, text }. `icon` is an Ionicons name so the card
-// can render it. Returned already ranked by usefulness and capped, so the UI
-// just maps over them.
+// Each insight is { key, icon, text, tone }. `icon` is an Ionicons name so the
+// card can render it. `tone` is 'positive' | 'warning' | 'neutral' — how the UI
+// should color-code the row (warning = worth acting on, positive = good news,
+// neutral = observation with no clear direction). Returned already ranked by
+// usefulness and capped, so the UI just maps over them.
 
 const DOW_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
@@ -69,6 +71,7 @@ export function buildReportInsights(input) {
     out.push({
       key: 'top-category',
       icon: 'pie-chart-outline',
+      tone: 'neutral',
       text: `${top.label} makes up ${Math.round(top.percentage)}% of your spending this month.`,
     })
   }
@@ -82,12 +85,14 @@ export function buildReportInsights(input) {
       out.push({
         key: 'weekend',
         icon: 'sunny-outline',
+        tone: 'neutral',
         text: `You spend ${ratioLabel(weekendPerDay / weekdayPerDay)} more per day on weekends than weekdays.`,
       })
     } else if (weekdayPerDay >= weekendPerDay * 1.5) {
       out.push({
         key: 'weekday',
         icon: 'briefcase-outline',
+        tone: 'neutral',
         text: `Your weekday spending runs ${ratioLabel(weekdayPerDay / weekendPerDay)} higher per day than weekends.`,
       })
     }
@@ -99,6 +104,7 @@ export function buildReportInsights(input) {
     out.push({
       key: 'busiest-day',
       icon: 'calendar-outline',
+      tone: 'neutral',
       text: `${DOW_LABELS[busy.dow]}s are your priciest day, averaging ${money(busy.avg)}.`,
     })
   }
@@ -115,12 +121,14 @@ export function buildReportInsights(input) {
           out.push({
             key: 'trend-up',
             icon: 'trending-up-outline',
+            tone: 'warning',
             text: `This month is ${Math.round(change * 100)}% above your recent average.`,
           })
         } else if (change <= -0.2) {
           out.push({
             key: 'trend-down',
             icon: 'trending-down-outline',
+            tone: 'positive',
             text: `Nice — this month is ${Math.round(-change * 100)}% below your recent average.`,
           })
         }
