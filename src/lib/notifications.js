@@ -68,7 +68,7 @@ export async function isNotificationGranted() {
   }
 }
 
-async function sendNotification(title, body) {
+export async function sendNotification(title, body) {
   try {
     const granted = await isNotificationGranted()
     if (!granted) return
@@ -81,7 +81,20 @@ async function sendNotification(title, body) {
   }
 }
 
-export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
+// checkBudgetAlerts can be called twice in close succession (after add-expense,
+// then again on the dashboard-load it navigates into). Both read-then-write the
+// same AsyncStorage dedup map, so without serializing them a second caller can
+// read a stale "not yet sent" state before the first caller's write lands and
+// send a duplicate alert. Chain every call onto this promise so they run one at
+// a time instead of overlapping.
+let budgetAlertsQueue = Promise.resolve()
+
+export function checkBudgetAlerts(expenses, budgets, currentMonth) {
+  budgetAlertsQueue = budgetAlertsQueue.then(() => runBudgetAlertsCheck(expenses, budgets, currentMonth))
+  return budgetAlertsQueue
+}
+
+async function runBudgetAlertsCheck(expenses, budgets, currentMonth) {
   try {
     // Check system permission
     const granted = await isNotificationGranted()
@@ -93,10 +106,9 @@ export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
 
     const symbol = await getCurrencySymbol()
 
-    // Track which alerts already sent this month to avoid spam
+    // Track which alerts already sent this month to avoid spam.
     const sentRaw = await AsyncStorage.getItem(BUDGET_NOTIF_KEY)
     const sent = sentRaw ? JSON.parse(sentRaw) : {}
-    let updated = false
 
     for (const budget of budgets) {
       const spent = roundMoney(expenses
@@ -112,24 +124,20 @@ export async function checkBudgetAlerts(expenses, budgets, currentMonth) {
       const key80 = `${currentMonth}_${budget.category}_80`
 
       if (percentage >= 100 && !sent[key100]) {
+        sent[key100] = true
+        await AsyncStorage.setItem(BUDGET_NOTIF_KEY, JSON.stringify(sent))
         await sendNotification(
           `Budget Exceeded \u2014 ${budget.category}`,
           `You spent ${symbol}${spent.toFixed(0)} of your ${symbol}${limit.toFixed(0)} budget`
         )
-        sent[key100] = true
-        updated = true
       } else if (percentage >= 80 && percentage < 100 && !sent[key80]) {
+        sent[key80] = true
+        await AsyncStorage.setItem(BUDGET_NOTIF_KEY, JSON.stringify(sent))
         await sendNotification(
           `Budget Warning \u2014 ${budget.category}`,
           `You've used ${percentage.toFixed(0)}% of your ${symbol}${limit.toFixed(0)} budget`
         )
-        sent[key80] = true
-        updated = true
       }
-    }
-
-    if (updated) {
-      await AsyncStorage.setItem(BUDGET_NOTIF_KEY, JSON.stringify(sent))
     }
   } catch {
     // Silently fail
@@ -212,7 +220,20 @@ function lapseCopy(daysOut) {
   return { title: 'Log your expenses today', body: 'Tap to add an expense and start building your streak.' }
 }
 
-export async function scheduleStreakReminder(streak = 0) {
+// Called from multiple places close together at app start/dashboard load
+// (app-start cached-user path, SIGNED_IN handler, every dashboard load) — each
+// call reads-then-cancels-then-rewrites the same pending-IDs list, so without
+// serializing, two overlapping calls can race and leave a stray duplicate
+// notification. Chain onto this promise so calls run one at a time, same
+// pattern as checkBudgetAlerts above.
+let streakReminderQueue = Promise.resolve()
+
+export function scheduleStreakReminder(streak = 0) {
+  streakReminderQueue = streakReminderQueue.then(() => runScheduleStreakReminder(streak))
+  return streakReminderQueue
+}
+
+async function runScheduleStreakReminder(streak = 0) {
   try {
     const granted = await isNotificationGranted()
     if (!granted) return
@@ -253,7 +274,12 @@ export async function scheduleStreakReminder(streak = 0) {
   } catch {}
 }
 
-export async function cancelStreakReminder() {
+export function cancelStreakReminder() {
+  streakReminderQueue = streakReminderQueue.then(() => runCancelStreakReminder())
+  return streakReminderQueue
+}
+
+async function runCancelStreakReminder() {
   try {
     const existingIdsRaw = await AsyncStorage.getItem(DAILY_REMINDER_IDS_KEY)
     if (existingIdsRaw) {
