@@ -94,6 +94,16 @@ deleteRecurringIncome: () => logEvent('delete_recurring_income'),
 
   // Goals
   addGoal: () => logEvent('add_goal'),
+  goalCleared: () => logEvent('goal_cleared'),
+  goalExceeded: () => logEvent('goal_exceeded'),
+
+  // Dashboard — the screen opened every day, so these are the core retention
+  // signals: does the streak/goal/forecast machinery actually get seen and
+  // does it correlate with return visits. `streak` param lets us bucket
+  // dashboard_opened by streak length without a separate event per user.
+  dashboardOpened: (streak) => logEvent('dashboard_opened', { streak }),
+  streakBroken: (previousStreak) => logEvent('streak_broken', { previous_streak: previousStreak }),
+  streakMilestone: (streak) => logEvent('streak_milestone', { streak }),
 
   // Algorithm signals — categorical only (no amounts), so we can measure
   // whether the smart features actually work without logging spend data.

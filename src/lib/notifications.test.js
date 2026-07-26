@@ -20,7 +20,7 @@ jest.mock('expo-notifications', () => ({
   }),
   cancelScheduledNotificationAsync: jest.fn(() => Promise.resolve()),
   setNotificationChannelAsync: jest.fn(() => Promise.resolve()),
-  SchedulableTriggerInputTypes: { DAILY: 'daily' },
+  SchedulableTriggerInputTypes: { DAILY: 'daily', DATE: 'date' },
   AndroidImportance: { HIGH: 6 },
   AndroidNotificationVisibility: { PUBLIC: 1 },
 }))
@@ -106,12 +106,23 @@ it('does nothing with a null forecast', async () => {
 })
 
 describe('scheduleStreakReminder', () => {
-  it('schedules a daily reminder with a valid typed trigger', async () => {
+  it('schedules a batch of dated reminders with valid typed triggers', async () => {
     await scheduleStreakReminder(3)
-    expect(scheduleMock).toHaveBeenCalledTimes(1)
-    const { trigger } = scheduleMock.mock.calls[0][0]
-    // A bare { hour, minute, repeats } would reject in the mock (as it throws
-    // in the real SDK) — assert the trigger is a well-formed DAILY trigger.
-    expect(trigger).toMatchObject({ type: 'daily', hour: 21, minute: 0 })
+    // Pre-schedules ~22 individually-dated notifications (today + 21 days out)
+    // rather than one repeating DAILY trigger, so a lapsed user who never
+    // reopens the app still gets escalating copy without a reschedule.
+    expect(scheduleMock.mock.calls.length).toBeGreaterThan(1)
+    for (const [req] of scheduleMock.mock.calls) {
+      // A bare { hour, minute, repeats } would reject in the mock (as it
+      // throws in the real SDK) — assert every trigger is well-formed.
+      expect(req.trigger).toMatchObject({ type: 'date' })
+      expect(req.trigger.date).toBeInstanceOf(Date)
+    }
+  })
+
+  it('gives day-0 streak copy to the first reminder when streak is active', async () => {
+    await scheduleStreakReminder(3)
+    const first = scheduleMock.mock.calls[0][0]
+    expect(first.content.title).toMatch(/3 day streak/)
   })
 })

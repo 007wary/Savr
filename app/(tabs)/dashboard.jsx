@@ -14,11 +14,17 @@ import { getUser, getCachedUser } from '../../src/lib/auth'
 import { checkWeeklySummary, checkBudgetAlerts, checkForecastNudge } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
 import { forecastMonthEnd } from '../../src/lib/spendingForecast'
+import { detectAnomaly } from '../../src/lib/anomalyDetector'
+import { loadCohortAverages, buildCohortInsight } from '../../src/lib/cohortInsight'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { getExpenses, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal, getAccountsTotal, getTodayIncomeTotal, getBudgets } from '../../src/services/sqliteService'
+import { getExpenses, getIncome, getMonthlyTotal, getRecurring, getMonthlyIncomeTotal, getAccountsTotal, getTodayIncomeTotal, getBudgets } from '../../src/services/sqliteService'
+import { computeBalanceTrend } from '../../src/lib/balanceTrend'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { signalFirstPaint } from '../../src/lib/splashSignal'
+import { Analytics } from '../../src/lib/analytics'
+
+const LAST_STREAK_KEY = 'savr_last_seen_streak'
 
 function CountUp({ value, style, symbol, currencyCode }) {
   const [display, setDisplay] = useState(0)
@@ -47,6 +53,24 @@ function CountUp({ value, style, symbol, currencyCode }) {
     <Text style={style} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5}>
       {formatAmount(display, symbol, currencyCode)}
     </Text>
+  )
+}
+
+// Minimal 7-bar trend, no chart library needed — mirrors the existing
+// progress-bar pattern (goalBarFill/progressFill) rather than pulling in
+// react-native-svg for a single glanceable shape.
+function Sparkline({ points, color }) {
+  if (!points || points.length < 2) return null
+  const min = Math.min(...points)
+  const max = Math.max(...points)
+  const range = max - min || 1
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 20, gap: 3 }}>
+      {points.map((p, i) => {
+        const h = 4 + ((p - min) / range) * 16
+        return <View key={i} style={{ flex: 1, height: h, borderRadius: 2, backgroundColor: color, opacity: 0.4 + (i / (points.length - 1)) * 0.6 }} />
+      })}
+    </View>
   )
 }
 
@@ -93,11 +117,14 @@ export default function Dashboard() {
   const [recurringCount, setRecurringCount] = useState(0)
   const [monthlyIncome, setMonthlyIncome] = useState(0)
   const [accountsTotal, setAccountsTotal] = useState({ total: 0, count: 0 })
+  const [balanceTrend, setBalanceTrend] = useState([])
   const [todayIncome, setTodayIncome] = useState(0)
   const [avatarUrl, setAvatarUrl] = useState(null)
   const [userInitials, setUserInitials] = useState('??')
   const [goalBanner, setGoalBanner] = useState(null)
   const [streak, setStreak] = useState(0)
+  const [streakBreakBanner, setStreakBreakBanner] = useState(null)
+  const [cohortAverages, setCohortAverages] = useState(null)
   const { alertConfig, showAlert, hideAlert } = useAlert()
   const router = useRouter()
   const userRef = useRef(null)
@@ -157,7 +184,7 @@ const isCurrentMonth = true
       // in parallel meant two concurrent AsyncStorage reads racing to
       // populate the same module-level cache on a cold start. Derive the
       // code from the symbol call's own resolved currency instead.
-      const [code, lastTotal, recurringItems, incomeTotal, accTotal, todayIncomeTotal, budgets, allRecentExpenses, goal] = await Promise.all([
+      const [code, lastTotal, recurringItems, incomeTotal, accTotal, todayIncomeTotal, budgets, allRecentExpenses, goal, allIncome] = await Promise.all([
         loadCurrency(),
         getMonthlyTotal(user.id, lastMonthInfo.month),
         getRecurring(user.id),
@@ -167,11 +194,13 @@ const isCurrentMonth = true
         getBudgets(user.id, snapshotMonth),
         getExpenses(user.id),
         loadGoal(user.id),
+        getIncome(user.id),
       ])
       const symbol = CURRENCIES.find(c => c.code === code)?.symbol || '$'
       const currentExpenses = allRecentExpenses.filter(e => e.date.startsWith(snapshotMonth))
       const filtered = sortExpenses(currentExpenses)
       const now = new Date()
+      const balanceTrend = computeBalanceTrend(accTotal.total, allRecentExpenses, allIncome, 7)
 
       let daysElapsed
       if (offsetSnapshot === 0) {
@@ -188,6 +217,7 @@ const isCurrentMonth = true
         expenses: filtered, userName: firstName, lastMonthTotal: lastTotal,
         daysInMonth: daysElapsed, currencySymbol: symbol, currencyCode: code,
         recurringTotal: recTotal, recurringCount: recCount, monthlyIncome: incomeTotal, accountsTotal: accTotal, todayIncome: todayIncomeTotal, avatarUrl: avatar, userInitials: initials,
+        balanceTrend,
         savedAt: Date.now(),
       })
 
@@ -201,6 +231,7 @@ const isCurrentMonth = true
       setRecurringTotal(recTotal)
       setRecurringCount(recCount)
       setMonthlyIncome(incomeTotal)
+      setBalanceTrend(balanceTrend)
       setAccountsTotal(accTotal)
       setTodayIncome(todayIncomeTotal)
       if (goal !== null) setSpendingGoal(goal)
@@ -225,9 +256,25 @@ const isCurrentMonth = true
           else break
         }
         setStreak(currentStreak)
+        Analytics.dashboardOpened(currentStreak)
         import('../../src/lib/notifications').then(({ scheduleStreakReminder }) => {
           scheduleStreakReminder(currentStreak).catch(() => {})
         }).catch(() => {})
+
+        // Detect a streak that reset to 0 since the last time this screen was
+        // seen, so we can show a one-time loss-aversion banner instead of
+        // silently swapping to the "start your streak" empty state. Losing a
+        // 12-day streak with no acknowledgment wastes the strongest
+        // psychological beat the streak mechanic has.
+        try {
+          const lastSeenRaw = await AsyncStorage.getItem(LAST_STREAK_KEY)
+          const lastSeen = lastSeenRaw ? parseInt(lastSeenRaw, 10) : 0
+          if (currentStreak === 0 && lastSeen >= 2) {
+            setStreakBreakBanner(lastSeen)
+            Analytics.streakBroken(lastSeen)
+          }
+          await AsyncStorage.setItem(LAST_STREAK_KEY, String(currentStreak))
+        } catch {}
       } else {
         setStreak(0)
       }
@@ -271,6 +318,7 @@ const isCurrentMonth = true
         setRecurringCount(cached.recurringCount || 0)
         setMonthlyIncome(cached.monthlyIncome || 0)
         setAccountsTotal(cached.accountsTotal || { total: 0, count: 0 })
+        setBalanceTrend(cached.balanceTrend || [])
         setTodayIncome(cached.todayIncome || 0)
         if (cached.avatarUrl) setAvatarUrl(cached.avatarUrl)
         if (cached.userInitials) setUserInitials(cached.userInitials)
@@ -382,6 +430,7 @@ const isCurrentMonth = true
     setSpendingGoal(null)
     setShowGoalModal(false)
     setGoalInput('')
+    Analytics.goalCleared()
   }
 
   const { total, todayExpenses, todayTotal } = useMemo(() => {
@@ -401,6 +450,16 @@ const isCurrentMonth = true
 
   const recent = useMemo(() => expenses.slice(0, 5), [expenses])
 
+  // Cohort average is a network fetch (unlike everything else on this screen,
+  // which reads local SQLite) — fetched separately, best-effort, and never
+  // allowed to block or fail the rest of the dashboard. Cached a day
+  // client-side, so this only hits the network once daily per user.
+  useEffect(() => {
+    if (!isCurrentMonth || byCategory.length === 0) return
+    const { month } = getMonthInfo(0)
+    loadCohortAverages(month).then(setCohortAverages).catch(() => {})
+  }, [isCurrentMonth, byCategory.length, monthName])
+
   useEffect(() => {
     if (!isCurrentMonth || streak === 0) return
     const milestones = { 7: 'Week Streak!', 30: 'Month Streak!', 100: '100 Day Streak!' }
@@ -409,6 +468,7 @@ const isCurrentMonth = true
     AsyncStorage.getItem(key).then(done => {
       if (done) return
       AsyncStorage.setItem(key, 'true')
+      Analytics.streakMilestone(streak)
       showAlert(
         `${streak} Day ${milestones[streak]}`,
         `You've logged expenses ${streak} days in a row. Incredible consistency — keep it up!`,
@@ -422,11 +482,42 @@ const isCurrentMonth = true
   const goalRemaining = spendingGoal ? Math.max(spendingGoal - total, 0) : 0
   const goalColor = goalPercentage >= 100 ? COLORS.accentRed : goalPercentage >= 80 ? COLORS.accentYellow : COLORS.accentGreen
 
+  useEffect(() => {
+    if (!goalExceeded) return
+    const key = `savr_goal_exceeded_logged_${monthName}`
+    AsyncStorage.getItem(key).then(done => {
+      if (done) return
+      AsyncStorage.setItem(key, 'true')
+      Analytics.goalExceeded()
+    }).catch(() => {})
+  }, [goalExceeded, monthName])
+
   const insights = useMemo(() => {
     if (expenses.length < 3) return []
     const result = []
+    // Surface the most recent transaction as an anomaly insight if it stands
+    // out against its own category's history — reuses the same detector the
+    // add-expense flow warns with, just applied retroactively so the dashboard
+    // insight card rotates in something novel instead of the same steady-state
+    // "biggest category" fact every month.
+    const latest = expenses[0]
+    if (latest) {
+      const history = expenses.filter(e => e.id !== latest.id)
+      const anomaly = detectAnomaly(parseFloat(latest.amount), latest.category, history)
+      if (anomaly) result.push(`Your recent ${latest.category} expense of ${formatAmount(latest.amount, currencySymbol, currencyCode)} is ${anomaly.multiplier}x your usual ${formatAmount(anomaly.avg, currencySymbol, currencyCode)}`)
+    }
     const topCat = byCategory[0]
     if (topCat) result.push(`${topCat.label} is your biggest spend at ${((topCat.total / total) * 100).toFixed(0)}% of total`)
+    // Cross-user comparison framing — see cohortInsight.js. Comparison is a
+    // stronger engagement hook than a purely self-referential number, and
+    // this is the one spot on the dashboard where the user sees themselves
+    // against other Savr users rather than only their own history.
+    if (topCat && cohortAverages) {
+      const cohort = buildCohortInsight(topCat.label, topCat.total, cohortAverages)
+      if (cohort && cohort.direction !== 'even') {
+        result.push(`You spent ${cohort.diffPct}% ${cohort.direction} the average Savr user on ${cohort.category} this month`)
+      }
+    }
     if (total > lastMonthTotal && lastMonthTotal > 0) result.push(`You're spending ${((total - lastMonthTotal) / lastMonthTotal * 100).toFixed(0)}% more than last month`)
     if (total < lastMonthTotal && lastMonthTotal > 0) result.push(`Great job! You're spending ${((lastMonthTotal - total) / lastMonthTotal * 100).toFixed(0)}% less than last month`)
     const dailyAvg = total / Math.max(daysInMonth, 1)
@@ -435,7 +526,7 @@ const isCurrentMonth = true
     if (spendingGoal && !goalExceeded && goalPercentage >= 80) result.push(`You've used ${goalPercentage.toFixed(0)}% of your monthly goal — slow down!`)
     if (spendingGoal && goalExceeded) result.push(`You've exceeded your monthly goal of ${formatAmount(spendingGoal, currencySymbol, currencyCode)}!`)
     return result
-  }, [expenses, byCategory, total, lastMonthTotal, daysInMonth, currencySymbol, currencyCode, spendingGoal, goalExceeded, goalPercentage])
+  }, [expenses, byCategory, total, lastMonthTotal, daysInMonth, currencySymbol, currencyCode, spendingGoal, goalExceeded, goalPercentage, cohortAverages])
 
   // Month-end forecast, surfaced as its own card. Only meaningful for the live
   // month once a few days of data exist and days still remain. Returns null
@@ -636,7 +727,10 @@ const isCurrentMonth = true
         {isCurrentMonth && (
           <TouchableOpacity
             style={[styles.streakCard, streak === 0 && styles.streakCardEmpty]}
-            onPress={() => router.push('/(tabs)/reports')}
+            onPress={() => {
+              setStreakBreakBanner(null)
+              router.push('/(tabs)/reports')
+            }}
             activeOpacity={0.8}
           >
             <View style={[styles.streakIconBox, { backgroundColor: streak > 0 ? '#FF8C4222' : COLORS.accent + '22' }]}>
@@ -651,6 +745,11 @@ const isCurrentMonth = true
                 <>
                   <Text style={styles.streakTitle}>{streak} Day Streak!</Text>
                   <Text style={styles.streakSub}>Keep going — log an expense today to continue</Text>
+                </>
+              ) : streakBreakBanner ? (
+                <>
+                  <Text style={styles.streakTitle}>Your {streakBreakBanner}-day streak ended</Text>
+                  <Text style={styles.streakSub}>Log an expense today to start a new one</Text>
                 </>
               ) : (
                 <>
@@ -686,7 +785,16 @@ const isCurrentMonth = true
               )}
             </View>
             <Text style={[styles.quickStatValue, { color: COLORS.accent }]}>{formatAmount(accountsTotal.total, currencySymbol, currencyCode)}</Text>
-            <Text style={styles.quickStatSub}>total balance</Text>
+            {balanceTrend.length >= 2 ? (
+              <>
+                <Sparkline points={balanceTrend} color={balanceTrend[balanceTrend.length - 1] >= balanceTrend[0] ? COLORS.accentGreen : COLORS.accentRed} />
+                <Text style={styles.quickStatSub}>
+                  {balanceTrend[balanceTrend.length - 1] >= balanceTrend[0] ? '▲' : '▼'} {formatAmount(Math.abs(balanceTrend[balanceTrend.length - 1] - balanceTrend[0]), currencySymbol, currencyCode)} · 7d
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.quickStatSub}>total balance</Text>
+            )}
           </TouchableOpacity>
         </View>
 

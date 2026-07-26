@@ -192,48 +192,74 @@ export function resolveNotificationTap(response) {
   }
 }
 
-const DAILY_REMINDER_ID_KEY = 'savr_daily_reminder_id'
+const DAILY_REMINDER_IDS_KEY = 'savr_daily_reminder_ids'
+// How many days out to pre-schedule. A single repeating DAILY trigger can't
+// vary its copy per-fire, and a lapsed user who never reopens the app never
+// triggers a reschedule — so the escalating lapse copy below has to be
+// pre-baked into individually-dated notifications scheduled all at once,
+// not decided at fire time.
+const LAPSE_SCHEDULE_DAYS = 21
+
+// Copy for a user who hasn't logged anything by day N, escalating with how
+// long they've been away. A static "log your expenses today" every night for
+// weeks reads as noise and gets tuned out — varying the message (and
+// eventually going quiet past LAPSE_SCHEDULE_DAYS) gives a lapsed user a
+// specific reason to come back instead of the same ignorable ping.
+function lapseCopy(daysOut) {
+  if (daysOut >= 14) return { title: 'We miss you at Savr', body: "It's been 2 weeks — pick up where you left off, your data's still here." }
+  if (daysOut >= 7) return { title: 'A week of unlogged spending', body: 'Catching up now is easier than guessing later. Takes 10 seconds.' }
+  if (daysOut >= 3) return { title: '3 days off track', body: "Log today's expenses to keep your spending picture accurate." }
+  return { title: 'Log your expenses today', body: 'Tap to add an expense and start building your streak.' }
+}
 
 export async function scheduleStreakReminder(streak = 0) {
   try {
     const granted = await isNotificationGranted()
     if (!granted) return
 
-    const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
-    if (existingId) {
-      await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {})
+    const existingIdsRaw = await AsyncStorage.getItem(DAILY_REMINDER_IDS_KEY)
+    if (existingIdsRaw) {
+      const existingIds = JSON.parse(existingIdsRaw)
+      await Promise.all(existingIds.map(id => Notifications.cancelScheduledNotificationAsync(id).catch(() => {})))
     }
 
-    const title = streak > 0
-      ? `${streak} day streak — keep it going!`
-      : 'Log your expenses today'
-    const body = streak > 0
-      ? `Don't break your ${streak} day streak. Log an expense before midnight.`
-      : 'Tap to add an expense and start building your streak.'
+    // Day 0 (tonight) always reflects the live streak. Days 1..N are
+    // pre-scheduled lapse copy for the case the user doesn't come back to
+    // reschedule them — if they do reopen the app, this function runs again
+    // and replaces the whole queue with a fresh one (streak day 0 restarts).
+    const ids = []
+    for (let daysOut = 0; daysOut <= LAPSE_SCHEDULE_DAYS; daysOut++) {
+      const target = new Date()
+      target.setDate(target.getDate() + daysOut)
+      target.setHours(21, 0, 0, 0)
+      if (target <= new Date()) continue
 
-    const id = await Notifications.scheduleNotificationAsync({
-      content: { title, body, sound: true, data: { type: 'streak_reminder' } },
-      // Must carry an explicit `type` — expo-notifications >=0.29 rejects a bare
-      // { hour, minute, repeats } object (throws in parseTrigger), which the
-      // empty catch below would swallow, silently never scheduling anything.
-      trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.DAILY,
-        hour: 21,
-        minute: 0,
-        ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : {}),
-      },
-    })
+      const { title, body } = daysOut === 0 && streak > 0
+        ? { title: `${streak} day streak — keep it going!`, body: `Don't break your ${streak} day streak. Log an expense before midnight.` }
+        : lapseCopy(daysOut)
 
-    await AsyncStorage.setItem(DAILY_REMINDER_ID_KEY, id)
+      const id = await Notifications.scheduleNotificationAsync({
+        content: { title, body, sound: true, data: { type: 'streak_reminder' } },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: target,
+          ...(Platform.OS === 'android' ? { channelId: ANDROID_CHANNEL_ID } : {}),
+        },
+      })
+      ids.push(id)
+    }
+
+    await AsyncStorage.setItem(DAILY_REMINDER_IDS_KEY, JSON.stringify(ids))
   } catch {}
 }
 
 export async function cancelStreakReminder() {
   try {
-    const existingId = await AsyncStorage.getItem(DAILY_REMINDER_ID_KEY)
-    if (existingId) {
-      await Notifications.cancelScheduledNotificationAsync(existingId).catch(() => {})
-      await AsyncStorage.removeItem(DAILY_REMINDER_ID_KEY)
+    const existingIdsRaw = await AsyncStorage.getItem(DAILY_REMINDER_IDS_KEY)
+    if (existingIdsRaw) {
+      const existingIds = JSON.parse(existingIdsRaw)
+      await Promise.all(existingIds.map(id => Notifications.cancelScheduledNotificationAsync(id).catch(() => {})))
+      await AsyncStorage.removeItem(DAILY_REMINDER_IDS_KEY)
     }
   } catch {}
 }

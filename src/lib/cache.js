@@ -11,6 +11,9 @@ const CACHE_EXPIRY = {
   'savr_cache_reports': 60 * 60 * 1000,
   // Settings — 24 hours (very stable)
   'savr_cache_settings': 24 * 60 * 60 * 1000,
+  // Cohort averages — 24 hours (cross-user aggregate, moves slowly, and
+  // refetching often just burns a DB round trip for the same number)
+  'savr_cache_cohort': 24 * 60 * 60 * 1000,
   // Default — 30 minutes
   'default': 30 * 60 * 1000,
 }
