@@ -317,6 +317,16 @@ export async function getExpenses(userId, { month } = {}) {
   )
 }
 
+// [fromDate, toDate) as 'YYYY-MM-DD' strings — half-open so callers can pass
+// the first-of-month boundary on both ends without off-by-one.
+export async function getExpensesInRange(userId, fromDate, toDate) {
+  const database = await getReadyDB()
+  return await database.getAllAsync(
+    `SELECT * FROM expenses WHERE user_id = ? AND date >= ? AND date < ? ORDER BY date DESC, created_at DESC`,
+    [userId, fromDate, toDate]
+  )
+}
+
 export async function updateExpense(id, { amount, category, note, date, account_id }) {
   const database = await getReadyDB()
   await database.withTransactionAsync(async () => {

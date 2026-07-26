@@ -9,7 +9,7 @@ import { useTheme } from '../../src/lib/themeContext'
 import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
 import { loadCurrency, formatAmount, roundMoney } from '../../src/lib/currency'
 import { saveCache, loadCache } from '../../src/lib/cache'
-import { sortExpenses } from '../../src/lib/dateUtils'
+import { sortExpenses, localDateKey, monthKey } from '../../src/lib/dateUtils'
 import { getUser, getCachedUser } from '../../src/lib/auth'
 import { checkWeeklySummary, checkBudgetAlerts, checkForecastNudge } from '../../src/lib/notifications'
 import { saveGoal, loadGoal, clearGoal } from '../../src/lib/spendingGoal'
@@ -23,6 +23,7 @@ import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { signalFirstPaint } from '../../src/lib/splashSignal'
 import { Analytics } from '../../src/lib/analytics'
+import { logError } from '../../src/lib/errorLog'
 
 const LAST_STREAK_KEY = 'savr_last_seen_streak'
 
@@ -78,7 +79,7 @@ function getMonthInfo(offset) {
   const d = new Date()
   d.setDate(1)
   d.setMonth(d.getMonth() + offset)
-  const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  const month = monthKey(d)
   const name = d.toLocaleString('default', { month: 'long', year: 'numeric' })
   const totalDays = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
   return { month, name, totalDays }
@@ -90,10 +91,10 @@ function getCategoryInfo(label) {
 
 function formatDate(dateStr) {
   const today = new Date()
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  const todayStr = localDateKey(today)
   const yesterday = new Date(today)
   yesterday.setDate(yesterday.getDate() - 1)
-  const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+  const yesterdayStr = localDateKey(yesterday)
   if (dateStr === todayStr) return 'Today'
   if (dateStr === yesterdayStr) return 'Yesterday'
   return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
@@ -171,8 +172,7 @@ const isCurrentMonth = true
         } catch {}
       }
       const lastMonthInfo = getMonthInfo(offsetSnapshot - 1)
-      const todayDate = new Date()
-      const todayStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-${String(todayDate.getDate()).padStart(2, '0')}`
+      const todayStr = localDateKey(new Date())
       const { month: snapshotMonth } = getMonthInfo(offsetSnapshot)
       // getExpenses(user.id) (unfiltered) is a strict superset of the
       // month-filtered query below — both already ORDER BY date DESC,
@@ -256,7 +256,7 @@ const isCurrentMonth = true
         for (let i = 0; i < 30; i++) {
           const d = new Date()
           d.setDate(d.getDate() - i)
-          const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+          const dateStr = localDateKey(d)
           if (allRecentExpenses.some(e => e.date === dateStr)) currentStreak++
           else break
         }
@@ -300,7 +300,9 @@ const isCurrentMonth = true
         }
       } catch {}
 
-    } catch {}
+    } catch (err) {
+      logError('dashboard.syncFromSQLite', err)
+    }
     finally {
       setLoading(false)
       setRefreshing(false)
@@ -344,6 +346,11 @@ const isCurrentMonth = true
     fetchData()
 
     if (backupTimerRef.current) clearTimeout(backupTimerRef.current)
+    // The 2s delay is a UX debounce (don't show the restore dialog the
+    // instant the dashboard mounts), not sequencing against fetchData or DB
+    // init — getExp() below goes through getReadyDB(), which itself awaits
+    // initializeDatabase(), so this read is correct no matter how long init
+    // takes or how this timer is scheduled relative to it.
     backupTimerRef.current = setTimeout(async () => {
       if (!isFocusedRef.current) return
       try {
@@ -439,8 +446,7 @@ const isCurrentMonth = true
   }
 
   const { total, todayExpenses, todayTotal } = useMemo(() => {
-  const now = new Date()
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const todayStr = localDateKey(new Date())
   const todayExpenses = expenses.filter(e => e.date === todayStr)
   const todayTotal = roundMoney(todayExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0))
   const total = roundMoney(expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0))

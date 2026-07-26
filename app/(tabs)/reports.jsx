@@ -13,14 +13,17 @@ import { getCurrencySymbol, loadCurrency, formatAmount, roundMoney } from '../..
 import { ReportsSkeleton } from '../../src/components/SkeletonLoader'
 import { saveCache, loadCache } from '../../src/lib/cache'
 import { getUser, getCachedUser } from '../../src/lib/auth'
-import { getExpenses, getMonthlyIncomeTotal } from '../../src/services/sqliteService'
+import { getExpensesInRange, getMonthlyIncomeTotal } from '../../src/services/sqliteService'
 import { buildReportInsights } from '../../src/lib/reportInsights'
+import { forecastMonthEnd } from '../../src/lib/spendingForecast'
+import { monthKey, localDateKey } from '../../src/lib/dateUtils'
+import { logError } from '../../src/lib/errorLog'
 
 function getMonthInfo(offset) {
   const d = new Date()
   d.setDate(1)
   d.setMonth(d.getMonth() + offset)
-  const month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  const month = monthKey(d)
   const name = d.toLocaleString('default', { month: 'long', year: 'numeric' })
   const totalDays = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
   return { month, name, totalDays }
@@ -73,28 +76,25 @@ export default function Reports() {
       if (!user) { setLoading(false); setRefreshing(false); setMonthLoading(false); return }
       if (!userRef.current) userRef.current = user
       const { month: selectedMonth } = getMonthInfo(monthOffset)
-      const allData = await getExpenses(user.id)
       const selectedDate = new Date(selectedMonth + '-01')
       const selectedYear = selectedDate.getFullYear()
       const selectedMonthNum = selectedDate.getMonth() + 1
       const lastMonthDate = new Date(selectedYear, selectedMonthNum - 2, 1)
-      const lastMonthKey = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`
-      const sixMonthsAgo = new Date(selectedYear, selectedMonthNum - 7, 1)
-      const endOfSelectedMonth = new Date(selectedYear, selectedMonthNum, 1)
-      const currentData = allData.filter(e => e.date.startsWith(selectedMonth))
-      const lastMonthData = allData.filter(e => e.date.startsWith(lastMonthKey))
-      const sixMonthData = allData.filter(e => {
-        // Parse as local midnight (like the sibling boundary dates) so an expense
-        // dated the 1st isn't pushed outside the window in timezones behind UTC.
-        const d = new Date(e.date + 'T00:00:00')
-        return d >= sixMonthsAgo && d < endOfSelectedMonth
-      })
+      const lastMonthKey = monthKey(lastMonthDate)
+      const sixMonthsAgoDate = new Date(selectedYear, selectedMonthNum - 7, 1)
+      const sixMonthsAgo = monthKey(sixMonthsAgoDate)
+      const endOfSelectedMonth = monthKey(new Date(selectedYear, selectedMonthNum, 1))
+      // Single bounded range query covers the 6-month window, which contains
+      // both the selected month and last month — no full-table scan.
+      const sixMonthData = await getExpensesInRange(user.id, sixMonthsAgo + '-01', endOfSelectedMonth + '-01')
+      const currentData = sixMonthData.filter(e => e.date.startsWith(selectedMonth))
+      const lastMonthData = sixMonthData.filter(e => e.date.startsWith(lastMonthKey))
 
       const incomeTotal = await getMonthlyIncomeTotal(user.id, selectedMonth)
 
       const incomeKeys = Array.from({ length: 6 }, (_, i) => {
         const d = new Date(selectedYear, selectedMonthNum - 1 - (5 - i), 1)
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        return monthKey(d)
       })
       const incomeTotals = await Promise.all(incomeKeys.map(key => getMonthlyIncomeTotal(user.id, key)))
       const incomeByMonth = incomeKeys.map((key, i) => ({ key, amount: incomeTotals[i] }))
@@ -115,7 +115,9 @@ export default function Reports() {
       setAllExpenses(sixMonthData)
       setMonthlyIncome(incomeTotal)
       setLast6MonthsIncome(incomeByMonth)
-    } catch {}
+    } catch (err) {
+      logError('reports.loadFromSQLite', err)
+    }
     finally {
       if (token === syncTokenRef.current) {
         setLoading(false)
@@ -171,7 +173,17 @@ export default function Reports() {
 
   const daysElapsed = isCurrentMonth ? now.getDate() : daysInSelectedMonth
   const dailyAvg = total / Math.max(daysElapsed, 1)
-  const forecast = dailyAvg * daysInSelectedMonth
+
+  // Past months are already final — "forecast" is just the actual total.
+  // Only the current month gets the real run-rate projection, matching the
+  // dashboard's forecast card so the two screens never disagree.
+  const forecast = useMemo(() => {
+    if (!isCurrentMonth) return total
+    const dailyMap = {}
+    expenses.forEach(e => { dailyMap[e.date] = (dailyMap[e.date] || 0) + parseFloat(e.amount) })
+    const dailyTotals = Object.entries(dailyMap).map(([date, t]) => ({ date, total: t }))
+    return forecastMonthEnd(dailyTotals, null, now).projectedTotal
+  }, [isCurrentMonth, expenses, total, now])
 
   const categoryTotals = useMemo(() => CATEGORIES.map(cat => {
     const catExpenses = expenses.filter(e => e.category === cat.label)
@@ -197,7 +209,7 @@ export default function Reports() {
     for (let i = 6; i >= 0; i--) {
       const d = new Date(anchorDate)
       d.setDate(d.getDate() - i)
-      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const dateStr = localDateKey(d)
       result.push({ date: dateStr, label: d.toLocaleString('default', { weekday: 'short' }), amount: dailyMap[dateStr] || 0 })
     }
     return result
@@ -210,7 +222,7 @@ export default function Reports() {
     const selectedDate = new Date(currentMonth + '-01')
     for (let i = 5; i >= 0; i--) {
       const d = new Date(selectedDate.getFullYear(), selectedDate.getMonth() - i, 1)
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const key = monthKey(d)
       const monthTotal = roundMoney(allExpenses.filter(e => e.date.startsWith(key)).reduce((sum, e) => sum + parseFloat(e.amount), 0))
       const incomeForMonth = last6MonthsIncome.find(m => m.key === key)?.amount || 0
       result.push({ key, label: d.toLocaleString('default', { month: 'short' }), amount: monthTotal, income: incomeForMonth })
@@ -517,7 +529,9 @@ export default function Reports() {
               {formatAmount(forecast, currencySymbol, currencyCode)}
             </Text>
             <Text style={styles.forecastSub}>
-              At {formatAmount(dailyAvg, currencySymbol, currencyCode)}/day, you&apos;ll spend this much by end of {now.toLocaleString('default', { month: 'long' })}
+              {isCurrentMonth
+                ? `At ${formatAmount(dailyAvg, currencySymbol, currencyCode)}/day, you'll spend this much by end of ${now.toLocaleString('default', { month: 'long' })}`
+                : `Final total for ${monthName}`}
             </Text>
             <View style={styles.forecastBar}>
               <View style={[styles.forecastFill, { width: `${Math.min((total / Math.max(forecast, 1)) * 100, 100)}%`, backgroundColor: total > forecast * 0.8 ? COLORS.accentRed : COLORS.accent }]} />
