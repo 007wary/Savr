@@ -1,7 +1,7 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ScrollView, Dimensions, StatusBar
+  ScrollView, Dimensions, StatusBar, Platform, TextInput
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
@@ -9,6 +9,11 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { useTheme } from '../src/lib/themeContext'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { signalFirstPaint } from '../src/lib/splashSignal'
+import { Analytics } from '../src/lib/analytics'
+import { requestNotificationPermission, isNotificationGranted } from '../src/lib/notifications'
+import { loadCurrency, saveCurrency } from '../src/lib/currency'
+import { CURRENCIES } from '../src/constants/theme'
+import BottomSheet from '../src/components/BottomSheet'
 
 const { width } = Dimensions.get('window')
 
@@ -18,11 +23,11 @@ const SLIDES = [
     gradient: ['#FFB347', '#FF9800', '#FF6F00'],
     color: '#FF9800',
     title: 'Where did your money go?',
-    subtitle: 'Most people lose 20–30% of their income every month without realising it. Savr shows you exactly where every penny goes.',
+    subtitle: 'Most people lose 20–30% of their income every month without realising it. Savr shows you exactly where every penny goes — and your first expense takes 5 seconds to log.',
     features: [
       { icon: 'search-outline', color: '#FF9800', text: 'See your biggest spending category instantly' },
       { icon: 'receipt-outline', color: '#6C63FF', text: 'Catch expenses you forgot about' },
-      { icon: 'stats-chart-outline', color: '#00D9A5', text: 'Know your daily average spend in real time' },
+      { icon: 'lock-closed-outline', color: '#00D9A5', text: 'Your data never leaves your device' },
     ],
   },
   {
@@ -30,22 +35,10 @@ const SLIDES = [
     gradient: ['#00E5AD', '#00D9A5', '#00C894'],
     color: '#00D9A5',
     title: 'Take back control',
-    subtitle: 'Set a budget once. Savr watches it for you and warns you before you overspend — not after it\'s too late.',
+    subtitle: 'Set a budget once. Savr watches it for you and warns you before you overspend — not after it\'s too late. People who track expenses save 20% more on average.',
     features: [
       { icon: 'warning-outline', color: '#FFB800', text: 'Get warned before you hit your limit' },
       { icon: 'bulb-outline', color: '#6C63FF', text: 'AI recommends budgets from your habits' },
-      { icon: 'flag-outline', color: '#00D9A5', text: 'Monthly goals that keep you accountable' },
-    ],
-  },
-  {
-    icon: 'rocket-outline',
-    gradient: ['#FF9A5C', '#FF8C42', '#FF7A28'],
-    color: '#FF8C42',
-    title: 'Your fresh start is now',
-    subtitle: 'People who track expenses save 20% more on average. Your first expense takes 5 seconds. Start today.',
-    features: [
-      { icon: 'flash-outline', color: '#FF8C42', text: 'Add an expense in under 5 seconds' },
-      { icon: 'lock-closed-outline', color: '#6C63FF', text: 'Your data never leaves your device' },
       { icon: 'cloud-done-outline', color: '#00D9A5', text: 'Auto backup to Google Drive' },
     ],
   },
@@ -56,29 +49,100 @@ export default function Onboarding() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const scrollRef = useRef(null)
   const router = useRouter()
+  // Guards against double-firing onboarding_completed/onboarding_skipped —
+  // handleDone can in principle be reached more than once if a tap lands
+  // right as the route is replacing.
+  const exitLoggedRef = useRef(false)
+  // Notification permission is asked here, in-context on the budget-warning
+  // slide, instead of cold later (previously: silently 8s after the first
+  // expense save, with zero framing). Asking right after the user reads
+  // "get warned before you hit your limit" gives the OS prompt a reason
+  // before it appears, which measurably improves opt-in vs. a cold ask.
+  const [notifStatus, setNotifStatus] = useState('unknown') // unknown | granted | denied
+  // Currency defaults from device locale (see currency.js) and is confirmed
+  // with a single tap here instead of being silently assumed — a wrong
+  // guess (e.g. a US-locale device someone's using while traveling) would
+  // otherwise surface as "why is everything in $" confusion much later,
+  // deep in the add-expense flow.
+  const [currencyCode, setCurrencyCode] = useState('USD')
+  const [currencyConfirmed, setCurrencyConfirmed] = useState(false)
+  const [showCurrencySheet, setShowCurrencySheet] = useState(false)
+  const [currencySearch, setCurrencySearch] = useState('')
+
+  useEffect(() => {
+    Analytics.onboardingStarted()
+    Analytics.onboardingSlideViewed(0)
+    if (Platform.OS !== 'web') {
+      isNotificationGranted().then((granted) => {
+        if (granted) setNotifStatus('granted')
+      }).catch(() => {})
+    }
+    loadCurrency().then(setCurrencyCode).catch(() => {})
+  }, [])
+
+  async function handleConfirmCurrency() {
+    setCurrencyConfirmed(true)
+    await saveCurrency(currencyCode)
+  }
+
+  async function handleSelectCurrency(code) {
+    setCurrencyCode(code)
+    setCurrencyConfirmed(true)
+    setShowCurrencySheet(false)
+    setCurrencySearch('')
+    await saveCurrency(code)
+  }
+
+  const selectedCurrency = CURRENCIES.find(c => c.code === currencyCode)
+  const filteredCurrencies = useMemo(() => {
+    const q = currencySearch.trim().toLowerCase()
+    if (!q) return CURRENCIES
+    return CURRENCIES.filter(c =>
+      c.code.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)
+    )
+  }, [currencySearch])
+
+  async function handleEnableNotifications() {
+    Analytics.notificationPromptRequested('onboarding')
+    const status = await requestNotificationPermission()
+    setNotifStatus(status === 'granted' ? 'granted' : 'denied')
+    Analytics.notificationPromptResult('onboarding', status === 'granted')
+  }
 
   async function handleDone() {
     await AsyncStorage.setItem('savr_onboarding_done', 'true')
-    router.replace('/(tabs)/dashboard')
+    router.replace('/(auth)/login')
   }
 
   function handleNext() {
     if (currentIndex < SLIDES.length - 1) {
       const next = currentIndex + 1
       setCurrentIndex(next)
+      Analytics.onboardingSlideViewed(next)
       scrollRef.current?.scrollTo({ x: next * width, animated: true })
     } else {
+      if (!exitLoggedRef.current) {
+        exitLoggedRef.current = true
+        Analytics.onboardingCompleted()
+      }
       handleDone()
     }
   }
 
   function handleSkip() {
+    if (!exitLoggedRef.current) {
+      exitLoggedRef.current = true
+      Analytics.onboardingSkipped(currentIndex)
+    }
     handleDone()
   }
 
   function handleScroll(e) {
     const index = Math.round(e.nativeEvent.contentOffset.x / width)
-    if (index !== currentIndex) setCurrentIndex(index)
+    if (index !== currentIndex) {
+      setCurrentIndex(index)
+      Analytics.onboardingSlideViewed(index)
+    }
   }
 
   const slide = SLIDES[currentIndex]
@@ -112,6 +176,23 @@ export default function Onboarding() {
     featureItem: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.card, borderRadius: 14, padding: 14, borderWidth: 1 },
     featureIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
     featureText: { fontSize: 14, color: COLORS.text, fontWeight: '500', flex: 1 },
+    notifEnableBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, marginTop: 16 },
+    notifEnableText: { fontSize: 13, fontWeight: '700' },
+    notifEnabledPill: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, marginTop: 16 },
+    notifEnabledText: { fontSize: 13, fontWeight: '700' },
+    currencyConfirmRow: { width: '100%', alignItems: 'center', marginTop: 16, gap: 8 },
+    currencyConfirmBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16 },
+    currencyConfirmFlag: { fontSize: 16 },
+    currencyConfirmText: { fontSize: 13, fontWeight: '700' },
+    currencyChangeLink: { fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' },
+    sheetTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 16 },
+    currencySearchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.cardAlt, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12, borderWidth: 1, borderColor: COLORS.border },
+    currencySearchInput: { flex: 1, fontSize: 14, color: COLORS.text },
+    currencyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+    currencyFlag: { fontSize: 22 },
+    currencyName: { fontSize: 14, color: COLORS.text, fontWeight: '600' },
+    currencyCodeText: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+    currencySymbolText: { fontSize: 15, color: COLORS.textMuted, fontWeight: '600' },
     bottom: { paddingHorizontal: 24, paddingBottom: 44, paddingTop: 16, alignItems: 'center', gap: 14 },
     dots: { flexDirection: 'row', gap: 8, alignItems: 'center' },
     dot: { height: 8, borderRadius: 4 },
@@ -170,6 +251,54 @@ export default function Onboarding() {
                 </View>
               ))}
             </View>
+
+            {index === 0 && selectedCurrency && (
+              currencyConfirmed ? (
+                <View style={[styles.notifEnabledPill, { borderColor: s.color + '55' }]}>
+                  <Ionicons name="checkmark-circle" size={16} color={s.color} />
+                  <Text style={[styles.notifEnabledText, { color: s.color }]}>
+                    Tracking in {selectedCurrency.flag} {selectedCurrency.code}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.currencyConfirmRow}>
+                  <TouchableOpacity
+                    style={[styles.currencyConfirmBtn, { borderColor: s.color }]}
+                    onPress={handleConfirmCurrency}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.currencyConfirmFlag}>{selectedCurrency.flag}</Text>
+                    <Text style={[styles.currencyConfirmText, { color: s.color }]}>
+                      Track in {selectedCurrency.name} ({selectedCurrency.symbol})
+                    </Text>
+                    <Ionicons name="checkmark" size={16} color={s.color} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setShowCurrencySheet(true)}>
+                    <Text style={[styles.currencyChangeLink, { color: COLORS.textMuted }]}>Not right? Change it</Text>
+                  </TouchableOpacity>
+                </View>
+              )
+            )}
+
+            {index === 1 && Platform.OS !== 'web' && (
+              notifStatus === 'granted' ? (
+                <View style={[styles.notifEnabledPill, { borderColor: s.color + '55' }]}>
+                  <Ionicons name="checkmark-circle" size={16} color={s.color} />
+                  <Text style={[styles.notifEnabledText, { color: s.color }]}>Budget alerts enabled</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.notifEnableBtn, { borderColor: s.color }]}
+                  onPress={handleEnableNotifications}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="notifications-outline" size={16} color={s.color} />
+                  <Text style={[styles.notifEnableText, { color: s.color }]}>
+                    {notifStatus === 'denied' ? 'Enable in device settings' : 'Turn on budget alerts'}
+                  </Text>
+                </TouchableOpacity>
+              )
+            )}
           </View>
         ))}
       </ScrollView>
@@ -182,6 +311,7 @@ export default function Onboarding() {
               key={i}
               onPress={() => {
                 setCurrentIndex(i)
+                Analytics.onboardingSlideViewed(i)
                 scrollRef.current?.scrollTo({ x: i * width, animated: true })
               }}
             >
@@ -223,6 +353,35 @@ export default function Onboarding() {
           {currentIndex + 1} of {SLIDES.length}
         </Text>
       </View>
+
+      <BottomSheet visible={showCurrencySheet} onClose={() => { setShowCurrencySheet(false); setCurrencySearch('') }}>
+        <Text style={styles.sheetTitle}>Select Currency</Text>
+        <View style={styles.currencySearchBox}>
+          <Ionicons name="search-outline" size={16} color={COLORS.textMuted} style={{ marginRight: 8 }} />
+          <TextInput
+            style={styles.currencySearchInput}
+            placeholder="Search currency or country..."
+            placeholderTextColor={COLORS.textMuted}
+            value={currencySearch}
+            onChangeText={setCurrencySearch}
+            autoCorrect={false}
+          />
+        </View>
+        {filteredCurrencies.map(cur => (
+          <TouchableOpacity
+            key={cur.code}
+            style={styles.currencyRow}
+            onPress={() => handleSelectCurrency(cur.code)}
+          >
+            <Text style={styles.currencyFlag}>{cur.flag}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.currencyName}>{cur.name}</Text>
+              <Text style={styles.currencyCodeText}>{cur.code}</Text>
+            </View>
+            <Text style={styles.currencySymbolText}>{cur.symbol}</Text>
+          </TouchableOpacity>
+        ))}
+      </BottomSheet>
     </View>
   )
 }

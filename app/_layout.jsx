@@ -9,7 +9,7 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import { processDueRecurring, processRecurringIncome } from '../src/lib/recurring'
 import { clearAllCache, clearExpiredCache } from '../src/lib/cache'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { initializeDatabase } from '../src/services/sqliteService'
+import { initializeDatabase, hasAnyLedgerEntries } from '../src/services/sqliteService'
 import { backupOnAppOpen } from '../src/services/backgroundBackup'
 import { cacheGoogleAccessToken, clearGoogleAccessToken } from '../src/lib/googleAccessToken'
 import { Analytics, setUserId } from '../src/lib/analytics'
@@ -46,6 +46,15 @@ function RootLayoutInner() {
   const recurringProcessedRef = useRef(false)
   const initialSessionLoadedRef = useRef(false)
   const signedOutRef = useRef(false)
+  // Where a fresh SIGNED_IN should land: '/(tabs)/dashboard' normally, or
+  // '/(tabs)/add' when the ledger check (below) finds this is a first-time
+  // user with nothing logged yet. Read once by the redirect effect's
+  // session+inAuth hop, then reset — it's a one-shot post-login landing
+  // decision, not a standing route override. `postLoginCheckPendingRef` makes
+  // the redirect effect wait for the (fast, local SQLite) check to resolve
+  // instead of racing it and always landing on dashboard by default.
+  const postLoginRouteRef = useRef(null)
+  const postLoginCheckPendingRef = useRef(false)
   const router = useRouter()
   const segments = useSegments()
 
@@ -288,6 +297,18 @@ setTimeout(() => {
         setSigningIn(false)
         if (session?.user) setCachedUser(session.user)
         if (session?.user?.id) {
+          // Resolve where this sign-in should land before the redirect effect
+          // acts on it — see postLoginCheckPendingRef.
+          postLoginCheckPendingRef.current = true
+          hasAnyLedgerEntries(session.user.id)
+            .then((hasEntries) => {
+              if (!hasEntries) postLoginRouteRef.current = '/(tabs)/add'
+            })
+            .catch(() => {})
+            .finally(() => {
+              postLoginCheckPendingRef.current = false
+              setNavTick((n) => n + 1) // wake the redirect effect once resolved
+            })
           setUserId(session.user.id).catch(() => {})
           // Defer Crashlytics identity off the first-paint window — its native
           // calls lazily init the Firebase SDK on the JS thread and were
@@ -301,6 +322,16 @@ setTimeout(() => {
           }, 4000)
         }
         Analytics.login()
+        // Supabase sets created_at and last_sign_in_at to (near enough) the
+        // same instant only on the account's very first sign-in — every
+        // later login moves last_sign_in_at forward while created_at stays
+        // fixed. That's what separates a real signup from a routine login,
+        // which a plain SIGNED_IN event can't tell apart on its own.
+        const createdAt = session?.user?.created_at ? new Date(session.user.created_at).getTime() : null
+        const lastSignInAt = session?.user?.last_sign_in_at ? new Date(session.user.last_sign_in_at).getTime() : null
+        if (createdAt != null && lastSignInAt != null && Math.abs(lastSignInAt - createdAt) < 60000) {
+          Analytics.signupCompleted()
+        }
 
         // Set online status
 setTimeout(async () => {
@@ -434,66 +465,74 @@ try {
     // mounted — a real regression, not a bounce race.
     const onBareIndex = !segments[0] || segments[0] === 'index'
 
-    if (!onboardingDone && !inOnboarding && session) {
-      AsyncStorage.getItem('savr_onboarding_done').then(done => {
-        if (done === 'true') {
-          setOnboardingDone(true)
-        } else {
-            router.replace('/onboarding')
-          }
-        }).catch(() => { router.replace('/onboarding') })
+    // Onboarding is a pre-auth value-prop pitch now, not a post-login extra:
+    // it's shown once, before the first sign-in, then never again — signed-in
+    // users always skip straight past it regardless of the flag. Logged-out
+    // users who haven't seen it are sent to onboarding *before* login; login
+    // itself always redirects onward via onboardingDone once it's set.
+    if (!onboardingDone) {
+      if (session) {
+        // Already authenticated (e.g. cached session on a fresh install
+        // that never ran onboarding) — don't block a real user behind a
+        // pitch screen for a product they've already signed into.
+        setOnboardingDone(true)
+        return
+      }
+      if (!inOnboarding) {
+        router.replace('/onboarding')
+      }
       return
     }
 
-    if (onboardingDone) {
-      if (session && inTabs) {
-        setTransitioning(false)
-        return
-      }
-      if (inOnboarding) {
-        setTransitioning(false)
-        return
-      }
-      if (!session && inAuth) return
-      if (!session && onBareIndex && !signingIn) {
-        router.replace('/(auth)/login')
-        return
-      }
-      if (session && inAuth && !signingIn) {
-        router.replace('/(tabs)/dashboard')
-        return
-      }
-      // Landed on the bare index route with a session and onboarding already
-      // done — send straight to dashboard in one hop instead of index.jsx
-      // redirecting to login first and this effect correcting it a beat
-      // later. That extra login mount+unmount was pure waste on every cold
-      // launch for the common case, landing squarely in the first-paint
-      // window. (The logged-out equivalent is handled below, outside this
-      // onboardingDone block, since a logged-out user belongs on login
-      // regardless of onboarding state.)
-      //
-      // Gated on onBareIndex, NOT "any unmatched segment" — settings,
-      // recurring, backup, and manage-data are also top-level screens that
-      // match none of onboarding/auth/tabs, and are legitimate navigation
-      // targets. The broader check sent every tap into one of those screens
-      // straight back to dashboard the instant it mounted.
-      if (session && onBareIndex) {
-        router.replace('/(tabs)/dashboard')
-        return
-      }
+    if (session && inTabs) {
+      setTransitioning(false)
+      return
+    }
+    if (!session && inOnboarding) return
+    if (!session && inAuth) return
+    if (!session && onBareIndex && !signingIn) {
+      router.replace('/(auth)/login')
+      return
+    }
+    if (session && inAuth && !signingIn) {
+      // Wait for the first-time-user ledger check to resolve (it's a fast
+      // local SQLite query) so a real first-time user doesn't get raced to
+      // dashboard before postLoginRouteRef is set. The effect re-runs via
+      // navTick once the check's .finally() fires.
+      if (postLoginCheckPendingRef.current) return
+      const landing = postLoginRouteRef.current || '/(tabs)/dashboard'
+      postLoginRouteRef.current = null
+      router.replace(landing)
+      return
+    }
+    if (session && inOnboarding) {
+      router.replace('/(tabs)/dashboard')
+      return
+    }
+    // Landed on the bare index route with a session — send straight to
+    // dashboard in one hop instead of index.jsx redirecting to login first
+    // and this effect correcting it a beat later. That extra login
+    // mount+unmount was pure waste on every cold launch for the common
+    // case, landing squarely in the first-paint window.
+    //
+    // Gated on onBareIndex, NOT "any unmatched segment" — settings,
+    // recurring, backup, and manage-data are also top-level screens that
+    // match none of onboarding/auth/tabs, and are legitimate navigation
+    // targets. The broader check sent every tap into one of those screens
+    // straight back to dashboard the instant it mounted.
+    if (session && onBareIndex) {
+      router.replace('/(tabs)/dashboard')
+      return
     }
 
-    // Landed on the bare index route with no session — including when
-    // onboarding isn't done yet, e.g. a fresh install before first login.
-    // Onboarding-gating (above) only applies once a session exists, so a
-    // logged-out user on the bare index route always belongs on login.
+    // Landed on the bare index route with no session — belongs on login.
     // Without this, index.jsx rendering blank (instead of its old hardcoded
     // Redirect to login) left this exact case with no navigation at all —
     // a permanently blank launch.
     if (!session && onBareIndex) {
       router.replace('/(auth)/login')
     }
-  }, [session, segments, onboardingDone, signingIn, router])
+  }, [session, segments, onboardingDone, signingIn, router, navTick])
 
   // Startup watchdog. The gate below renders a blank screen while session or
   // onboardingDone are still undefined, or while a post-login transition is in

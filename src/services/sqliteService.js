@@ -290,6 +290,19 @@ export async function addExpenseAtomic(userId, { amount, category, note, date, i
   return newId
 }
 
+// Cheap existence check (not a full row fetch) — used to tell a genuinely
+// first-time user (empty ledger) from a returning one, e.g. to route the
+// post-login redirect straight into "add your first expense" instead of an
+// empty dashboard.
+export async function hasAnyLedgerEntries(userId) {
+  const database = await getReadyDB()
+  const row = await database.getFirstAsync(
+    `SELECT EXISTS(SELECT 1 FROM expenses WHERE user_id = ?) OR EXISTS(SELECT 1 FROM income WHERE user_id = ?) AS present`,
+    [userId, userId]
+  )
+  return !!row?.present
+}
+
 export async function getExpenses(userId, { month } = {}) {
   const database = await getReadyDB()
   if (month) {

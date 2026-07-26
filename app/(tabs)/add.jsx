@@ -19,7 +19,7 @@ import { detectCategoryWithSource, tokenizeNote } from '../../src/lib/categoryDe
 import { detectAnomaly } from '../../src/lib/anomalyDetector'
 import { checkBudgetAlerts } from '../../src/lib/notifications'
 import { logError } from '../../src/lib/errorLog'
-import { addExpenseAtomic, addRecurring, addIncomeAtomic, addRecurringIncome, addTransferAtomic, getExpenses, getBudgets, getAccounts, getLearnedCategories, learnCategory } from '../../src/services/sqliteService'
+import { addExpenseAtomic, addRecurring, addIncomeAtomic, addRecurringIncome, addTransferAtomic, getExpenses, getBudgets, getAccounts, getLearnedCategories, learnCategory, hasAnyLedgerEntries } from '../../src/services/sqliteService'
 import { Analytics } from '../../src/lib/analytics'
 import { scheduleBackup } from '../../src/services/backgroundBackup'
 import { checkAndRequestReview } from '../../src/lib/reviewService'
@@ -78,6 +78,11 @@ export default function AddExpense() {
   // Per-user learned note→category map, loaded once and refreshed after a
   // correction. Powers the "app learns your habits" categorization.
   const learnedRef = useRef([])
+  // First-time-user nudge: an empty ledger gets a tap-to-fill example instead
+  // of a blank form, so the "add your first expense in 5 seconds" promise
+  // from onboarding is actually true. Never auto-fills — a stray tap on Add
+  // must not silently log fake data for the user.
+  const [showFirstEntryHint, setShowFirstEntryHint] = useState(false)
   const [showCelebration, setShowCelebration] = useState(false)
   const celebrationScale = useRef(new Animated.Value(0)).current
   const celebrationOpacity = useRef(new Animated.Value(0)).current
@@ -122,10 +127,21 @@ export default function AddExpense() {
       userRef.current = getCachedUser() || await getUser()
       if (userRef.current) {
         try { learnedRef.current = await getLearnedCategories(userRef.current.id) } catch {}
+        try {
+          const hasEntries = await hasAnyLedgerEntries(userRef.current.id)
+          setShowFirstEntryHint(!hasEntries)
+        } catch {}
       }
     }
     init()
   }, [])
+
+  function fillFirstEntryExample() {
+    setActiveTab('expense')
+    setShowFirstEntryHint(false)
+    setAmount(quickAmounts[1] || quickAmounts[0] || '100')
+    handleNoteChange('Coffee')
+  }
 
   useFocusEffect(useCallback(() => {
     async function refreshAccounts() {
@@ -487,6 +503,8 @@ export default function AddExpense() {
   headerTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text },
   container: { paddingHorizontal: 24, paddingTop: 8, paddingBottom: 40 },
   label: { fontSize: 13, color: COLORS.textMuted, marginBottom: 8, marginLeft: 2 },
+  firstEntryHint: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: COLORS.accent + '15', borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: COLORS.accent + '33' },
+  firstEntryHintText: { flex: 1, fontSize: 12.5, color: COLORS.text, fontWeight: '600' },
   input: { backgroundColor: COLORS.card, borderRadius: 12, padding: 16, color: COLORS.text, fontSize: 15, borderWidth: 1, borderColor: COLORS.border, marginBottom: 20 },
   noteContainer: { marginBottom: 20 },
   noteInput: { marginBottom: 0, height: 80, textAlignVertical: 'top' },
@@ -677,6 +695,16 @@ export default function AddExpense() {
           {/* ── INCOME & EXPENSE TABS ── */}
           {activeTab !== 'transfer' && (
             <>
+              {showFirstEntryHint && activeTab === 'expense' && (
+                <TouchableOpacity style={styles.firstEntryHint} onPress={fillFirstEntryExample} activeOpacity={0.8}>
+                  <Ionicons name="flash" size={16} color={COLORS.accent} />
+                  <Text style={styles.firstEntryHintText}>
+                    New here? Tap to try an example — {currencySymbol}{quickAmounts[1] || quickAmounts[0]} for Coffee
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color={COLORS.accent} />
+                </TouchableOpacity>
+              )}
+
               <Text style={styles.label}>Amount ({currencySymbol})</Text>
               <TextInput
                 style={styles.input}

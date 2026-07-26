@@ -51,8 +51,27 @@ export const setUserId = async (userId) => {
 // Key events for Savr
 export const Analytics = {
   // Auth
+  // `login` fires on every successful sign-in; `signupCompleted` fires only
+  // the first time a given device completes auth (paired with the pre-auth
+  // onboarding funnel below) so activation/new-user conversion can be told
+  // apart from routine returning-user logins.
   login: () => logEvent('login', { method: 'google' }),
+  signupCompleted: () => logEvent('signup_completed', { method: 'google' }),
   logout: () => logEvent('logout'),
+
+  // Pre-auth onboarding funnel (see app/onboarding.jsx). `started` fires once
+  // per install on first mount; `slideViewed` on each slide change so we can
+  // see per-slide drop-off; `completed`/`skipped` are mutually exclusive exits.
+  onboardingStarted: () => logEvent('onboarding_started'),
+  onboardingSlideViewed: (index) => logEvent('onboarding_slide_viewed', { slide: index }),
+  onboardingCompleted: () => logEvent('onboarding_completed'),
+  onboardingSkipped: (atSlide) => logEvent('onboarding_skipped', { slide: atSlide }),
+
+  // Notification permission prompt, tagged by where it was triggered from
+  // (e.g. 'onboarding' vs. 'settings') so opt-in rate can be compared
+  // in-context (asked with a reason, on the budget-warning slide) vs. cold.
+  notificationPromptRequested: (source) => logEvent('notification_prompt_requested', { source }),
+  notificationPromptResult: (source, granted) => logEvent('notification_prompt_result', { source, granted }),
 
   // Expenses
 addExpense: (category, amount) => logEvent('add_expense', { category, amount }),
