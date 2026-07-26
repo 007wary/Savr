@@ -840,8 +840,8 @@ const isCurrentMonth = true
     <Ionicons name={goalBanner.type === 'first' ? 'flag' : 'checkmark-circle'} size={16} color="#fff" />
     <Text style={styles.goalBannerText}>
       {goalBanner.type === 'first'
-        ? `Goal set! Tracking your ${currencySymbol}${goalBanner.amount.toLocaleString('en-US')} this month.`
-        : `Goal updated to ${currencySymbol}${goalBanner.amount.toLocaleString('en-US')}`}
+        ? `Goal set! Tracking your ${formatAmount(goalBanner.amount, currencySymbol, currencyCode)} this month.`
+        : `Goal updated to ${formatAmount(goalBanner.amount, currencySymbol, currencyCode)}`}
     </Text>
   </View>
 )}

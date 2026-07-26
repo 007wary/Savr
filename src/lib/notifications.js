@@ -253,7 +253,13 @@ async function runScheduleStreakReminder(streak = 0) {
       const target = new Date()
       target.setDate(target.getDate() + daysOut)
       target.setHours(21, 0, 0, 0)
-      if (target <= new Date()) continue
+      if (target <= new Date()) {
+        // Day 0's 9pm slot may already be past by the time the user opens the
+        // app tonight — fire shortly instead of silently dropping the live
+        // streak reminder for today.
+        if (daysOut === 0) target.setTime(Date.now() + 60000)
+        else continue
+      }
 
       const { title, body } = daysOut === 0 && streak > 0
         ? { title: `${streak} day streak — keep it going!`, body: `Don't break your ${streak} day streak. Log an expense before midnight.` }
