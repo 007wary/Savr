@@ -23,6 +23,7 @@ import { getUser, getCachedUser } from '../../src/lib/auth'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getExpenses, updateExpense, deleteExpenseAtomic, getRecurring, getIncome, deleteIncomeAtomic, getTransfers, deleteTransferAtomic, getAccounts, getAdjustments, deleteAdjustmentAtomic } from '../../src/services/sqliteService'
 import { scheduleBackup } from '../../src/services/backgroundBackup'
+import { Analytics } from '../../src/lib/analytics'
 
 const CACHE_KEY = 'savr_cache_history'
 
@@ -220,6 +221,8 @@ export default function History() {
               // side effect of removing a single row here.
               await deleteExpenseAtomic(id)
             }
+            if (type === 'income') Analytics.deleteIncome()
+            else if (type === 'expense') Analytics.deleteExpense()
           } catch {
             // DB delete failed — row is intact. Restore the visible list and bail
             // without touching any cache, so nothing goes out of sync.
@@ -302,6 +305,7 @@ export default function History() {
       })
       await AsyncStorage.removeItem('savr_last_backup_count')
       scheduleBackup()
+      Analytics.editExpense()
     } catch {
       // DB write failed — revert the optimistic UI/cache so a reload can't silently
       // discard the user's change without warning, and tell them it didn't save.

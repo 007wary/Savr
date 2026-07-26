@@ -16,6 +16,7 @@ import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
 import { generateBudgetRecommendations } from '../../src/lib/budgetRecommendations'
 import { getExpenses, getBudgets, saveBudget, deleteBudget } from '../../src/services/sqliteService'
+import { Analytics } from '../../src/lib/analytics'
 
 function getCurrentMonth() {
   const now = new Date()
@@ -140,6 +141,7 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
       const user = getCachedUser() || userRef.current || await getUser()
       if (!userRef.current) userRef.current = user
       const realId = await saveBudget(user.id, { category, limit_amount: limit, month: currentMonth })
+      Analytics.setBudget(category)
       // Reconcile the optimistic temp id with SQLite's real id so a later
       // delete (which looks up `existing.id` from this state) targets a row
       // that actually exists — otherwise it silently no-ops and the budget
@@ -203,6 +205,7 @@ const CACHE_KEY = `savr_cache_budgets_${currentMonth}`
                 saveBudget(user.id, { category, limit_amount: rec.recommended, month: currentMonth })
               )
             )
+            Object.keys(recommendations).forEach(category => Analytics.setBudget(category))
             fetchData(true)
           }
         }

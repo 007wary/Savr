@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { CATEGORIES, SCREEN, CURRENCIES } from '../../src/constants/theme'
+import { CATEGORIES, SCREEN, CURRENCIES, BADGE_COLORS } from '../../src/constants/theme'
 import { useTheme } from '../../src/lib/themeContext'
 import { DashboardSkeleton } from '../../src/components/SkeletonLoader'
 import { loadCurrency, formatAmount, roundMoney } from '../../src/lib/currency'
@@ -387,8 +387,10 @@ const isCurrentMonth = true
                     const { restoreFromDrive } = await import('../../src/services/driveBackupService')
                     await AsyncStorage.setItem('savr_restore_offered', 'true')
                     backupExistsRef.current = false
+                    Analytics.restoreStarted()
                     const result = await restoreFromDrive()
                     if (result.success) {
+                      Analytics.restoreSuccess()
                       showAlert('✅ Restored!', `${result.expenseCount} expenses restored successfully.`, [
                         {
                           text: 'OK',
@@ -431,6 +433,7 @@ const isCurrentMonth = true
   setSpendingGoal(amount)
   setShowGoalModal(false)
   setGoalInput('')
+  if (isFirstTime) Analytics.addGoal()
   setGoalBanner({ type: isFirstTime ? 'first' : 'updated', amount })
   setTimeout(() => setGoalBanner(null), 3500)
 }
@@ -661,7 +664,7 @@ const isCurrentMonth = true
   // strongest retention signal on the screen and should read that way.
   // Empty state stays on plain COLORS.card since there's nothing to
   // celebrate yet.
-  streakCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#FF8C4214', borderRadius: 18, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#FF8C4244' },
+  streakCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: BADGE_COLORS.streakOrange + '14', borderRadius: 18, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: BADGE_COLORS.streakOrange + '44' },
   streakCardEmpty: { backgroundColor: COLORS.card, borderColor: COLORS.border },
   streakIconBox: { width: 44, height: 44, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
   streakTitle: { fontSize: 15, fontWeight: '700', color: COLORS.text },
@@ -767,11 +770,11 @@ const isCurrentMonth = true
             }}
             activeOpacity={0.8}
           >
-            <View style={[styles.streakIconBox, { backgroundColor: streak > 0 ? '#FF8C4222' : COLORS.accent + '22' }]}>
+            <View style={[styles.streakIconBox, { backgroundColor: streak > 0 ? BADGE_COLORS.streakOrange + '22' : COLORS.accent + '22' }]}>
               <Ionicons
                 name={streak > 0 ? 'flame' : 'flame-outline'}
                 size={22}
-                color={streak > 0 ? '#FF8C42' : COLORS.accent}
+                color={streak > 0 ? BADGE_COLORS.streakOrange : COLORS.accent}
               />
             </View>
             <View style={{ flex: 1 }}>

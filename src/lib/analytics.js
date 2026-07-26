@@ -120,10 +120,10 @@ deleteRecurringIncome: () => logEvent('delete_recurring_income'),
   anomalyConfirmed: (category) => logEvent('anomaly_confirmed', { category }),
   anomalyDismissed: (category) => logEvent('anomaly_dismissed', { category }),
 
-  // Forecast nudge funnel. `sent` fires today. `opened` is ready to wire the
-  // moment we add notification-tap routing: the nudge already carries
-  // data.type === 'forecast_nudge', so a response listener just calls this.
-  // Pair with subsequent spend pace to judge whether the nudge changes behavior.
+  // Forecast nudge funnel. `sent` fires when the notification goes out;
+  // `opened` fires from the tap-routing table in notifications.js
+  // (resolveNotificationTap → app/_layout.jsx). Pair with subsequent spend
+  // pace to judge whether the nudge changes behavior.
   forecastNudgeSent: () => logEvent('forecast_nudge_sent'),
   forecastNudgeOpened: () => logEvent('forecast_nudge_opened'),
 

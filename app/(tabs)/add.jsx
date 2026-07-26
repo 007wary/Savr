@@ -8,7 +8,7 @@ import DateTimePicker from '@react-native-community/datetimepicker'
 import { Ionicons } from '@expo/vector-icons'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useFocusEffect } from 'expo-router'
-import { CATEGORIES } from '../../src/constants/theme'
+import { CATEGORIES, INCOME_CATEGORIES } from '../../src/constants/theme'
 import { useTheme } from '../../src/lib/themeContext'
 import CustomAlert from '../../src/components/CustomAlert'
 import useAlert from '../../src/hooks/useAlert'
@@ -30,16 +30,6 @@ const FREQUENCIES = [
   { label: 'Daily', value: 'daily', icon: 'sunny-outline' },
   { label: 'Weekly', value: 'weekly', icon: 'calendar-outline' },
   { label: 'Monthly', value: 'monthly', icon: 'calendar-number-outline' },
-]
-
-const INCOME_CATEGORIES = [
-  { label: 'Salary', icon: 'briefcase-outline', color: '#4CAF50' },
-  { label: 'Freelance', icon: 'laptop-outline', color: '#2196F3' },
-  { label: 'Business', icon: 'storefront-outline', color: '#FF9800' },
-  { label: 'Investment', icon: 'trending-up-outline', color: '#9C27B0' },
-  { label: 'Rental', icon: 'home-outline', color: '#00BCD4' },
-  { label: 'Gift', icon: 'gift-outline', color: '#E91E63' },
-  { label: 'Other', icon: 'ellipsis-horizontal-outline', color: '#607D8B' },
 ]
 
 export default function AddExpense() {

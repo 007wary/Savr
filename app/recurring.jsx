@@ -7,7 +7,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
-import { CATEGORIES, SCREEN } from '../src/constants/theme'
+import { CATEGORIES, INCOME_CATEGORIES, SCREEN } from '../src/constants/theme'
 import { useTheme } from '../src/lib/themeContext'
 import { getCurrencySymbol, loadCurrency, formatAmount, roundMoney } from '../src/lib/currency'
 import { getUser, getCachedUser } from '../src/lib/auth'
@@ -20,18 +20,9 @@ import {
   updateRecurringExpense, updateRecurringIncome,
 } from '../src/services/sqliteService'
 import { loadCache, saveCache } from '../src/lib/cache'
+import { Analytics } from '../src/lib/analytics'
 
 const FREQUENCIES = ['daily', 'weekly', 'monthly']
-
-const INCOME_CATEGORIES = [
-  { label: 'Salary', icon: 'briefcase-outline', color: '#4CAF50' },
-  { label: 'Freelance', icon: 'laptop-outline', color: '#2196F3' },
-  { label: 'Business', icon: 'storefront-outline', color: '#FF9800' },
-  { label: 'Investment', icon: 'trending-up-outline', color: '#9C27B0' },
-  { label: 'Rental', icon: 'home-outline', color: '#00BCD4' },
-  { label: 'Gift', icon: 'gift-outline', color: '#E91E63' },
-  { label: 'Other', icon: 'ellipsis-horizontal-outline', color: '#607D8B' },
-]
 
 function FrequencyBadge({ frequency }) {
   const { COLORS } = useTheme()
@@ -117,6 +108,7 @@ export default function RecurringScreen() {
             await deleteRecurring(item.id)
             setActiveItems(prev => prev.filter(i => i.id !== item.id))
             setInactiveItems(prev => [{ ...item, is_active: 0 }, ...prev])
+            Analytics.deleteRecurringExpense()
             await refreshDashboardCache()
           } catch {}
         }
@@ -134,6 +126,7 @@ export default function RecurringScreen() {
             await deleteRecurringIncome(item.id)
             setActiveIncomeItems(prev => prev.filter(i => i.id !== item.id))
             setInactiveIncomeItems(prev => [{ ...item, is_active: 0 }, ...prev])
+            Analytics.deleteRecurringIncome()
           } catch {}
         }
       }

@@ -54,6 +54,21 @@ export const LIGHT_COLORS = {
 // Backward-compat alias — screens still importing COLORS directly won't break
 export const COLORS = DARK_COLORS
 
+// Decorative per-row icon-badge accents (e.g. settings list rows) that are
+// deliberately outside the 4-color semantic accent set for visual variety.
+// Same values in both themes — these badges aren't meant to shift with
+// light/dark, only the surface behind them does.
+export const BADGE_COLORS = {
+  blue: '#5B9BD5',
+  purple: '#9C27B0',
+  mutedGray: '#888888',
+  green: '#30D158',
+  gold: '#FFD700',
+  cyan: '#00BCD4',
+  emerald: '#4CAF50',
+  streakOrange: '#FF8C42',
+}
+
 export const CATEGORIES = [
   { label: 'Food',          icon: 'restaurant-outline',   color: '#FF6B6B' },
   { label: 'Transport',     icon: 'car-outline',          color: '#4ECDC4' },
@@ -63,6 +78,16 @@ export const CATEGORIES = [
   { label: 'Entertainment', icon: 'film-outline',         color: '#FF8C42' },
   { label: 'Education',     icon: 'book-outline',         color: '#5B9BD5' },
   { label: 'Other',         icon: 'grid-outline',         color: '#888888' },
+]
+
+export const INCOME_CATEGORIES = [
+  { label: 'Salary', icon: 'briefcase-outline', color: '#4CAF50' },
+  { label: 'Freelance', icon: 'laptop-outline', color: '#2196F3' },
+  { label: 'Business', icon: 'storefront-outline', color: '#FF9800' },
+  { label: 'Investment', icon: 'trending-up-outline', color: '#9C27B0' },
+  { label: 'Rental', icon: 'home-outline', color: '#00BCD4' },
+  { label: 'Gift', icon: 'gift-outline', color: '#E91E63' },
+  { label: 'Other', icon: 'ellipsis-horizontal-outline', color: '#607D8B' },
 ]
 
 export const CURRENCIES = [

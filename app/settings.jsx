@@ -11,7 +11,7 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { GoogleSignin } from '@react-native-google-signin/google-signin'
 import { supabase } from '../src/lib/supabase'
-import { CURRENCIES, SCREEN } from '../src/constants/theme'
+import { CURRENCIES, SCREEN, BADGE_COLORS } from '../src/constants/theme'
 import { useTheme } from '../src/lib/themeContext'
 import { requestNotificationPermission, isNotificationGranted, BUDGET_ALERTS_KEY, FORECAST_NUDGE_KEY } from '../src/lib/notifications'
 import { saveCurrency, loadCurrency } from '../src/lib/currency'
@@ -355,7 +355,7 @@ if (avatar) {
       <View style={styles.card}>
         <View style={styles.row}>
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#6C63FF22' }]}>
+            <View style={[styles.rowIcon, { backgroundColor: COLORS.accent + '22' }]}>
               <Ionicons name="notifications-outline" size={18} color={COLORS.accent} />
             </View>
             <View style={styles.rowText}>
@@ -375,7 +375,7 @@ if (avatar) {
 
         <View style={styles.row}>
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#FFB80022' }]}>
+            <View style={[styles.rowIcon, { backgroundColor: COLORS.accentYellow + '22' }]}>
               <Ionicons name="wallet-outline" size={18} color={COLORS.accentYellow} />
             </View>
             <View style={styles.rowText}>
@@ -417,7 +417,7 @@ if (avatar) {
 
         <TouchableOpacity style={styles.row} onPress={() => setShowCurrencyModal(true)}>
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#00D9A522' }]}>
+            <View style={[styles.rowIcon, { backgroundColor: COLORS.accentGreen + '22' }]}>
               <Ionicons name="cash-outline" size={18} color={COLORS.accentGreen} />
             </View>
             <View style={styles.rowText}>
@@ -433,8 +433,8 @@ if (avatar) {
 
         <TouchableOpacity style={styles.row} onPress={() => router.push('/manage-data')}>
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#5B9BD522' }]}>
-              <Ionicons name="server-outline" size={18} color="#5B9BD5" />
+            <View style={[styles.rowIcon, { backgroundColor: BADGE_COLORS.blue + '22' }]}>
+              <Ionicons name="server-outline" size={18} color={BADGE_COLORS.blue} />
             </View>
             <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Manage Data</Text>
@@ -450,8 +450,8 @@ if (avatar) {
 
         <View style={styles.row}>
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#9C27B022' }]}>
-              <Ionicons name="contrast-outline" size={18} color="#9C27B0" />
+            <View style={[styles.rowIcon, { backgroundColor: BADGE_COLORS.purple + '22' }]}>
+              <Ionicons name="contrast-outline" size={18} color={BADGE_COLORS.purple} />
             </View>
             <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Appearance</Text>
@@ -502,7 +502,7 @@ if (avatar) {
       <View style={styles.card}>
         <View style={[styles.row, { paddingVertical: 10 }]}>
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#6C63FF22' }]}>
+            <View style={[styles.rowIcon, { backgroundColor: COLORS.accent + '22' }]}>
               <Ionicons name="information-circle-outline" size={18} color={COLORS.accent} />
             </View>
             <View style={styles.rowText}>
@@ -522,8 +522,8 @@ if (avatar) {
           onPress={() => openLegalDoc('privacy').catch(() => {})}
         >
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#5B9BD522' }]}>
-              <Ionicons name="shield-checkmark-outline" size={18} color='#5B9BD5' />
+            <View style={[styles.rowIcon, { backgroundColor: BADGE_COLORS.blue + '22' }]}>
+              <Ionicons name="shield-checkmark-outline" size={18} color={BADGE_COLORS.blue} />
             </View>
             <Text style={styles.rowTitle}>Privacy Policy</Text>
           </View>
@@ -537,7 +537,7 @@ if (avatar) {
           onPress={() => openLegalDoc('terms').catch(() => {})}
         >
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#88888822' }]}>
+            <View style={[styles.rowIcon, { backgroundColor: COLORS.textMuted + '22' }]}>
               <Ionicons name="document-text-outline" size={18} color={COLORS.textMuted} />
             </View>
             <Text style={styles.rowTitle}>Terms of Service</Text>
@@ -549,8 +549,8 @@ if (avatar) {
 
         <TouchableOpacity style={styles.row} onPress={handleShareApp}>
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#30D15822' }]}>
-              <Ionicons name="share-social-outline" size={18} color='#30D158' />
+            <View style={[styles.rowIcon, { backgroundColor: BADGE_COLORS.green + '22' }]}>
+              <Ionicons name="share-social-outline" size={18} color={BADGE_COLORS.green} />
             </View>
             <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Share Savr</Text>
@@ -567,8 +567,8 @@ if (avatar) {
           onPress={() => Linking.openURL('https://play.google.com/store/apps/details?id=com.saver.savr')}
         >
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#FFD70022' }]}>
-              <Ionicons name="star-outline" size={18} color='#FFD700' />
+            <View style={[styles.rowIcon, { backgroundColor: BADGE_COLORS.gold + '22' }]}>
+              <Ionicons name="star-outline" size={18} color={BADGE_COLORS.gold} />
             </View>
             <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Rate Savr</Text>
@@ -585,8 +585,8 @@ if (avatar) {
           onPress={() => Linking.openURL('https://savrappindia.vercel.app')}
         >
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#00BCD422' }]}>
-              <Ionicons name="help-circle-outline" size={18} color='#00BCD4' />
+            <View style={[styles.rowIcon, { backgroundColor: BADGE_COLORS.cyan + '22' }]}>
+              <Ionicons name="help-circle-outline" size={18} color={BADGE_COLORS.cyan} />
             </View>
             <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Help & Support</Text>
@@ -603,8 +603,8 @@ if (avatar) {
           onPress={() => Linking.openURL('mailto:007mwnswrangwary@gmail.com?subject=Savr%20App%20Feedback')}
         >
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#4CAF5022' }]}>
-              <Ionicons name="mail-outline" size={18} color='#4CAF50' />
+            <View style={[styles.rowIcon, { backgroundColor: BADGE_COLORS.emerald + '22' }]}>
+              <Ionicons name="mail-outline" size={18} color={BADGE_COLORS.emerald} />
             </View>
             <View style={styles.rowText}>
               <Text style={styles.rowTitle}>Send Feedback</Text>
@@ -619,7 +619,7 @@ if (avatar) {
       <View style={styles.card}>
         <TouchableOpacity style={styles.row} onPress={handleSignOut}>
           <View style={styles.rowLeft}>
-            <View style={[styles.rowIcon, { backgroundColor: '#FF5C5C22' }]}>
+            <View style={[styles.rowIcon, { backgroundColor: COLORS.accentRed + '22' }]}>
               <Ionicons name="log-out-outline" size={18} color={COLORS.accentRed} />
             </View>
             <Text style={[styles.rowTitle, { color: COLORS.accentRed }]}>Sign Out</Text>

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getCachedUser } from '../lib/auth'
 import { hasDataChanged, backupToDrive } from './driveBackupService'
+import { Analytics } from '../lib/analytics'
 
 const DEBOUNCE_MS = 30 * 1000
 // A steady stream of triggers under 30s apart (e.g. someone editing several
@@ -24,6 +25,13 @@ let maxWaitTimer = null
 // own, leaving two duplicate backup files with no cleanup.
 let backupChain = Promise.resolve()
 
+// NO_DATA means there was nothing to back up, not that the backup attempt
+// failed — excluded so it doesn't skew the backup_failed signal.
+function trackBackupResult(result) {
+  if (result.success) return Analytics.backupSuccess()
+  if (result.error !== 'NO_DATA') Analytics.backupFailed()
+}
+
 async function notifyIfRepeatedlyFailing() {
   try {
     const raw = await AsyncStorage.getItem(FAILURE_COUNT_KEY)
@@ -44,7 +52,9 @@ async function runBackup() {
     if (!user) return
     const changed = await hasDataChanged(user.id)
     if (!changed) return
+    Analytics.backupStarted()
     const result = await backupToDrive()
+    trackBackupResult(result)
     const nextCount = result.success ? 0 : (parseInt((await AsyncStorage.getItem(FAILURE_COUNT_KEY)) || '0', 10) + 1)
     await AsyncStorage.setItem(FAILURE_COUNT_KEY, String(nextCount))
     if (!result.success) await notifyIfRepeatedlyFailing()
@@ -89,7 +99,9 @@ export function backupNow() {
   }
   clearMaxWaitTimer()
   backupChain = backupChain.then(async () => {
+    Analytics.backupStarted()
     const result = await backupToDrive()
+    trackBackupResult(result)
     await AsyncStorage.setItem(FAILURE_COUNT_KEY, result.success ? '0' : String((parseInt((await AsyncStorage.getItem(FAILURE_COUNT_KEY)) || '0', 10) + 1)))
     return result
   })
