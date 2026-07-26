@@ -31,7 +31,13 @@ try {
     scopes: ['https://www.googleapis.com/auth/drive.file'],
   })
 } catch (err) {
+  // Module-eval time, before the ErrorBoundary/React tree exists — a failure
+  // here previously vanished into console.error only, so a misconfigured
+  // client ID or native-module issue was invisible in Crashlytics and the
+  // user just saw the same generic "Sign In Failed" as every other failure
+  // mode when they later tapped the button.
   console.error('GoogleSignin.configure failed', err)
+  logError('GoogleSignin.configure', err)
 }
 
 const LAST_RECURRING_CHECK_KEY = 'savr_last_recurring_check'

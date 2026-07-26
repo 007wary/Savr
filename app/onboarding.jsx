@@ -165,33 +165,33 @@ export default function Onboarding() {
     },
     skipText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
     slideScroll: { flex: 1 },
-    slide: { width, paddingHorizontal: 28, paddingTop: 90, paddingBottom: 32, alignItems: 'center' },
+    slide: { width, paddingHorizontal: 28, paddingTop: 64, paddingBottom: 16, alignItems: 'center' },
     iconCircle: {
-      width: 140, height: 140, borderRadius: 70,
+      width: 92, height: 92, borderRadius: 46,
       justifyContent: 'center', alignItems: 'center',
-      marginBottom: 28, shadowColor: '#000',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.2, shadowRadius: 12, elevation: 8,
+      marginBottom: 16, shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.18, shadowRadius: 8, elevation: 6,
     },
     iconInner: {
-      width: 110, height: 110, borderRadius: 55,
+      width: 72, height: 72, borderRadius: 36,
       justifyContent: 'center', alignItems: 'center',
       backgroundColor: 'rgba(255,255,255,0.15)',
     },
-    title: { fontSize: 26, fontWeight: '900', color: COLORS.text, textAlign: 'center', letterSpacing: -0.8, marginBottom: 12 },
-    subtitle: { fontSize: 14, color: COLORS.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: 24, paddingHorizontal: 4 },
-    featureList: { gap: 10, width: '100%' },
-    featureItem: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.card, borderRadius: 14, padding: 14, borderWidth: 1 },
-    featureIconBox: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-    featureText: { fontSize: 14, color: COLORS.text, fontWeight: '500', flex: 1 },
-    notifEnableBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, marginTop: 16 },
-    notifEnableText: { fontSize: 13, fontWeight: '700' },
-    notifEnabledPill: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, marginTop: 16 },
-    notifEnabledText: { fontSize: 13, fontWeight: '700' },
-    currencyConfirmRow: { width: '100%', alignItems: 'center', marginTop: 16, gap: 8 },
-    currencyConfirmBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16 },
-    currencyConfirmFlag: { fontSize: 16 },
-    currencyConfirmText: { fontSize: 13, fontWeight: '700' },
+    title: { fontSize: 22, fontWeight: '900', color: COLORS.text, textAlign: 'center', letterSpacing: -0.6, marginBottom: 8 },
+    subtitle: { fontSize: 13, color: COLORS.textMuted, textAlign: 'center', lineHeight: 19, marginBottom: 16, paddingHorizontal: 4 },
+    featureList: { gap: 8, width: '100%' },
+    featureItem: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.card, borderRadius: 12, padding: 11, borderWidth: 1 },
+    featureIconBox: { width: 30, height: 30, borderRadius: 9, justifyContent: 'center', alignItems: 'center' },
+    featureText: { fontSize: 13, color: COLORS.text, fontWeight: '500', flex: 1 },
+    notifEnableBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, marginTop: 12 },
+    notifEnableText: { fontSize: 12, fontWeight: '700' },
+    notifEnabledPill: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, marginTop: 12 },
+    notifEnabledText: { fontSize: 12, fontWeight: '700' },
+    currencyConfirmRow: { width: '100%', alignItems: 'center', marginTop: 12, gap: 6 },
+    currencyConfirmBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14 },
+    currencyConfirmFlag: { fontSize: 15 },
+    currencyConfirmText: { fontSize: 12, fontWeight: '700' },
     currencyChangeLink: { fontSize: 12, fontWeight: '600', textDecorationLine: 'underline' },
     sheetTitle: { fontSize: 18, fontWeight: '800', color: COLORS.text, marginBottom: 16 },
     currencySearchBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.cardAlt, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 12, borderWidth: 1, borderColor: COLORS.border },
@@ -201,11 +201,11 @@ export default function Onboarding() {
     currencyName: { fontSize: 14, color: COLORS.text, fontWeight: '600' },
     currencyCodeText: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
     currencySymbolText: { fontSize: 15, color: COLORS.textMuted, fontWeight: '600' },
-    bottom: { paddingHorizontal: 24, paddingBottom: 44, paddingTop: 16, alignItems: 'center', gap: 14 },
+    bottom: { paddingHorizontal: 24, paddingBottom: 32, paddingTop: 12, alignItems: 'center', gap: 10 },
     dots: { flexDirection: 'row', gap: 8, alignItems: 'center' },
     dot: { height: 8, borderRadius: 4 },
     nextBtnGradient: { width: '100%', borderRadius: 16, shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
-    nextBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16 },
+    nextBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 14 },
     nextText: { fontSize: 17, fontWeight: '800', color: '#fff' },
     pageCounter: { fontSize: 12, color: COLORS.textMuted },
   }), [COLORS])
@@ -248,7 +248,7 @@ export default function Onboarding() {
               style={styles.iconCircle}
             >
               <View style={styles.iconInner}>
-                <Ionicons name={s.icon} size={64} color="#fff" />
+                <Ionicons name={s.icon} size={42} color="#fff" />
               </View>
             </LinearGradient>
 
@@ -259,7 +259,7 @@ export default function Onboarding() {
               {s.features.map((feature, i) => (
                 <View key={i} style={[styles.featureItem, { borderColor: s.color + '33' }]}>
                   <View style={[styles.featureIconBox, { backgroundColor: feature.color + '22' }]}>
-  <Ionicons name={feature.icon} size={18} color={feature.color} />
+  <Ionicons name={feature.icon} size={15} color={feature.color} />
 </View>
                   <Text style={styles.featureText}>{feature.text}</Text>
                 </View>
