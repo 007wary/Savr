@@ -695,7 +695,7 @@ if (avatar) {
       </BottomSheet>
 
       <BottomSheet visible={profileModalVisible} onClose={() => setProfileModalVisible(false)} maxHeight="92%">
-      <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100} style={{ flex: 1 }}>
+      <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={20} style={{ flex: 1 }}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Edit Profile</Text>
               <TouchableOpacity onPress={() => setProfileModalVisible(false)}>

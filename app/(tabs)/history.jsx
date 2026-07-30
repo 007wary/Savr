@@ -703,7 +703,7 @@ export default function History() {
             <Ionicons name="close" size={22} color={COLORS.textMuted} />
           </TouchableOpacity>
         </View>
-        <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100} style={{ flex: 1 }}>
+        <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={20} style={{ flex: 1 }}>
           <Text style={styles.filterLabel}>Amount ({currencySymbol})</Text>
           <TextInput
             style={styles.input}

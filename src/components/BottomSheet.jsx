@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Modal, View, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Animated, Dimensions } from 'react-native'
+import { Modal, View, TouchableOpacity, StyleSheet, Animated, Dimensions } from 'react-native'
 import { useTheme } from '../lib/themeContext'
 
 const SCREEN_HEIGHT = Dimensions.get('window').height
@@ -73,26 +73,21 @@ export default function BottomSheet({ visible, onClose, children, maxHeight = '8
       statusBarTranslucent
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
-          <TouchableOpacity
-            style={StyleSheet.absoluteFill}
-            activeOpacity={1}
-            onPress={onClose}
-          />
-          <Animated.View
-            style={[styles.sheet, { height: maxHeight, transform: [{ translateY: sheetTranslateY }] }]}
-          >
-            <View style={styles.handle} />
-            <View style={styles.body}>
-              {children}
-            </View>
-          </Animated.View>
+      <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <Animated.View
+          style={[styles.sheet, { height: maxHeight, transform: [{ translateY: sheetTranslateY }] }]}
+        >
+          <View style={styles.handle} />
+          <View style={styles.body}>
+            {children}
+          </View>
         </Animated.View>
-      </KeyboardAvoidingView>
+      </Animated.View>
     </Modal>
   )
 }

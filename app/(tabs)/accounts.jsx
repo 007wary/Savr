@@ -265,7 +265,7 @@ export default function Accounts() {
       )}
 
       <BottomSheet visible={showSheet} onClose={() => setShowSheet(false)} maxHeight="90%">
-        <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100} style={{ flex: 1 }}>
+        <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={20} style={{ flex: 1 }}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>{editingAccount ? 'Edit Account' : 'Add Account'}</Text>
             <TouchableOpacity onPress={() => setShowSheet(false)}>
