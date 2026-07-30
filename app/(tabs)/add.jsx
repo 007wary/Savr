@@ -143,7 +143,15 @@ export default function AddExpense() {
         setAccounts(accs)
       } catch {}
     }
+    async function refreshCurrency() {
+      const symbol = await getCurrencySymbol()
+      const code = await loadCurrency()
+      setCurrencySymbol(symbol)
+      setCurrencyCode(code)
+      setQuickAmounts(getQuickAmounts(code))
+    }
     refreshAccounts()
+    refreshCurrency()
   }, []))
 
   function handleTabSwitch(tab) {

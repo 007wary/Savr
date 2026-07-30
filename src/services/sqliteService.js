@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite'
 import 'react-native-get-random-values'
 import { v4 as uuidv4 } from 'uuid'
+import { logError } from '../lib/errorLog'
 
 let db = null
 let opening = null
@@ -63,12 +64,20 @@ const runInit = async () => {
   // is correct for any rule that hasn't drifted yet.
   try {
     await database.execAsync(`ALTER TABLE recurring_expenses ADD COLUMN anchor_day INTEGER`)
-    await database.execAsync(`UPDATE recurring_expenses SET anchor_day = CAST(strftime('%d', next_due) AS INTEGER) WHERE anchor_day IS NULL AND next_due IS NOT NULL`)
   } catch {}
   try {
+    await database.execAsync(`UPDATE recurring_expenses SET anchor_day = CAST(strftime('%d', next_due) AS INTEGER) WHERE anchor_day IS NULL AND next_due IS NOT NULL`)
+  } catch (e) {
+    logError('runInit:anchorDayBackfill:recurring_expenses', e)
+  }
+  try {
     await database.execAsync(`ALTER TABLE recurring_income ADD COLUMN anchor_day INTEGER`)
-    await database.execAsync(`UPDATE recurring_income SET anchor_day = CAST(strftime('%d', next_due) AS INTEGER) WHERE anchor_day IS NULL AND next_due IS NOT NULL`)
   } catch {}
+  try {
+    await database.execAsync(`UPDATE recurring_income SET anchor_day = CAST(strftime('%d', next_due) AS INTEGER) WHERE anchor_day IS NULL AND next_due IS NOT NULL`)
+  } catch (e) {
+    logError('runInit:anchorDayBackfill:recurring_income', e)
+  }
 
   await database.execAsync(`
     PRAGMA journal_mode = WAL;

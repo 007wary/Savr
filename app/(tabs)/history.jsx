@@ -37,6 +37,8 @@ export default function History() {
   const [editCategory, setEditCategory] = useState('')
   const [editNote, setEditNote] = useState('')
   const [editDate, setEditDate] = useState('')
+  const [editAccountId, setEditAccountId] = useState(null)
+  const [accounts, setAccounts] = useState([])
   const [showEditDatePicker, setShowEditDatePicker] = useState(false)
   const [saving, setSaving] = useState(false)
   const [currencySymbol, setCurrencySymbol] = useState('$')
@@ -63,6 +65,7 @@ export default function History() {
       ])
       const accountMap = {}
       accountData.forEach(a => { accountMap[a.id] = a.name })
+      setAccounts(accountData)
       const merged = [
         ...expenseData.map(e => ({ ...e, type: 'expense' })),
         ...incomeData.map(i => ({ ...i, type: 'income' })),
@@ -267,6 +270,7 @@ export default function History() {
     setEditCategory(expense.category)
     setEditNote(expense.note || '')
     setEditDate(expense.date)
+    setEditAccountId(expense.account_id || null)
     setShowEditDatePicker(false)
   }
 
@@ -282,6 +286,7 @@ export default function History() {
       category: editCategory,
       note: editNote.trim(),
       date: editDate,
+      account_id: editAccountId,
     }
     // Snapshot the pre-edit list so we can roll cache + state back if the DB write fails.
     const previous = expenses || []
@@ -302,6 +307,7 @@ export default function History() {
         category: editCategory,
         note: editNote.trim(),
         date: editDate,
+        account_id: editAccountId,
       })
       await AsyncStorage.removeItem('savr_last_backup_count')
       scheduleBackup()
@@ -498,6 +504,9 @@ export default function History() {
   categoryBtn: { width: '22%', alignItems: 'center', paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt, gap: 8 },
   categoryIconBox: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   categoryLabel: { fontSize: 11, color: COLORS.textMuted, fontWeight: '500', textAlign: 'center' },
+  accountPill: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
+  accountPillActive: { backgroundColor: COLORS.accent, borderColor: COLORS.accent },
+  accountPillText: { fontSize: 13, color: COLORS.textMuted, fontWeight: '600' },
   modalBtns: { flexDirection: 'row', gap: 12, marginTop: 8, marginBottom: 60 },
   cancelBtn: { flex: 1, borderRadius: 12, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.cardAlt },
   cancelText: { color: COLORS.textMuted, fontWeight: '600', fontSize: 15 },
@@ -619,6 +628,7 @@ export default function History() {
           renderSectionHeader={renderSectionHeader}
           contentContainerStyle={{ paddingBottom: 40 }}
           stickySectionHeadersEnabled={false}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -637,7 +647,7 @@ export default function History() {
             <Ionicons name="close" size={22} color={COLORS.textMuted} />
           </TouchableOpacity>
         </View>
-        <ScrollView>
+        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
           <Text style={styles.filterLabel}>Category</Text>
           <View style={styles.filterGrid}>
             {['All', ...CATEGORIES.map(c => c.label)].map(cat => {
@@ -693,7 +703,7 @@ export default function History() {
             <Ionicons name="close" size={22} color={COLORS.textMuted} />
           </TouchableOpacity>
         </View>
-        <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100}>
+        <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100} style={{ flex: 1 }}>
           <Text style={styles.filterLabel}>Amount ({currencySymbol})</Text>
           <TextInput
             style={styles.input}
@@ -726,6 +736,32 @@ export default function History() {
               </TouchableOpacity>
             ))}
           </View>
+          {accounts.length > 0 && (
+            <>
+              <Text style={styles.filterLabel}>Account</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', gap: 8, paddingVertical: 4 }}>
+                  <TouchableOpacity
+                    style={[styles.accountPill, editAccountId === null && styles.accountPillActive]}
+                    onPress={() => setEditAccountId(null)}
+                  >
+                    <Ionicons name="close-circle-outline" size={14} color={editAccountId === null ? '#fff' : COLORS.textMuted} style={{ marginRight: 4 }} />
+                    <Text style={[styles.accountPillText, editAccountId === null && { color: '#fff' }]}>None</Text>
+                  </TouchableOpacity>
+                  {accounts.map(acc => (
+                    <TouchableOpacity
+                      key={acc.id}
+                      style={[styles.accountPill, editAccountId === acc.id && styles.accountPillActive]}
+                      onPress={() => setEditAccountId(acc.id)}
+                    >
+                      <Ionicons name="card-outline" size={14} color={editAccountId === acc.id ? '#fff' : COLORS.textMuted} style={{ marginRight: 4 }} />
+                      <Text style={[styles.accountPillText, editAccountId === acc.id && { color: '#fff' }]}>{acc.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </>
+          )}
           <Text style={styles.filterLabel}>Date</Text>
           <TouchableOpacity style={styles.datePicker} onPress={() => setShowEditDatePicker(true)}>
             <Ionicons name="calendar-outline" size={18} color={COLORS.textMuted} style={{ marginRight: 10 }} />

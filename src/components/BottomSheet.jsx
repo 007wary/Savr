@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Modal, View, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native'
+import { Modal, View, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native'
 import { useTheme } from '../lib/themeContext'
 
 export default function BottomSheet({ visible, onClose, children, maxHeight = '85%' }) {
@@ -17,6 +17,12 @@ export default function BottomSheet({ visible, onClose, children, maxHeight = '8
       borderTopRightRadius: 24,
       padding: 24,
       paddingBottom: 40,
+      flexShrink: 1,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+      elevation: 12,
     },
     handle: {
       width: 40, height: 4,
@@ -49,14 +55,7 @@ export default function BottomSheet({ visible, onClose, children, maxHeight = '8
             style={[styles.sheet, { maxHeight }]}
           >
             <View style={styles.handle} />
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-              bounces={false}
-              overScrollMode="never"
-            >
-              {children}
-            </ScrollView>
+            {children}
           </TouchableOpacity>
         </TouchableOpacity>
       </KeyboardAvoidingView>

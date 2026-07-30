@@ -1,5 +1,6 @@
 import { getRecurring, processRecurringExpenseItemAtomic } from '../services/sqliteService'
 import { localDateKey } from './dateUtils'
+import { logError } from './errorLog'
 
 let isProcessing = false
 let isProcessingIncome = false
@@ -20,7 +21,9 @@ export async function processDueRecurring(userId) {
       if (item.next_due > todayStr) continue
       try {
         logged += await processRecurringExpenseItemAtomic(userId, item, todayStr, calculateNextDue)
-      } catch {}
+      } catch (e) {
+        logError('processDueRecurring:item', e)
+      }
     }
 
     return logged
@@ -73,7 +76,9 @@ export async function processRecurringIncome(userId) {
       if (item.next_due > todayStr) continue
       try {
         logged += await processRecurringIncomeItemAtomic(userId, item, todayStr, calculateNextDue)
-      } catch {}
+      } catch (e) {
+        logError('processRecurringIncome:item', e)
+      }
     }
 
     return logged

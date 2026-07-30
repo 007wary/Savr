@@ -7,6 +7,8 @@ jest.mock('../services/sqliteService', () => ({
   processRecurringIncomeItemAtomic: jest.fn(),
 }))
 
+jest.mock('./errorLog', () => ({ logError: jest.fn() }))
+
 describe('calculateNextDue', () => {
   it('advances daily frequency by 1 day', () => {
     expect(calculateNextDue('2026-07-01', 'daily')).toBe('2026-07-02')
