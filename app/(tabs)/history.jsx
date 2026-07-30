@@ -647,7 +647,7 @@ export default function History() {
             <Ionicons name="close" size={22} color={COLORS.textMuted} />
           </TouchableOpacity>
         </View>
-        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
+        <ScrollView showsVerticalScrollIndicator={false}>
           <Text style={styles.filterLabel}>Category</Text>
           <View style={styles.filterGrid}>
             {['All', ...CATEGORIES.map(c => c.label)].map(cat => {
@@ -703,7 +703,7 @@ export default function History() {
             <Ionicons name="close" size={22} color={COLORS.textMuted} />
           </TouchableOpacity>
         </View>
-        <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100} style={{ flex: 1 }}>
+        <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100}>
           <Text style={styles.filterLabel}>Amount ({currencySymbol})</Text>
           <TextInput
             style={styles.input}

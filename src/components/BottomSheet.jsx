@@ -38,6 +38,7 @@ export default function BottomSheet({ visible, onClose, children, maxHeight = '8
       visible={visible}
       animationType="slide"
       transparent
+      statusBarTranslucent
       onRequestClose={onClose}
     >
       <KeyboardAvoidingView
