@@ -661,7 +661,7 @@ if (avatar) {
             </TouchableOpacity>
           )}
         </View>
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
           {filteredCurrencies.length === 0 ? (
             <View style={{ alignItems: 'center', paddingVertical: 32 }}>
               <Text style={{ color: COLORS.textMuted, fontSize: 14 }}>No results found</Text>
@@ -695,7 +695,7 @@ if (avatar) {
       </BottomSheet>
 
       <BottomSheet visible={profileModalVisible} onClose={() => setProfileModalVisible(false)} maxHeight="92%">
-      <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100}>
+      <KeyboardAwareScrollView keyboardShouldPersistTaps="handled" enableOnAndroid extraScrollHeight={100} style={{ flex: 1 }}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Edit Profile</Text>
               <TouchableOpacity onPress={() => setProfileModalVisible(false)}>
